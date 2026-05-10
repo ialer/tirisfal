@@ -1,0 +1,60 @@
+:root {
+  --bg-accent: #f5f5f5;
+  --panel: #ffffff;
+  --panel-soft: #fafafa;
+  --panel-muted: #f0f0f0;
+  --panel-subtle: #fafafa;
+  --line: rgba(0, 0, 0, 0.12);
+  --line-soft: rgba(0, 0, 0, 0.06);
+  --text: #1a1a2e;
+  --muted: #6b7280;
+  --muted-strong: #374151;
+  --primary: #005288;
+  --primary-hover: #003d66;
+  --primary-strong: #002640;
+  --danger: #dc2626;
+  --success: #059669;
+  --warning: #d97706;
+  --overlay-strong: rgba(0, 0, 0, 0.60);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.14);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --ease-out-strong: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-soft: cubic-bezier(0.24, 0.8, 0.32, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-instant: 80ms;
+  --dur-quick: 120ms;
+  --dur-fast: 180ms;
+  --dur-medium: 240ms;
+  --dur-panel: 280ms;
+  --actions-gap: clamp(5px, calc((100vw - 520px) * 1), 10px);
+}
+
+:root[data-theme='dark'] {
+  --bg-accent: #0a0a0a;
+  --panel: #141414;
+  --panel-soft: #1a1a1a;
+  --panel-muted: #111111;
+  --panel-subtle: #1c1c1c;
+  --line: rgba(255, 255, 255, 0.10);
+  --line-soft: rgba(255, 255, 255, 0.05);
+  --text: #f0f0f0;
+  --muted: #888888;
+  --muted-strong: #cccccc;
+  --primary: #4da6ff;
+  --primary-hover: #6db8ff;
+  --primary-strong: #99ccff;
+  --danger: #ff5252;
+  --success: #4caf50;
+  --warning: #ffb74d;
+  --overlay-strong: rgba(0, 0, 0, 0.80);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.50);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.60);
+}
