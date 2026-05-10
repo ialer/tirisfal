@@ -394,6 +394,11 @@ export default function SettingsPage(props: SettingsPageProps) {
           </div>
         </div>
       </section>
+      <section className="card settings-module" style={{ textAlign: 'center', padding: '16px', opacity: 0.7, fontSize: '12px' }}>
+        <a href="https://github.com/ialer/tirisfal" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+          Tirisfal · GitHub
+        </a>
+      </section>
       <ConfirmDialog
         open={masterPasswordPrompt !== null}
         title={masterPasswordPromptTitle}
