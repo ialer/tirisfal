@@ -1,3 +1,7 @@
+/**
+ * Tirisfal — 自托管密码管理器
+ * https://github.com/ialer/tirisfal
+ */
 import { Env } from './types';
 import { NotificationsHub } from './durable/notifications-hub';
 import { handleRequest } from './router';
