@@ -15,7 +15,7 @@ const DEFAULT_CORS_HEADERS = [
   'X-Request-Email',
   'X-Device-Identifier',
   'X-Device-Name',
-  'X-NodeWarden-Web-Session',
+  'X-Tirisfal-Web-Session',
 ];
 
 function isExtensionOrigin(origin: string): boolean {

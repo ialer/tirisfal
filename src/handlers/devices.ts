@@ -465,7 +465,7 @@ export async function handleDeactivateDevice(
 
 // PUT /api/devices/identifier/{deviceIdentifier}/token
 // Bitwarden mobile reports push token updates to this endpoint.
-// NodeWarden does not implement push notifications, so accept and no-op.
+// Tirisfal does not implement push notifications, so accept and no-op.
 export async function handleUpdateDeviceToken(
   request: Request,
   env: Env,

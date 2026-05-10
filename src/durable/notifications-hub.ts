@@ -199,7 +199,7 @@ export class NotificationsHub extends DurableObject<Env> {
         payload?: Record<string, unknown> | null;
       } | null;
       const revisionDate = String(body?.revisionDate || '').trim() || new Date().toISOString();
-      const userId = String(request.headers.get('X-NodeWarden-UserId') || body?.userId || '').trim();
+      const userId = String(request.headers.get('X-Tirisfal-UserId') || body?.userId || '').trim();
       const contextId = String(body?.contextId || '').trim() || null;
       const updateType = Number(body?.updateType || SIGNALR_UPDATE_TYPE_SYNC_VAULT) || SIGNALR_UPDATE_TYPE_SYNC_VAULT;
       const targetDeviceIdentifier = String(body?.targetDeviceIdentifier || '').trim() || null;
@@ -407,7 +407,7 @@ async function notifyUserUpdate(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-NodeWarden-UserId': userId,
+        'X-Tirisfal-UserId': userId,
       },
       body: JSON.stringify({
         revisionDate,
@@ -451,7 +451,7 @@ export async function notifyUserBackupProgress(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-NodeWarden-UserId': userId,
+        'X-Tirisfal-UserId': userId,
       },
       body: JSON.stringify({
         revisionDate,

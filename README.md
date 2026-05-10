@@ -35,7 +35,7 @@
 
 - **💰 零成本运行** — Cloudflare Workers 免费额度：10万次请求/天，10GB 存储，完全够个人/小团队使用
 - **🌍 全球极速** — 代码部署在 Cloudflare 全球 300+ 边缘节点，任何地方访问都是毫秒级响应
-- **🔐 端到端加密** — 和 Bitwarden 一样的加密方案 (AES-256-CBC + RSA-2048)，密钥从不离开客户端
+- **🔐 端到端加密** — AES-256-CBC + RSA-2048 + PBKDF2，密钥从不离开客户端
 - **⚡ 零运维** — 不需要服务器、不需要 Docker、不需要 SSL 证书、不需要监控，部署后完全托管
 - **🛡️ 内置安全** — Cloudflare 全球 DDoS 防护 + WAF + Rate Limiting，开箱即用
 
@@ -124,7 +124,7 @@ Tirisfal 完全兼容 Bitwarden API 协议，可以直接使用 Bitwarden 官方
 | **Linux** | Bitwarden Desktop | ✅ 完全兼容 |
 | **CLI** | Bitwarden CLI | ✅ 完全兼容 |
 
-> 💡 **推荐**: 安装浏览器扩展后，自动填充、密码生成、TOTP 验证码等功能都可以直接使用，无需等待 Tirisfal 官方客户端。
+> 💡 **推荐**: 安装浏览器扩展后，自动填充、密码生成、TOTP 验证码等功能都可以直接使用。
 
 ---
 
@@ -260,12 +260,6 @@ npm run deploy
 # 数据库迁移
 npx wrangler d1 execute tirisfal-db --file=./migrations/xxx.sql
 ```
-
----
-
-## 🤝 致谢
-
-Tirisfal 基于 [NodeWarden](https://github.com/shuaiplus/nodewarden) 项目开发，感谢原作者的出色工作。
 
 ---
 

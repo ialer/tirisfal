@@ -90,7 +90,7 @@ function buildIconServiceCsp(origin: string): string {
 function buildConfigResponse(origin: string) {
   return {
     version: LIMITS.compatibility.bitwardenServerVersion,
-    gitHash: 'nodewarden',
+    gitHash: 'tirisfal',
     server: null,
     environment: {
       cloudRegion: 'self-hosted',
@@ -192,7 +192,7 @@ async function handleWebsiteIcon(host: string, fallbackMode: 'default' | 'not-fo
   if (!normalizedHost) return fallbackMode === 'not-found' ? handleMissingWebsiteIcon() : handleNwFavicon();
 
   const encodedHost = encodeURIComponent(normalizedHost);
-  const requestHeaders = { 'User-Agent': 'NodeWarden/1.0' };
+  const requestHeaders = { 'User-Agent': 'Tirisfal/1.0' };
   const upstreamSources: IconSource[] = [
     {
       url: `https://favicon.im/zh/${encodedHost}?larger=true&throw-error-on-404=true`,

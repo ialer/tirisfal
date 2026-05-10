@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./NodeWarden.svg" alt="NodeWarden Logo" />
+  <img src="./Tirisfal.svg" alt="Tirisfal Logo" />
 </p>
 
 <p align="center">
@@ -10,13 +10,13 @@
 <p align="center">
   <a href="https://workers.cloudflare.com/"><img src="https://img.shields.io/badge/Powered%20by-Cloudflare-F38020?logo=cloudflare&logoColor=white" alt="Powered by Cloudflare" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-LGPL--3.0-2ea44f" alt="License: LGPL-3.0" /></a>
-  <a href="https://github.com/shuaiplus/NodeWarden/releases/latest"><img src="https://img.shields.io/github/v/release/shuaiplus/NodeWarden?display_name=tag" alt="Latest Release" /></a>
-  <a href="https://github.com/shuaiplus/NodeWarden/actions/workflows/sync-upstream.yml"><img src="https://github.com/shuaiplus/NodeWarden/actions/workflows/sync-upstream.yml/badge.svg" alt="Sync Upstream" /></a>
+  <a href="https://github.com/shuaiplus/Tirisfal/releases/latest"><img src="https://img.shields.io/github/v/release/shuaiplus/Tirisfal?display_name=tag" alt="Latest Release" /></a>
+  <a href="https://github.com/shuaiplus/Tirisfal/actions/workflows/sync-upstream.yml"><img src="https://github.com/shuaiplus/Tirisfal/actions/workflows/sync-upstream.yml/badge.svg" alt="Sync Upstream" /></a>
 </p>
 
 <p align="center">
-  <a href="https://t.me/NodeWarden_News">Telegram Channel</a> |
-  <a href="https://t.me/NodeWarden_Official">Telegram Group</a>
+  <a href="https://t.me/Tirisfal_News">Telegram Channel</a> |
+  <a href="https://t.me/Tirisfal_Official">Telegram Group</a>
 </p>
 
 <p align="center">
@@ -28,13 +28,13 @@
 >
 > This project is for learning and discussion purposes only. Please back up your vault regularly.
 >
-> This project is not affiliated with Bitwarden. Please do not report NodeWarden issues to the official Bitwarden team.
+> This project is not affiliated with Bitwarden. Please do not report Tirisfal issues to the official Bitwarden team.
 
 ---
 
 ## Feature Comparison with the Official Bitwarden Server
 
-| Capability | Bitwarden | NodeWarden | Notes |
+| Capability | Bitwarden | Tirisfal | Notes |
 |---|---|---|---|
 | Web Vault | ✅ | ✅ | **Original Web Vault interface** |
 | Full sync `/api/sync` | ✅ | ✅ | Compatibility optimized for official clients |
@@ -64,7 +64,7 @@
 ## Web Deploy
 
 1. Fork this repository. If this project helps you, consider giving it a Star.
-2. Open [Workers](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create) -> `Continue with GitHub` -> select your forked repository (`NodeWarden`) -> continue.
+2. Open [Workers](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create) -> `Continue with GitHub` -> select your forked repository (`Tirisfal`) -> continue.
 3. R2 is used by default. If R2 is not enabled on your account, you can use KV instead by changing the **deploy command** to `npm run deploy:kv`.
 4. Deploy and open the generated URL.
 
@@ -81,8 +81,8 @@
 ## CLI Deploy
 
 ```powershell
-git clone https://github.com/shuaiplus/NodeWarden.git
-cd NodeWarden
+git clone https://github.com/shuaiplus/Tirisfal.git
+cd Tirisfal
 npm install
 npx wrangler login
 
@@ -120,7 +120,7 @@ Current supported import sources include:
 - Bitwarden JSON
 - Bitwarden CSV
 - Bitwarden vault + attachments ZIP
-- NodeWarden JSON
+- Tirisfal JSON
 - Multiple browser / password-manager formats available in the web import selector
 
 Current supported export formats include:
@@ -128,7 +128,7 @@ Current supported export formats include:
 - Bitwarden JSON
 - Bitwarden encrypted JSON
 - ZIP export with attachments
-- NodeWarden JSON variants
+- Tirisfal JSON variants
 - Full manual instance export from the backup center
 
 ---
@@ -149,4 +149,4 @@ LGPL-3.0 License
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=shuaiplus/NodeWarden&type=timeline&legend=top-left)](https://www.star-history.com/#shuaiplus/NodeWarden&type=timeline&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=shuaiplus/Tirisfal&type=timeline&legend=top-left)](https://www.star-history.com/#shuaiplus/Tirisfal&type=timeline&legend=top-left)

@@ -189,7 +189,7 @@ function ensureBackupBlobName(value: string): string {
   return parts.join('/');
 }
 
-const REMOTE_ATTACHMENT_INDEX_PATH = 'attachments/.nodewarden-attachment-index.v1.json';
+const REMOTE_ATTACHMENT_INDEX_PATH = 'attachments/.tirisfal-attachment-index.v1.json';
 
 interface RemoteAttachmentIndexPayload {
   version: 1;
@@ -484,7 +484,7 @@ async function runImportAndAudit(
   metadata: Record<string, unknown>
 ): Promise<BackupImportExecutionResult> {
   const storage = new StorageService(env.DB);
-  const targetDeviceIdentifier = String(request.headers.get('X-NodeWarden-Acting-Device-Id') || '').trim() || null;
+  const targetDeviceIdentifier = String(request.headers.get('X-Tirisfal-Acting-Device-Id') || '').trim() || null;
   const progress: BackupRestoreProgressReporter = async (event) => {
     await notifyUserBackupRestoreProgress(
       env,
@@ -653,7 +653,7 @@ export async function handleRunAdminConfiguredBackup(request: Request, env: Env,
       return errorResponse('Backup run payload is invalid', 400);
     }
 
-    const targetDeviceIdentifier = String(request.headers.get('X-NodeWarden-Acting-Device-Id') || '').trim() || null;
+    const targetDeviceIdentifier = String(request.headers.get('X-Tirisfal-Acting-Device-Id') || '').trim() || null;
     const progress = async (event: {
       operation: 'backup-remote-run';
       step: string;
@@ -799,7 +799,7 @@ export async function handleRestoreAdminRemoteBackup(request: Request, env: Env,
     const settings = await loadBackupSettings(storage, env, 'UTC');
     const destination = requireBackupDestination(settings, body.destinationId || null);
     const path = ensureRemoteRestoreCandidate(String(body.path || ''));
-    const targetDeviceIdentifier = String(request.headers.get('X-NodeWarden-Acting-Device-Id') || '').trim() || null;
+    const targetDeviceIdentifier = String(request.headers.get('X-Tirisfal-Acting-Device-Id') || '').trim() || null;
     const restoreFileNameFromPath = path.split('/').pop() || path;
     await notifyUserBackupRestoreProgress(
       env,
@@ -874,7 +874,7 @@ export async function handleAdminExportBackup(request: Request, env: Env, actorU
   if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
 
   const storage = new StorageService(env.DB);
-  const targetDeviceIdentifier = String(request.headers.get('X-NodeWarden-Acting-Device-Id') || '').trim() || null;
+  const targetDeviceIdentifier = String(request.headers.get('X-Tirisfal-Acting-Device-Id') || '').trim() || null;
   let body: { includeAttachments?: boolean } | null = null;
   try {
     if ((request.headers.get('Content-Type') || '').includes('application/json')) {
@@ -1002,7 +1002,7 @@ export async function handleAdminImportBackup(request: Request, env: Env, actorU
     if (!checksumOk && !allowChecksumMismatch) {
       return errorResponse('Backup file checksum does not match its filename', 400);
     }
-    const imported = await runImportAndAudit(env, request, actorUser, archiveBytes, fileName || 'nodewarden_backup.zip', replaceExisting, {
+    const imported = await runImportAndAudit(env, request, actorUser, archiveBytes, fileName || 'tirisfal_backup.zip', replaceExisting, {
       trigger: 'local',
       bytes: archiveBytes.byteLength,
       checksumMismatchAccepted: !checksumOk,

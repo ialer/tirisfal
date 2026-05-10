@@ -10,7 +10,7 @@ import type { Env, User } from '../types';
 // New admin-entered provider secrets, such as mail API keys, should use this
 // pattern or a deliberately documented replacement. Do not store provider
 // secrets as plain config JSON.
-const RUNTIME_SALT = 'nodewarden.backup-settings.runtime.v2';
+const RUNTIME_SALT = 'tirisfal.backup-settings.runtime.v2';
 const RUNTIME_INFO = 'runtime';
 const PORTABLE_ALGORITHM = 'RSA-OAEP';
 const PORTABLE_HASH = 'SHA-1';

@@ -18,7 +18,7 @@ import {
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
 const TWO_FACTOR_PROVIDER_REMEMBER = 5;
-const WEB_REFRESH_COOKIE = 'nodewarden_web_refresh';
+const WEB_REFRESH_COOKIE = 'tirisfal_web_refresh';
 // Android client (2026.2.x) deserializes TwoFactorProviders2 keys with -1 for recovery code.
 // Keep request parsing backward-compatible with historical provider values (8 / 100).
 const TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE = '-1';
@@ -33,7 +33,7 @@ function resolveTotpSecret(userSecret: string | null): string | null {
 }
 
 function shouldUseWebSession(request: Request): boolean {
-  return String(request.headers.get('X-NodeWarden-Web-Session') || '').trim() === '1';
+  return String(request.headers.get('X-Tirisfal-Web-Session') || '').trim() === '1';
 }
 
 function parseCookieValue(request: Request, name: string): string | null {
