@@ -2,7 +2,7 @@
   "name": "tirisfal",
   "version": "1.5.1",
   "description": "Minimal Bitwarden-compatible server running on Cloudflare Workers",
-  "author": "shuaiplus",
+  "author": "SN Team",
   "license": "LGPL-3.0",
   "main": "src/index.ts",
   "type": "module",
