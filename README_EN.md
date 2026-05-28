@@ -1,152 +1,202 @@
-<p align="center">
-  <img src="./Tirisfal.svg" alt="Tirisfal Logo" />
-</p>
+# Tirisfal Secrets Manager
 
-<p align="center">
-  Bitwarden-compatible server running on Cloudflare Workers
-
-</p>
-
-<p align="center">
-  <a href="https://workers.cloudflare.com/"><img src="https://img.shields.io/badge/Powered%20by-Cloudflare-F38020?logo=cloudflare&logoColor=white" alt="Powered by Cloudflare" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-LGPL--3.0-2ea44f" alt="License: LGPL-3.0" /></a>
-  <a href="https://github.com/shuaiplus/Tirisfal/releases/latest"><img src="https://img.shields.io/github/v/release/shuaiplus/Tirisfal?display_name=tag" alt="Latest Release" /></a>
-  <a href="https://github.com/shuaiplus/Tirisfal/actions/workflows/sync-upstream.yml"><img src="https://github.com/shuaiplus/Tirisfal/actions/workflows/sync-upstream.yml/badge.svg" alt="Sync Upstream" /></a>
-</p>
-
-<p align="center">
-  <a href="https://t.me/Tirisfal_News">Telegram Channel</a> |
-  <a href="https://t.me/Tirisfal_Official">Telegram Group</a>
-</p>
-
-<p align="center">
-  <a href="./README.md">中文说明</a> |
-  <a href="./CONTRIBUTING.md">Contributing</a>
-</p>
-
-> **Disclaimer**
->
-> This project is for learning and discussion purposes only. Please back up your vault regularly.
->
-> This project is not affiliated with Bitwarden. Please do not report Tirisfal issues to the official Bitwarden team.
+**Credential management service designed for AI Agents, running on Cloudflare Workers.**
 
 ---
 
-## Feature Comparison with the Official Bitwarden Server
+## Core Features
 
-| Capability | Bitwarden | Tirisfal | Notes |
-|---|---|---|---|
-| Web Vault | ✅ | ✅ | **Original Web Vault interface** |
-| Full sync `/api/sync` | ✅ | ✅ | Compatibility optimized for official clients |
-| Attachment upload / download | ✅ | ✅ | Cloudflare R2 or KV |
-| Send | ✅ | ✅ | Supports both text and file Sends |
-| Import / Export | ✅ | ✅ | Supports Bitwarden JSON / CSV / **ZIP import with attachments** |
-| **Cloud Backup Center** | ❌ | ✅ | **Scheduled backup to WebDAV / E3** |
-| Password hint (web) | ⚠️ Limited | ✅ | **No email required** |
-| TOTP / Steam TOTP | ✅ | ✅ | Includes `steam://` support |
-| Multi-user | ✅ | ✅ | Invite-based registration |
-| Organizations / Collections / Member roles | ✅ | ❌ | Not implemented |
-| Login 2FA | ✅ | ⚠️ Partial | Currently only user-level TOTP |
-| SSO / SCIM / Enterprise directory | ✅ | ❌ | Not implemented |
+| Feature | Description |
+|---------|-------------|
+| **Machine Accounts** | Create independent machine accounts for each Agent |
+| **Projects** | Organize credentials by project |
+| **Secrets** | Securely store API Keys, Tokens, passwords |
+| **Access Tokens** | Agents access credentials via tokens |
+| **Audit Logs** | Track all credential access behavior |
 
 ---
 
-## Tested Clients
+## Agent Integration
 
-- ✅ Windows desktop client
-- ✅ Mobile app
-- ✅ Browser extension
-- ✅ Linux desktop client
-- ⚠️ macOS desktop client has not been fully verified yet
+### 1. Create Machine Account
 
----
+```bash
+curl -X POST https://your-worker.workers.dev/api/machine-accounts \
+  -H "Authorization: Bearer <user-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "ningzhi", "description": "NingZhi Agent"}'
+```
 
-## Web Deploy
+### 2. Get Access Token
 
-1. Fork this repository. If this project helps you, consider giving it a Star.
-2. Open [Workers](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create) -> `Continue with GitHub` -> select your forked repository (`Tirisfal`) -> continue.
-3. R2 is used by default. If R2 is not enabled on your account, you can use KV instead by changing the **deploy command** to `npm run deploy:kv`.
-4. Deploy and open the generated URL.
+```bash
+curl -X POST https://your-worker.workers.dev/api/machine-accounts/<id>/token \
+  -H "Authorization: Bearer <user-token>"
+```
 
-| Storage | Card required | Single attachment / Send file limit | Free tier |
-|---|---|---|---|
-| R2 | Yes | 100 MB (soft limit, adjustable) | 10 GB |
-| KV | No | 25 MiB (Cloudflare limit) | 1 GB |
+### 3. Create Project and Secrets
 
-> [!TIP]
-> How to keep your fork updated:
-> - Manual: open your fork on GitHub, click `Sync fork`, then `Update branch`
-> - Automatic: go to your fork -> `Actions` -> `Sync upstream` -> `Enable workflow`; it will sync upstream automatically every day at 3 AM
+```bash
+# Create project
+curl -X POST https://your-worker.workers.dev/api/projects \
+  -H "Authorization: Bearer <user-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "SN-Team", "description": "SN Team Credentials"}'
 
-## CLI Deploy
+# Create secret
+curl -X POST https://your-worker.workers.dev/api/secrets \
+  -H "Authorization: Bearer <user-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "XIAOMI_API_KEY", "value": "sk-***", "project_id": "<project-id>"}'
+```
 
-```powershell
-git clone https://github.com/shuaiplus/Tirisfal.git
-cd Tirisfal
-npm install
-npx wrangler login
+### 4. Agent Gets Credentials
 
-# Default: R2 mode
-npm run deploy
-
-# Optional: KV mode
-npm run deploy:kv
-
-# Local development
-npm run dev
-npm run dev:kv
+```bash
+curl https://your-worker.workers.dev/api/secrets/by-name/XIAOMI_API_KEY \
+  -H "Authorization: Bearer <machine-account-token>" \
+  -d '{"project_id": "<project-id>", "environment": "prod"}'
 ```
 
 ---
 
-## Cloud Backup Notes
+## API Endpoints
 
-- Remote backup supports **WebDAV** and **E3**
-- When `Include attachments` is enabled:
-- the ZIP still contains only `db.json` and `manifest.json`
-- actual attachment files are stored separately under `attachments/`
-- later backups reuse existing attachments by stable blob name instead of re-uploading everything every time
-- During remote restore:
-- required attachment files are loaded from `attachments/` on demand
-- missing attachments are skipped safely
-- skipped attachments do not leave broken rows in the restored database
+### Machine Accounts
 
----
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/machine-accounts` | Create machine account |
+| GET | `/api/machine-accounts` | List all machine accounts |
+| GET | `/api/machine-accounts/:id` | Get machine account details |
+| PUT | `/api/machine-accounts/:id` | Update machine account |
+| DELETE | `/api/machine-accounts/:id` | Delete machine account |
+| POST | `/api/machine-accounts/:id/token` | Generate access token |
 
-## Import / Export
+### Projects
 
-Current supported import sources include:
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/projects` | Create project |
+| GET | `/api/projects` | List all projects |
+| GET | `/api/projects/:id` | Get project details |
+| PUT | `/api/projects/:id` | Update project |
+| DELETE | `/api/projects/:id` | Delete project |
 
-- Bitwarden JSON
-- Bitwarden CSV
-- Bitwarden vault + attachments ZIP
-- Tirisfal JSON
-- Multiple browser / password-manager formats available in the web import selector
+### Secrets
 
-Current supported export formats include:
-
-- Bitwarden JSON
-- Bitwarden encrypted JSON
-- ZIP export with attachments
-- Tirisfal JSON variants
-- Full manual instance export from the backup center
-
----
-
-## License
-
-LGPL-3.0 License
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/secrets` | Create secret |
+| GET | `/api/secrets?project_id=<id>` | List project secrets |
+| GET | `/api/secrets/:id` | Get secret details |
+| PUT | `/api/secrets/:id` | Update secret |
+| DELETE | `/api/secrets/:id` | Delete secret |
+| GET | `/api/secrets/by-name/:name` | Get secret by name |
 
 ---
 
-## Credits
+## Agent Integration Examples
 
-- [Bitwarden](https://bitwarden.com/) - Original design and clients
-- [Vaultwarden](https://github.com/dani-garcia/vaultwarden) - Server implementation reference
-- [Cloudflare Workers](https://workers.cloudflare.com/) - Serverless platform
+### OpenClaw Agent
+
+Add to Agent's TOOLS.md:
+
+```markdown
+## Credential Management
+
+### Get Credential
+```bash
+VALUE=$(curl -s https://your-worker.workers.dev/api/secrets/by-name/<SECRET_NAME> \
+  -H "Authorization: Bearer $NW_TOKEN" | jq -r .value)
+```
+
+### Environment Variables
+- NW_TOKEN: Access Token
+- NW_SERVER: Server URL
+```
+
+### Hermes Agent
+
+Add to Agent's TOOLS.md:
+
+```markdown
+## Credential Management
+
+### Get Credential
+```bash
+curl -s https://your-worker.workers.dev/api/secrets/by-name/<SECRET_NAME> \
+  -H "Authorization: Bearer $NW_TOKEN" | jq -r .value
+```
+```
 
 ---
 
-## Star History
+## Permission Control
 
-[![Star History Chart](https://api.star-history.com/svg?repos=shuaiplus/Tirisfal&type=timeline&legend=top-left)](https://www.star-history.com/#shuaiplus/Tirisfal&type=timeline&legend=top-left)
+| Role | Permissions |
+|------|-------------|
+| **User** | Create/manage Machine Account, Project, Secret |
+| **Machine Account** | Read only authorized Project's Secrets |
+
+### Authorization Example
+
+```bash
+# Grant Machine Account read access to project
+curl -X POST https://your-worker.workers.dev/api/machine-accounts/<id>/projects/<project-id> \
+  -H "Authorization: Bearer <user-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"permission": "read"}'
+```
+
+---
+
+## Security Features
+
+- **End-to-end encryption** — Credentials encrypted at rest
+- **Least privilege** — Agents only access authorized credentials
+- **Audit logs** — All access behavior traceable
+- **Token rotation** — Support periodic token replacement
+- **Expiration** — Tokens can have expiry time
+
+---
+
+## Deployment
+
+```bash
+# Clone repository
+git clone https://github.com/ialer/tirisfal.git
+cd tirisfal
+
+# Install dependencies
+npm install
+
+# Configure environment variables
+cp .dev.vars.example .dev.vars
+# Edit .dev.vars to set JWT_SECRET
+
+# Local development
+npm run dev
+
+# Deploy to Cloudflare Workers
+npm run deploy
+```
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `JWT_SECRET` | ✅ | JWT signing secret (32+ chars) |
+| `DB` | ✅ | D1 database binding |
+| `ATTACHMENTS` | ❌ | R2 bucket (optional) |
+
+---
+
+## Documentation
+
+- [Deployment Guide](#deployment)
+- [API Documentation](#api-endpoints)
+- [Agent Integration](#agent-integration-examples)
+- [Security Features](#security-features)
