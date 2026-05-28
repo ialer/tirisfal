@@ -20,7 +20,9 @@ export class SecretsManagerService {
       'INSERT INTO machine_accounts (id, name, user_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(id, request.name, userId, 'active', now, now).run();
 
-    return this.getMachineAccount(id)!;
+    const account = await this.getMachineAccount(id);
+    if (!account) throw new Error('Failed to create machine account');
+    return account;
   }
 
   async getMachineAccount(id: string): Promise<MachineAccount | null> {
@@ -47,8 +49,10 @@ export class SecretsManagerService {
       values.push(updates.name);
     }
     if (updates.status !== undefined) {
+      // 确保 status 是有效的值
+      const validStatus = updates.status === 'active' || updates.status === 'disabled' ? updates.status : 'active';
       setClauses.push('status = ?');
-      values.push(updates.status);
+      values.push(validStatus);
     }
     if (updates.description !== undefined) {
       setClauses.push('description = ?');
@@ -122,7 +126,9 @@ export class SecretsManagerService {
       'INSERT INTO sm_projects (id, name, description, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(id, request.name, request.description || null, userId, now, now).run();
 
-    return this.getProject(id)!;
+    const project = await this.getProject(id);
+    if (!project) throw new Error('Failed to create project');
+    return project;
   }
 
   async getProject(id: string): Promise<SmProject | null> {
@@ -159,7 +165,9 @@ export class SecretsManagerService {
       'INSERT INTO secrets (id, name, value, project_id, environment, note, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, request.name, encryptedValue, request.project_id, request.environment || 'prod', request.note || null, userId, now, now).run();
 
-    return this.getSecret(id)!;
+    const secret = await this.getSecret(id);
+    if (!secret) throw new Error('Failed to create secret');
+    return secret;
   }
 
   async getSecret(id: string): Promise<Secret | null> {

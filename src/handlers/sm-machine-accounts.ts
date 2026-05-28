@@ -57,7 +57,12 @@ export async function handleMachineAccounts(
       }
 
       const body = await request.json() as { name?: string; status?: string; description?: string };
-      const updated = await smService.updateMachineAccount(accountId, body);
+      // 确保 status 是有效的值
+      const validStatus = body.status === 'active' || body.status === 'disabled' ? body.status : undefined;
+      const updated = await smService.updateMachineAccount(accountId, {
+        ...body,
+        status: validStatus,
+      });
       return jsonResponse(updated);
     }
 
