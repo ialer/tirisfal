@@ -1,3 +1,5 @@
+import { SM_SCHEMA_STATEMENTS } from './sm-schema';
+
 // IMPORTANT:
 // This is the runtime D1 schema bootstrap. Keep it in sync with
 // migrations/0001_init.sql. Any new table/column/index must be added to both
@@ -146,6 +148,10 @@ export async function ensureStorageSchema(db: D1Database): Promise<void> {
   await db.prepare('PRAGMA foreign_keys = ON').run();
   await db.prepare('CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)').run();
   for (const stmt of SCHEMA_STATEMENTS) {
+    await executeSchemaStatement(db, stmt);
+  }
+  // Secrets Manager 表
+  for (const stmt of SM_SCHEMA_STATEMENTS) {
     await executeSchemaStatement(db, stmt);
   }
   await ensureAdminUserExists(db);

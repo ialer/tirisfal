@@ -5,6 +5,7 @@ import { handleCors, errorResponse } from './utils/response';
 import { LIMITS } from './config/limits';
 import { handleAuthenticatedRoute } from './router-authenticated';
 import { handlePublicRoute } from './router-public';
+import { handleSmRoute } from './router-sm';
 
 function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | null {
   const secret = (env.JWT_SECRET || '').trim();
@@ -133,6 +134,10 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
         );
       }
     }
+
+    // 处理 Secrets Manager 路由
+    const smResponse = await handleSmRoute(request, env, path, method);
+    if (smResponse) return smResponse;
 
     const authenticatedResponse = await handleAuthenticatedRoute(request, env, userId, currentUser, path, method);
     if (authenticatedResponse) return authenticatedResponse;
