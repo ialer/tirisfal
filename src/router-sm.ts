@@ -19,12 +19,25 @@ export async function handleSmRoute(
     return null;
   }
 
-  // 验证用户身份
   const authHeader = request.headers.get('Authorization');
   if (!authHeader) {
     return errorResponse('Unauthorized', 401);
   }
 
+  // 首先尝试验证 Machine Account Token
+  const smService = new SecretsManagerService(env.DB);
+  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : '';
+  const machineAccount = await smService.verifyAccessToken(token);
+
+  if (machineAccount) {
+    // Machine Account Token - 只能访问 GET /api/secrets/by-name/:name
+    if (path.startsWith('/api/secrets/by-name/') && method === 'GET') {
+      return handleSecrets(request, env, path, method, machineAccount.user_id, machineAccount.id);
+    }
+    return errorResponse('Machine accounts can only read secrets by name', 403);
+  }
+
+  // 尝试验证用户 JWT Token
   const auth = new AuthService(env);
   const verified = await auth.verifyAccessTokenWithUser(authHeader);
   if (!verified) {
