@@ -264,6 +264,11 @@ export class SecretsManagerService {
     return (result?.count || 0) > 0;
   }
 
+  // 检查机器账号是否有项目访问权限（别名方法）
+  async checkMachineAccountProjectAccess(machineAccountId: string, projectId: string): Promise<boolean> {
+    return this.hasProjectAccess(machineAccountId, projectId);
+  }
+
   // ==================== Audit Logs ====================
 
   async logSecretAccess(

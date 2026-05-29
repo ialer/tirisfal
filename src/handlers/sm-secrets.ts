@@ -9,12 +9,17 @@ export async function handleSecrets(
   env: Env,
   path: string,
   method: string,
-  userId: string
+  userId: string,
+  machineAccountId?: string
 ): Promise<Response> {
   const smService = new SecretsManagerService(env.DB);
 
-  // POST /api/secrets - 创建凭证
+  // POST /api/secrets - 创建凭证 (只允许用户)
   if (method === 'POST' && path === '/api/secrets') {
+    if (machineAccountId) {
+      return errorResponse('Machine accounts cannot create secrets', 403);
+    }
+    
     const body = await request.json() as {
       name: string;
       value: string;
@@ -38,8 +43,12 @@ export async function handleSecrets(
     return jsonResponse(secret, 201);
   }
 
-  // GET /api/secrets - 列出所有凭证
+  // GET /api/secrets - 列出所有凭证 (只允许用户)
   if (method === 'GET' && path === '/api/secrets') {
+    if (machineAccountId) {
+      return errorResponse('Machine accounts cannot list all secrets', 403);
+    }
+    
     const url = new URL(request.url);
     const projectId = url.searchParams.get('project_id');
     const environment = url.searchParams.get('environment');
@@ -57,8 +66,12 @@ export async function handleSecrets(
   if (secretMatch) {
     const secretId = secretMatch[1];
 
-    // GET /api/secrets/:id
+    // GET /api/secrets/:id (只允许用户)
     if (method === 'GET') {
+      if (machineAccountId) {
+        return errorResponse('Machine accounts cannot access secrets by ID', 403);
+      }
+      
       const secret = await smService.getSecret(secretId);
       if (!secret) {
         return errorResponse('Not found', 404);
@@ -66,8 +79,12 @@ export async function handleSecrets(
       return jsonResponse(secret);
     }
 
-    // PUT /api/secrets/:id
+    // PUT /api/secrets/:id (只允许用户)
     if (method === 'PUT') {
+      if (machineAccountId) {
+        return errorResponse('Machine accounts cannot update secrets', 403);
+      }
+      
       const secret = await smService.getSecret(secretId);
       if (!secret) {
         return errorResponse('Not found', 404);
@@ -78,8 +95,12 @@ export async function handleSecrets(
       return jsonResponse(updated);
     }
 
-    // DELETE /api/secrets/:id
+    // DELETE /api/secrets/:id (只允许用户)
     if (method === 'DELETE') {
+      if (machineAccountId) {
+        return errorResponse('Machine accounts cannot delete secrets', 403);
+      }
+      
       const secret = await smService.getSecret(secretId);
       if (!secret) {
         return errorResponse('Not found', 404);
@@ -100,6 +121,14 @@ export async function handleSecrets(
 
     if (!projectId) {
       return errorResponse('project_id is required', 400);
+    }
+
+    // 如果是机器账号，检查是否有权限访问该项目
+    if (machineAccountId) {
+      const hasAccess = await smService.checkMachineAccountProjectAccess(machineAccountId, projectId);
+      if (!hasAccess) {
+        return errorResponse('Machine account does not have access to this project', 403);
+      }
     }
 
     const secret = await smService.getSecretByNameAndProject(secretName, projectId, environment);
