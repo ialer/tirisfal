@@ -27,7 +27,12 @@ export class RateLimitService {
   }
 
   private async maybeCleanupLoginAttemptsIp(nowMs: number): Promise<void> {
-    if (!this.shouldRunCleanup(RateLimitService.lastLoginIpCleanupAt, RateLimitService.LOGIN_IP_CLEANUP_INTERVAL_MS)) {
+    if (
+      !this.shouldRunCleanup(
+        RateLimitService.lastLoginIpCleanupAt,
+        RateLimitService.LOGIN_IP_CLEANUP_INTERVAL_MS
+      )
+    ) {
       return;
     }
 
@@ -47,11 +52,11 @@ export class RateLimitService {
     await this.db
       .prepare(
         'CREATE TABLE IF NOT EXISTS login_attempts_ip (' +
-        'ip TEXT PRIMARY KEY, ' +
-        'attempts INTEGER NOT NULL, ' +
-        'locked_until INTEGER, ' +
-        'updated_at INTEGER NOT NULL' +
-        ')'
+          'ip TEXT PRIMARY KEY, ' +
+          'attempts INTEGER NOT NULL, ' +
+          'locked_until INTEGER, ' +
+          'updated_at INTEGER NOT NULL' +
+          ')'
       )
       .run();
 
@@ -108,7 +113,7 @@ export class RateLimitService {
     await this.db
       .prepare(
         'INSERT INTO login_attempts_ip(ip, attempts, locked_until, updated_at) VALUES(?, 1, NULL, ?) ' +
-        'ON CONFLICT(ip) DO UPDATE SET attempts = attempts + 1, updated_at = excluded.updated_at'
+          'ON CONFLICT(ip) DO UPDATE SET attempts = attempts + 1, updated_at = excluded.updated_at'
       )
       .bind(key, now)
       .run();
@@ -302,7 +307,7 @@ function normalizeClientIpForRateLimit(rawIp: string): string | null {
   // Collapse to /64 to reduce brute-force bypass via IPv6 address rotation.
   const prefix64 = ipv6
     .slice(0, 4)
-    .map(part => part.toString(16).padStart(4, '0'))
+    .map((part) => part.toString(16).padStart(4, '0'))
     .join(':');
   return `ip6:${prefix64}`;
 }

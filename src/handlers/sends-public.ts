@@ -1,20 +1,17 @@
-import { Env, SendType } from '../types';
-import { StorageService } from '../services/storage';
-import { RateLimitService, getClientIdentifier } from '../services/ratelimit';
-import { jsonResponse, errorResponse } from '../utils/response';
 import { LIMITS } from '../config/limits';
+import { getBlobObject, getSendFileObjectKey } from '../services/blob-store';
+import { getClientIdentifier, RateLimitService } from '../services/ratelimit';
+import { StorageService } from '../services/storage';
+import type { Env } from '../types';
+import { SendType } from '../types';
 import {
   createSendAccessToken,
   createSendFileDownloadToken,
   verifySendAccessToken,
   verifySendFileDownloadToken,
 } from '../utils/jwt';
+import { errorResponse, jsonResponse } from '../utils/response';
 import {
-  getBlobObject,
-  getSendFileObjectKey,
-} from '../services/blob-store';
-import {
-  SEND_INACCESSIBLE_MSG,
   extractBearerToken,
   fromAccessId,
   getCreatorIdentifier,
@@ -24,6 +21,7 @@ import {
   notifyVaultSyncForRequest,
   parseStoredSendData,
   resolveSendFromIdOrAccessId,
+  SEND_INACCESSIBLE_MSG,
   sendPasswordLimitKey,
   sendPasswordLockedErrorResponse,
   sendPasswordLockedOAuthResponse,
@@ -33,7 +31,11 @@ import {
   verifySendPasswordHashB64,
 } from './sends-shared';
 
-export async function handleAccessSend(request: Request, env: Env, accessId: string): Promise<Response> {
+export async function handleAccessSend(
+  request: Request,
+  env: Env,
+  accessId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const sendId = fromAccessId(accessId);
   if (!sendId) {
@@ -69,7 +71,11 @@ export async function handleAccessSend(request: Request, env: Env, accessId: str
 
   const validation = await validatePublicSendAccess(send, body);
   if (!validation.ok) {
-    if (validation.reason === 'invalid_password' && sendPasswordRateLimit && sendPasswordLimitIpKey) {
+    if (
+      validation.reason === 'invalid_password' &&
+      sendPasswordRateLimit &&
+      sendPasswordLimitIpKey
+    ) {
       const failed = await sendPasswordRateLimit.recordFailedLogin(sendPasswordLimitIpKey);
       if (failed.locked) {
         return sendPasswordLockedErrorResponse(failed.retryAfterSeconds || 60);
@@ -143,7 +149,11 @@ export async function handleAccessSendFile(
 
   const validation = await validatePublicSendAccess(send, body);
   if (!validation.ok) {
-    if (validation.reason === 'invalid_password' && sendPasswordRateLimit && sendPasswordLimitIpKey) {
+    if (
+      validation.reason === 'invalid_password' &&
+      sendPasswordRateLimit &&
+      sendPasswordLimitIpKey
+    ) {
       const failed = await sendPasswordRateLimit.recordFailedLogin(sendPasswordLimitIpKey);
       if (failed.locked) {
         return sendPasswordLockedErrorResponse(failed.retryAfterSeconds || 60);
@@ -209,7 +219,11 @@ export async function handleAccessSendV2(request: Request, env: Env): Promise<Re
   return jsonResponse(sendToAccessResponse(send, creatorIdentifier));
 }
 
-export async function handleAccessSendFileV2(request: Request, env: Env, fileId: string): Promise<Response> {
+export async function handleAccessSendFileV2(
+  request: Request,
+  env: Env,
+  fileId: string
+): Promise<Response> {
   const jwt = getSafeJwtSecret(env);
   if (!jwt.ok) return jwt.response;
 

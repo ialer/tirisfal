@@ -1,11 +1,3 @@
-import type { Env, User } from '../types';
-import { StorageService } from './storage';
-import {
-  type BackupSettingsPortableEnvelope,
-  decryptBackupSettingsRuntime,
-  encryptBackupSettingsEnvelope,
-  parseBackupSettingsEnvelope,
-} from './backup-settings-crypto';
 import {
   BACKUP_DEFAULT_INTERVAL_HOURS,
   BACKUP_DEFAULT_START_TIME,
@@ -16,13 +8,21 @@ import {
   type BackupRuntimeState,
   type BackupScheduleConfig,
   type BackupSettings,
-  type S3BackupDestination,
-  type WebDavBackupDestination,
   createBackupRandomId,
   createDefaultBackupDestinationName,
   createDefaultBackupScheduleConfig,
   createDefaultBackupSettings as createSharedDefaultBackupSettings,
+  type S3BackupDestination,
+  type WebDavBackupDestination,
 } from '../../shared/backup-schema';
+import type { Env, User } from '../types';
+import {
+  type BackupSettingsPortableEnvelope,
+  decryptBackupSettingsRuntime,
+  encryptBackupSettingsEnvelope,
+  parseBackupSettingsEnvelope,
+} from './backup-settings-crypto';
+import type { StorageService } from './storage';
 
 export const BACKUP_SETTINGS_CONFIG_KEY = 'backup.settings.v1';
 export const BACKUP_SCHEDULER_WINDOW_MINUTES = 5;
@@ -61,7 +61,9 @@ function asTrimmedString(value: unknown): string {
 }
 
 function normalizePath(value: unknown): string {
-  return asTrimmedString(value).replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  return asTrimmedString(value)
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '');
 }
 
 function assertValidTimeZone(timezone: string): string {
@@ -83,7 +85,10 @@ function normalizeRetentionCount(value: unknown, fallback: number | null = 30): 
   return count;
 }
 
-function normalizeIntervalHours(value: unknown, fallback: number = BACKUP_DEFAULT_INTERVAL_HOURS): number {
+function normalizeIntervalHours(
+  value: unknown,
+  fallback: number = BACKUP_DEFAULT_INTERVAL_HOURS
+): number {
   const raw = value === undefined || value === null || value === '' ? fallback : Number(value);
   if (!Number.isInteger(raw) || raw < 1 || raw > 99) {
     throw new Error('Backup interval hours must be between 1 and 99');
@@ -99,7 +104,14 @@ function normalizeStartTime(value: unknown, fallback: string = BACKUP_DEFAULT_ST
   }
   const hour = Number(match[1]);
   const minute = Number(match[2] ?? '0');
-  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+  if (
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
     throw new Error('Backup start time must be in HH:mm format');
   }
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -116,7 +128,8 @@ function normalizeS3Destination(value: unknown, allowIncomplete = false): S3Back
 
   if (!allowIncomplete || endpoint) {
     if (!endpoint) throw new Error('S3 endpoint is required');
-    if (!/^https?:\/\//i.test(endpoint)) throw new Error('S3 endpoint must start with http:// or https://');
+    if (!/^https?:\/\//i.test(endpoint))
+      throw new Error('S3 endpoint must start with http:// or https://');
   }
   if (!allowIncomplete || bucket) {
     if (!bucket) throw new Error('S3 bucket is required');
@@ -138,7 +151,10 @@ function normalizeS3Destination(value: unknown, allowIncomplete = false): S3Back
   };
 }
 
-function normalizeWebDavDestination(value: unknown, allowIncomplete = false): WebDavBackupDestination {
+function normalizeWebDavDestination(
+  value: unknown,
+  allowIncomplete = false
+): WebDavBackupDestination {
   const source = isPlainObject(value) ? value : {};
   const baseUrl = asTrimmedString(source.baseUrl);
   const username = asTrimmedString(source.username);
@@ -147,7 +163,8 @@ function normalizeWebDavDestination(value: unknown, allowIncomplete = false): We
 
   if (!allowIncomplete || baseUrl) {
     if (!baseUrl) throw new Error('WebDAV server URL is required');
-    if (!/^https?:\/\//i.test(baseUrl)) throw new Error('WebDAV server URL must start with http:// or https://');
+    if (!/^https?:\/\//i.test(baseUrl))
+      throw new Error('WebDAV server URL must start with http:// or https://');
   }
   if (!allowIncomplete || username) {
     if (!username) throw new Error('WebDAV username is required');
@@ -222,8 +239,11 @@ function normalizeDestinationRecord(
   const id = asTrimmedString(input.id) || createBackupRandomId();
   const type = getDestinationType(input.type);
   const previous = previousById.get(id);
-  const runtime = previous?.runtime ? normalizeRuntime(previous.runtime) : normalizeRuntime(input.runtime);
-  const name = asTrimmedString(input.name) || previous?.name || defaultDestinationName(type, index + 1);
+  const runtime = previous?.runtime
+    ? normalizeRuntime(previous.runtime)
+    : normalizeRuntime(input.runtime);
+  const name =
+    asTrimmedString(input.name) || previous?.name || defaultDestinationName(type, index + 1);
   const scheduleSource = isPlainObject(input.schedule) ? input.schedule : {};
   const previousSchedule = previous?.schedule || defaultScheduleConfig(fallbackTimezone);
   const retentionSource = Object.prototype.hasOwnProperty.call(scheduleSource, 'retentionCount')
@@ -239,7 +259,11 @@ function normalizeDestinationRecord(
       scheduleSource.startTime ?? previousSchedule.startTime,
       previousSchedule.startTime || BACKUP_DEFAULT_START_TIME
     ),
-    timezone: assertValidTimeZone(asTrimmedString(scheduleSource.timezone ?? previousSchedule.timezone) || fallbackTimezone || BACKUP_DEFAULT_TIMEZONE),
+    timezone: assertValidTimeZone(
+      asTrimmedString(scheduleSource.timezone ?? previousSchedule.timezone) ||
+        fallbackTimezone ||
+        BACKUP_DEFAULT_TIMEZONE
+    ),
     retentionCount: normalizeRetentionCount(retentionSource, previousSchedule.retentionCount),
   };
 
@@ -249,22 +273,27 @@ function normalizeDestinationRecord(
     id,
     name,
     type,
-    includeAttachments: typeof input.includeAttachments === 'boolean'
-      ? input.includeAttachments
-      : previous?.includeAttachments ?? false,
+    includeAttachments:
+      typeof input.includeAttachments === 'boolean'
+        ? input.includeAttachments
+        : (previous?.includeAttachments ?? false),
     destination,
     schedule,
     runtime,
   };
 }
 
-function parseLegacyBackupSettings(rawValue: Record<string, unknown>, fallbackTimezone: string): BackupSettings {
+function parseLegacyBackupSettings(
+  rawValue: Record<string, unknown>,
+  fallbackTimezone: string
+): BackupSettings {
   const legacyFrequency = asTrimmedString(rawValue.frequency).toLowerCase();
-  const intervalHours = legacyFrequency === 'weekly'
-    ? 24 * 7
-    : legacyFrequency === 'monthly'
-      ? 24 * 30
-      : BACKUP_DEFAULT_INTERVAL_HOURS;
+  const intervalHours =
+    legacyFrequency === 'weekly'
+      ? 24 * 7
+      : legacyFrequency === 'monthly'
+        ? 24 * 30
+        : BACKUP_DEFAULT_INTERVAL_HOURS;
   const destinationTypeRaw = asTrimmedString(rawValue.destinationType);
   const destinationType: BackupDestinationType =
     destinationTypeRaw === 'e3' || destinationTypeRaw === 's3' || destinationTypeRaw === 'webdav'
@@ -280,7 +309,9 @@ function parseLegacyBackupSettings(rawValue: Record<string, unknown>, fallbackTi
       enabled: !!rawValue.enabled,
       intervalHours,
       startTime: BACKUP_DEFAULT_START_TIME,
-      timezone: assertValidTimeZone(asTrimmedString(rawValue.timezone) || fallbackTimezone || BACKUP_DEFAULT_TIMEZONE),
+      timezone: assertValidTimeZone(
+        asTrimmedString(rawValue.timezone) || fallbackTimezone || BACKUP_DEFAULT_TIMEZONE
+      ),
       retentionCount: 30,
     },
     runtime: normalizeRuntime(rawValue.runtime),
@@ -303,7 +334,9 @@ function parseDestinations(
     throw new Error(`You can save up to ${MAX_BACKUP_DESTINATIONS} backup destinations`);
   }
 
-  const destinations = rawDestinations.map((entry, index) => normalizeDestinationRecord(entry, previousById, index, fallbackTimezone));
+  const destinations = rawDestinations.map((entry, index) =>
+    normalizeDestinationRecord(entry, previousById, index, fallbackTimezone)
+  );
   const ids = new Set<string>();
   for (const destination of destinations) {
     if (ids.has(destination.id)) {
@@ -314,7 +347,9 @@ function parseDestinations(
   return destinations;
 }
 
-function mapDestinationsById(destinations: BackupDestinationRecord[]): Map<string, BackupDestinationRecord> {
+function mapDestinationsById(
+  destinations: BackupDestinationRecord[]
+): Map<string, BackupDestinationRecord> {
   return new Map(destinations.map((destination) => [destination.id, destination]));
 }
 
@@ -322,26 +357,33 @@ export function getDefaultBackupSettings(timezone: string = 'UTC'): BackupSettin
   return createSharedDefaultBackupSettings(assertValidTimeZone(timezone));
 }
 
-export function parseBackupSettings(raw: string | null, fallbackTimezone: string = 'UTC'): BackupSettings {
+export function parseBackupSettings(
+  raw: string | null,
+  fallbackTimezone: string = 'UTC'
+): BackupSettings {
   if (!raw) return getDefaultBackupSettings(fallbackTimezone);
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (Array.isArray(parsed.destinations)) {
-      const globalTimezone = assertValidTimeZone(asTrimmedString(parsed.timezone) || fallbackTimezone || BACKUP_DEFAULT_TIMEZONE);
+      const globalTimezone = assertValidTimeZone(
+        asTrimmedString(parsed.timezone) || fallbackTimezone || BACKUP_DEFAULT_TIMEZONE
+      );
       const globalEnabled = !!parsed.enabled;
       const activeDestinationIdRaw = asTrimmedString(parsed.activeDestinationId);
       const globalFrequency = asTrimmedString(parsed.frequency).toLowerCase();
-      const globalIntervalHours = globalFrequency === 'weekly'
-        ? 24 * 7
-        : globalFrequency === 'monthly'
-          ? 24 * 30
-          : BACKUP_DEFAULT_INTERVAL_HOURS;
+      const globalIntervalHours =
+        globalFrequency === 'weekly'
+          ? 24 * 7
+          : globalFrequency === 'monthly'
+            ? 24 * 30
+            : BACKUP_DEFAULT_INTERVAL_HOURS;
       const previousById = new Map<string, BackupDestinationRecord>();
       const normalizedEntries = (parsed.destinations as unknown[]).map((entry) => {
         if (!isPlainObject(entry)) return entry;
         if (isPlainObject(entry.schedule)) return entry;
         const entryId = asTrimmedString(entry.id);
-        const scheduleEnabled = globalEnabled && (!activeDestinationIdRaw || entryId === activeDestinationIdRaw);
+        const scheduleEnabled =
+          globalEnabled && (!activeDestinationIdRaw || entryId === activeDestinationIdRaw);
         return {
           ...entry,
           schedule: {
@@ -384,7 +426,11 @@ export function serializeBackupSettings(settings: BackupSettings): string {
   return JSON.stringify(settings);
 }
 
-export async function loadBackupSettings(storage: StorageService, env: Env, fallbackTimezone: string = 'UTC'): Promise<BackupSettings> {
+export async function loadBackupSettings(
+  storage: StorageService,
+  env: Env,
+  fallbackTimezone: string = 'UTC'
+): Promise<BackupSettings> {
   const raw = await storage.getConfigValue(BACKUP_SETTINGS_CONFIG_KEY);
   if (!raw) {
     const settings = getDefaultBackupSettings(fallbackTimezone);
@@ -407,20 +453,36 @@ export async function loadBackupSettings(storage: StorageService, env: Env, fall
   }
 }
 
-export async function saveBackupSettings(storage: StorageService, env: Env, settings: BackupSettings): Promise<void> {
+export async function saveBackupSettings(
+  storage: StorageService,
+  env: Env,
+  settings: BackupSettings
+): Promise<void> {
   const users = await storage.getAllUsers();
   const hasPortableAdmins = users.some(
-    (user) => user.role === 'admin' && user.status === 'active' && typeof user.publicKey === 'string' && user.publicKey.trim().length > 0
+    (user) =>
+      user.role === 'admin' &&
+      user.status === 'active' &&
+      typeof user.publicKey === 'string' &&
+      user.publicKey.trim().length > 0
   );
   if (!hasPortableAdmins) {
     await storage.setConfigValue(BACKUP_SETTINGS_CONFIG_KEY, serializeBackupSettings(settings));
     return;
   }
-  const encrypted = await encryptBackupSettingsEnvelope(serializeBackupSettings(settings), env, users);
+  const encrypted = await encryptBackupSettingsEnvelope(
+    serializeBackupSettings(settings),
+    env,
+    users
+  );
   await storage.setConfigValue(BACKUP_SETTINGS_CONFIG_KEY, encrypted);
 }
 
-export async function normalizeImportedBackupSettings(storage: StorageService, env: Env, fallbackTimezone: string = 'UTC'): Promise<void> {
+export async function normalizeImportedBackupSettings(
+  storage: StorageService,
+  env: Env,
+  fallbackTimezone: string = 'UTC'
+): Promise<void> {
   const raw = await storage.getConfigValue(BACKUP_SETTINGS_CONFIG_KEY);
   if (!raw) return;
   const users = await storage.getAllUsers();
@@ -443,7 +505,11 @@ export async function normalizeImportedBackupSettingsValue(
       const decrypted = await decryptBackupSettingsRuntime(raw, env);
       const settings = parseBackupSettings(decrypted, fallbackTimezone);
       const hasPortableAdmins = users.some(
-        (user) => user.role === 'admin' && user.status === 'active' && typeof user.publicKey === 'string' && user.publicKey.trim().length > 0
+        (user) =>
+          user.role === 'admin' &&
+          user.status === 'active' &&
+          typeof user.publicKey === 'string' &&
+          user.publicKey.trim().length > 0
       );
       if (!hasPortableAdmins) {
         return serializeBackupSettings(settings);
@@ -456,7 +522,11 @@ export async function normalizeImportedBackupSettingsValue(
   }
   const settings = parseBackupSettings(raw, fallbackTimezone);
   const hasPortableAdmins = users.some(
-    (user) => user.role === 'admin' && user.status === 'active' && typeof user.publicKey === 'string' && user.publicKey.trim().length > 0
+    (user) =>
+      user.role === 'admin' &&
+      user.status === 'active' &&
+      typeof user.publicKey === 'string' &&
+      user.publicKey.trim().length > 0
   );
   if (!hasPortableAdmins) {
     return serializeBackupSettings(settings);
@@ -464,7 +534,11 @@ export async function normalizeImportedBackupSettingsValue(
   return encryptBackupSettingsEnvelope(serializeBackupSettings(settings), env, users);
 }
 
-export async function getBackupSettingsRepairState(storage: StorageService, env: Env, fallbackTimezone: string = 'UTC'): Promise<BackupSettingsRepairState> {
+export async function getBackupSettingsRepairState(
+  storage: StorageService,
+  env: Env,
+  fallbackTimezone: string = 'UTC'
+): Promise<BackupSettingsRepairState> {
   const raw = await storage.getConfigValue(BACKUP_SETTINGS_CONFIG_KEY);
   if (!raw) {
     const settings = getDefaultBackupSettings(fallbackTimezone);
@@ -490,7 +564,11 @@ export async function getBackupSettingsRepairState(storage: StorageService, env:
   }
 }
 
-export async function repairBackupSettings(storage: StorageService, env: Env, settings: BackupSettings): Promise<void> {
+export async function repairBackupSettings(
+  storage: StorageService,
+  env: Env,
+  settings: BackupSettings
+): Promise<void> {
   await saveBackupSettings(storage, env, settings);
 }
 
@@ -503,15 +581,23 @@ export function findBackupDestination(
   return settings.destinations.find((destination) => destination.id === normalizedId) || null;
 }
 
-export function requireBackupDestination(settings: BackupSettings, destinationId?: string | null): BackupDestinationRecord {
-  const destination = destinationId ? findBackupDestination(settings, destinationId) : settings.destinations[0] || null;
+export function requireBackupDestination(
+  settings: BackupSettings,
+  destinationId?: string | null
+): BackupDestinationRecord {
+  const destination = destinationId
+    ? findBackupDestination(settings, destinationId)
+    : settings.destinations[0] || null;
   if (!destination) {
     throw new Error('Backup destination not found');
   }
   return destination;
 }
 
-function getDateTimeParts(date: Date, timezone: string): { year: string; month: string; day: string; hour: string; minute: string } {
+function getDateTimeParts(
+  date: Date,
+  timezone: string
+): { year: string; month: string; day: string; hour: string; minute: string } {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
@@ -552,7 +638,14 @@ function parseLocalDateKey(dateKey: string): { year: number; month: number; day:
   return { year, month, day };
 }
 
-function getUtcDateForLocalTime(timezone: string, year: number, month: number, day: number, hour: number, minute: number): Date {
+function getUtcDateForLocalTime(
+  timezone: string,
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number
+): Date {
   const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
   const actual = getDateTimeParts(new Date(utcGuess), timezone);
   const actualUtc = Date.UTC(
@@ -575,12 +668,23 @@ function getBackupSlotStartsForLocalDay(
   intervalHours: number
 ): Date[] {
   const parsedDate = parseLocalDateKey(dateKey);
-  const parsedTime = normalizeStartTime(startTime).split(':').map((value) => Number(value));
+  const parsedTime = normalizeStartTime(startTime)
+    .split(':')
+    .map((value) => Number(value));
   if (!parsedDate || parsedTime.length !== 2) return [];
 
   const [hour, minute] = parsedTime;
-  const firstSlot = getUtcDateForLocalTime(timezone, parsedDate.year, parsedDate.month, parsedDate.day, hour, minute);
-  const nextLocalDay = new Date(Date.UTC(parsedDate.year, parsedDate.month - 1, parsedDate.day, 0, 0, 0, 0));
+  const firstSlot = getUtcDateForLocalTime(
+    timezone,
+    parsedDate.year,
+    parsedDate.month,
+    parsedDate.day,
+    hour,
+    minute
+  );
+  const nextLocalDay = new Date(
+    Date.UTC(parsedDate.year, parsedDate.month - 1, parsedDate.day, 0, 0, 0, 0)
+  );
   nextLocalDay.setUTCDate(nextLocalDay.getUTCDate() + 1);
   const nextDay = getUtcDateForLocalTime(
     timezone,
@@ -609,10 +713,13 @@ export function hasBackupSlotBetween(
   const endMs = endExclusive.getTime();
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return false;
 
-  const lastAttemptAt = destination.runtime.lastAttemptAt ? new Date(destination.runtime.lastAttemptAt) : null;
-  const lastAttemptMs = lastAttemptAt && Number.isFinite(lastAttemptAt.getTime())
-    ? lastAttemptAt.getTime()
-    : Number.NEGATIVE_INFINITY;
+  const lastAttemptAt = destination.runtime.lastAttemptAt
+    ? new Date(destination.runtime.lastAttemptAt)
+    : null;
+  const lastAttemptMs =
+    lastAttemptAt && Number.isFinite(lastAttemptAt.getTime())
+      ? lastAttemptAt.getTime()
+      : Number.NEGATIVE_INFINITY;
 
   const dayCursor = new Date(startMs);
   dayCursor.setUTCHours(0, 0, 0, 0);
@@ -650,10 +757,13 @@ export function isBackupDueNow(
 ): boolean {
   if (!destination.schedule.enabled) return false;
   const toleranceMs = Math.max(1, windowMinutes) * 60 * 1000;
-  const lastAttemptAt = destination.runtime.lastAttemptAt ? new Date(destination.runtime.lastAttemptAt) : null;
-  const lastAttemptMs = lastAttemptAt && Number.isFinite(lastAttemptAt.getTime())
-    ? lastAttemptAt.getTime()
-    : Number.NEGATIVE_INFINITY;
+  const lastAttemptAt = destination.runtime.lastAttemptAt
+    ? new Date(destination.runtime.lastAttemptAt)
+    : null;
+  const lastAttemptMs =
+    lastAttemptAt && Number.isFinite(lastAttemptAt.getTime())
+      ? lastAttemptAt.getTime()
+      : Number.NEGATIVE_INFINITY;
   const localDateKey = getBackupLocalDateKey(now, destination.schedule.timezone);
   const slotStarts = getBackupSlotStartsForLocalDay(
     localDateKey,

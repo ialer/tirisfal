@@ -43,12 +43,12 @@ export async function getSend(db: D1Database, id: string): Promise<Send | null> 
 export async function saveSend(db: D1Database, safeBind: SafeBind, send: Send): Promise<void> {
   const stmt = db.prepare(
     'INSERT INTO sends(id, user_id, type, name, notes, data, key, password_hash, password_salt, password_iterations, auth_type, emails, max_access_count, access_count, disabled, hide_email, created_at, updated_at, expiration_date, deletion_date) ' +
-    'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
-    'ON CONFLICT(id) DO UPDATE SET ' +
-    'user_id=excluded.user_id, type=excluded.type, name=excluded.name, notes=excluded.notes, data=excluded.data, key=excluded.key, ' +
-    'password_hash=excluded.password_hash, password_salt=excluded.password_salt, password_iterations=excluded.password_iterations, auth_type=excluded.auth_type, emails=excluded.emails, ' +
-    'max_access_count=excluded.max_access_count, access_count=excluded.access_count, disabled=excluded.disabled, hide_email=excluded.hide_email, ' +
-    'updated_at=excluded.updated_at, expiration_date=excluded.expiration_date, deletion_date=excluded.deletion_date'
+      'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+      'ON CONFLICT(id) DO UPDATE SET ' +
+      'user_id=excluded.user_id, type=excluded.type, name=excluded.name, notes=excluded.notes, data=excluded.data, key=excluded.key, ' +
+      'password_hash=excluded.password_hash, password_salt=excluded.password_salt, password_iterations=excluded.password_iterations, auth_type=excluded.auth_type, emails=excluded.emails, ' +
+      'max_access_count=excluded.max_access_count, access_count=excluded.access_count, disabled=excluded.disabled, hide_email=excluded.hide_email, ' +
+      'updated_at=excluded.updated_at, expiration_date=excluded.expiration_date, deletion_date=excluded.deletion_date'
   );
 
   await safeBind(
@@ -81,7 +81,7 @@ export async function incrementSendAccessCount(db: D1Database, sendId: string): 
   const result = await db
     .prepare(
       'UPDATE sends SET access_count = access_count + 1, updated_at = ? ' +
-      'WHERE id = ? AND (max_access_count IS NULL OR access_count < max_access_count)'
+        'WHERE id = ? AND (max_access_count IS NULL OR access_count < max_access_count)'
     )
     .bind(now, sendId)
     .run();
@@ -136,7 +136,10 @@ export async function bulkDeleteSends(
   for (let i = 0; i < uniqueIds.length; i += chunkSize) {
     const chunk = uniqueIds.slice(i, i + chunkSize);
     const placeholders = chunk.map(() => '?').join(',');
-    await db.prepare(`DELETE FROM sends WHERE user_id = ? AND id IN (${placeholders})`).bind(userId, ...chunk).run();
+    await db
+      .prepare(`DELETE FROM sends WHERE user_id = ? AND id IN (${placeholders})`)
+      .bind(userId, ...chunk)
+      .run();
   }
 
   return updateRevisionDate(userId);
@@ -152,7 +155,12 @@ export async function getAllSends(db: D1Database, userId: string): Promise<Send[
   return (res.results || []).map((row) => mapSendRow(row));
 }
 
-export async function getSendsPage(db: D1Database, userId: string, limit: number, offset: number): Promise<Send[]> {
+export async function getSendsPage(
+  db: D1Database,
+  userId: string,
+  limit: number,
+  offset: number
+): Promise<Send[]> {
   const res = await db
     .prepare(
       'SELECT id, user_id, type, name, notes, data, key, password_hash, password_salt, password_iterations, auth_type, emails, max_access_count, access_count, disabled, hide_email, created_at, updated_at, expiration_date, deletion_date FROM sends WHERE user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'

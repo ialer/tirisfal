@@ -1,4 +1,4 @@
-import {
+import type {
   BackupDestinationRecord,
   BackupDestinationType,
   S3BackupDestination,
@@ -120,7 +120,10 @@ function parseHttpDate(value: string): string | null {
 }
 
 function extractXmlBlocks(xml: string, tagName: string): string[] {
-  const pattern = new RegExp(`<(?:[^:>]+:)?${tagName}\\b[^>]*>([\\s\\S]*?)</(?:[^:>]+:)?${tagName}>`, 'gi');
+  const pattern = new RegExp(
+    `<(?:[^:>]+:)?${tagName}\\b[^>]*>([\\s\\S]*?)</(?:[^:>]+:)?${tagName}>`,
+    'gi'
+  );
   const blocks: string[] = [];
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(xml))) {
@@ -130,7 +133,10 @@ function extractXmlBlocks(xml: string, tagName: string): string[] {
 }
 
 function extractXmlFirst(xml: string, tagName: string): string | null {
-  const pattern = new RegExp(`<(?:[^:>]+:)?${tagName}\\b[^>]*>([\\s\\S]*?)</(?:[^:>]+:)?${tagName}>`, 'i');
+  const pattern = new RegExp(
+    `<(?:[^:>]+:)?${tagName}\\b[^>]*>([\\s\\S]*?)</(?:[^:>]+:)?${tagName}>`,
+    'i'
+  );
   const match = xml.match(pattern);
   return match?.[1] ? decodeXmlText(match[1].trim()) : null;
 }
@@ -138,11 +144,19 @@ function extractXmlFirst(xml: string, tagName: string): string | null {
 async function sha256Hex(value: Uint8Array | string): Promise<string> {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
   const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 async function hmacSha256Raw(keyBytes: Uint8Array, message: string): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
   return new Uint8Array(signature);
 }
@@ -173,7 +187,9 @@ async function buildAwsV4Authorization(
 ): Promise<string> {
   const amzDate = headers['x-amz-date'];
   const shortDate = amzDate.slice(0, 8);
-  const headerEntries = Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value] as const).sort(([a], [b]) => a.localeCompare(b));
+  const headerEntries = Object.entries(headers)
+    .map(([name, value]) => [name.toLowerCase(), value] as const)
+    .sort(([a], [b]) => a.localeCompare(b));
   const canonicalHeaders = headerEntries
     .map(([name, value]) => `${name}:${String(value).trim().replace(/\s+/g, ' ')}`)
     .join('\n');
@@ -199,7 +215,9 @@ async function buildAwsV4Authorization(
   const kService = await hmacSha256Raw(kRegion, 's3');
   const kSigning = await hmacSha256Raw(kService, 'aws4_request');
   const signatureBytes = await hmacSha256Raw(kSigning, stringToSign);
-  const signature = Array.from(signatureBytes).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  const signature = Array.from(signatureBytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 
   return `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 }
@@ -208,7 +226,8 @@ function ensureDestinationConfigReady(destination: BackupDestinationRecord): voi
   if (destination.type === 'webdav') {
     const config = destination.destination as WebDavBackupDestination;
     if (!String(config.baseUrl || '').trim()) throw new Error('WebDAV server URL is required');
-    if (!/^https?:\/\//i.test(String(config.baseUrl || '').trim())) throw new Error('WebDAV server URL must start with http:// or https://');
+    if (!/^https?:\/\//i.test(String(config.baseUrl || '').trim()))
+      throw new Error('WebDAV server URL must start with http:// or https://');
     if (!String(config.username || '').trim()) throw new Error('WebDAV username is required');
     if (!String(config.password || '')) throw new Error('WebDAV password is required');
     return;
@@ -216,7 +235,8 @@ function ensureDestinationConfigReady(destination: BackupDestinationRecord): voi
   if (destination.type === 's3') {
     const config = destination.destination as S3BackupDestination;
     if (!String(config.endpoint || '').trim()) throw new Error('S3 endpoint is required');
-    if (!/^https?:\/\//i.test(String(config.endpoint || '').trim())) throw new Error('S3 endpoint must start with http:// or https://');
+    if (!/^https?:\/\//i.test(String(config.endpoint || '').trim()))
+      throw new Error('S3 endpoint must start with http:// or https://');
     if (!String(config.bucket || '').trim()) throw new Error('S3 bucket is required');
     if (!String(config.accessKeyId || '').trim()) throw new Error('S3 access key is required');
     if (!String(config.secretAccessKey || '')) throw new Error('S3 secret key is required');
@@ -233,7 +253,11 @@ function webDavFullPath(config: WebDavBackupDestination, relativePath: string): 
   return buildJoinedPath(config.remotePath, normalizeRelativePath(relativePath));
 }
 
-async function ensureWebDavDirectory(baseUrl: string, directoryPath: string, authHeader: string): Promise<void> {
+async function ensureWebDavDirectory(
+  baseUrl: string,
+  directoryPath: string,
+  authHeader: string
+): Promise<void> {
   const segments = trimSlashes(directoryPath).split('/').filter(Boolean);
   let current = '';
   for (const segment of segments) {
@@ -310,7 +334,11 @@ async function putToWebDav(
   }
 }
 
-async function uploadToWebDav(config: WebDavBackupDestination, archive: Uint8Array, fileName: string): Promise<BackupUploadResult> {
+async function uploadToWebDav(
+  config: WebDavBackupDestination,
+  archive: Uint8Array,
+  fileName: string
+): Promise<BackupUploadResult> {
   await putToWebDav(config, fileName, archive, { contentType: 'application/zip' });
   return {
     provider: 'webdav',
@@ -328,7 +356,10 @@ function parseWebDavResponsePath(baseUrl: string, href: string): string {
   return entryPath.startsWith(`${basePath}/`) ? entryPath.slice(basePath.length + 1) : entryPath;
 }
 
-async function listWebDavEntries(config: WebDavBackupDestination, relativePath: string): Promise<RemoteBackupListResult> {
+async function listWebDavEntries(
+  config: WebDavBackupDestination,
+  relativePath: string
+): Promise<RemoteBackupListResult> {
   const currentPath = normalizeRelativePath(relativePath);
   const targetFullPath = webDavFullPath(config, currentPath);
   const authHeader = toBasicAuthHeader(config.username, config.password);
@@ -362,7 +393,8 @@ async function listWebDavEntries(config: WebDavBackupDestination, relativePath: 
     const fullPath = trimSlashes(parseWebDavResponsePath(config.baseUrl, href));
     if (!fullPath) continue;
     if (fullPath === targetFullPath) continue;
-    if (rootFullPath && !(fullPath === rootFullPath || fullPath.startsWith(`${rootFullPath}/`))) continue;
+    if (rootFullPath && !(fullPath === rootFullPath || fullPath.startsWith(`${rootFullPath}/`)))
+      continue;
     const relative = rootFullPath
       ? fullPath === rootFullPath
         ? ''
@@ -393,7 +425,10 @@ async function listWebDavEntries(config: WebDavBackupDestination, relativePath: 
   };
 }
 
-async function downloadFromWebDav(config: WebDavBackupDestination, relativePath: string): Promise<RemoteBackupFile> {
+async function downloadFromWebDav(
+  config: WebDavBackupDestination,
+  relativePath: string
+): Promise<RemoteBackupFile> {
   const normalized = normalizeRelativePath(relativePath);
   if (!normalized || normalized.endsWith('/')) {
     throw new Error('Please select a backup file');
@@ -413,12 +448,16 @@ async function downloadFromWebDav(config: WebDavBackupDestination, relativePath:
     provider: 'webdav',
     remotePath: normalized,
     fileName: basename(normalized) || 'backup.zip',
-    contentType: String(response.headers.get('Content-Type') || 'application/zip').trim() || 'application/zip',
+    contentType:
+      String(response.headers.get('Content-Type') || 'application/zip').trim() || 'application/zip',
     bytes: new Uint8Array(await response.arrayBuffer()),
   };
 }
 
-async function deleteFromWebDav(config: WebDavBackupDestination, relativePath: string): Promise<void> {
+async function deleteFromWebDav(
+  config: WebDavBackupDestination,
+  relativePath: string
+): Promise<void> {
   const authHeader = toBasicAuthHeader(config.username, config.password);
   const remotePath = webDavFullPath(config, relativePath);
   const response = await fetch(buildWebDavUrl(config.baseUrl, remotePath), {
@@ -432,7 +471,10 @@ async function deleteFromWebDav(config: WebDavBackupDestination, relativePath: s
   }
 }
 
-async function existsInWebDav(config: WebDavBackupDestination, relativePath: string): Promise<boolean> {
+async function existsInWebDav(
+  config: WebDavBackupDestination,
+  relativePath: string
+): Promise<boolean> {
   const authHeader = toBasicAuthHeader(config.username, config.password);
   const remotePath = webDavFullPath(config, relativePath);
   const response = await fetch(buildWebDavUrl(config.baseUrl, remotePath), {
@@ -509,7 +551,11 @@ async function putToS3(
   }
 }
 
-async function uploadToS3(config: S3BackupDestination, archive: Uint8Array, fileName: string): Promise<BackupUploadResult> {
+async function uploadToS3(
+  config: S3BackupDestination,
+  archive: Uint8Array,
+  fileName: string
+): Promise<BackupUploadResult> {
   await putToS3(config, fileName, archive, { contentType: 'application/zip' });
   return {
     provider: 's3',
@@ -517,7 +563,10 @@ async function uploadToS3(config: S3BackupDestination, archive: Uint8Array, file
   };
 }
 
-async function listS3Entries(config: S3BackupDestination, relativePath: string): Promise<RemoteBackupListResult> {
+async function listS3Entries(
+  config: S3BackupDestination,
+  relativePath: string
+): Promise<RemoteBackupListResult> {
   const currentPath = normalizeRelativePath(relativePath);
   const targetPrefixBase = normalizeS3ObjectKey(config, currentPath);
   const targetPrefix = trimSlashes(targetPrefixBase) ? `${trimSlashes(targetPrefixBase)}/` : '';
@@ -588,7 +637,10 @@ async function listS3Entries(config: S3BackupDestination, relativePath: string):
   };
 }
 
-async function downloadFromS3(config: S3BackupDestination, relativePath: string): Promise<RemoteBackupFile> {
+async function downloadFromS3(
+  config: S3BackupDestination,
+  relativePath: string
+): Promise<RemoteBackupFile> {
   const normalized = normalizeRelativePath(relativePath);
   if (!normalized || normalized.endsWith('/')) {
     throw new Error('Please select a backup file');
@@ -603,7 +655,8 @@ async function downloadFromS3(config: S3BackupDestination, relativePath: string)
     provider: 's3',
     remotePath: normalized,
     fileName: basename(normalized) || 'backup.zip',
-    contentType: String(response.headers.get('Content-Type') || 'application/zip').trim() || 'application/zip',
+    contentType:
+      String(response.headers.get('Content-Type') || 'application/zip').trim() || 'application/zip',
     bytes: new Uint8Array(await response.arrayBuffer()),
   };
 }
@@ -631,18 +684,43 @@ async function existsInS3(config: S3BackupDestination, relativePath: string): Pr
 interface ConfiguredDestinationAdapter {
   provider: 'webdav' | 's3';
   config: WebDavBackupDestination | S3BackupDestination;
-  upload: (config: WebDavBackupDestination | S3BackupDestination, archive: Uint8Array, fileName: string) => Promise<BackupUploadResult>;
-  putFile: (config: WebDavBackupDestination | S3BackupDestination, relativePath: string, bytes: Uint8Array, options?: RemoteBackupFilePutOptions) => Promise<void>;
-  list: (config: WebDavBackupDestination | S3BackupDestination, relativePath: string) => Promise<RemoteBackupListResult>;
-  download: (config: WebDavBackupDestination | S3BackupDestination, relativePath: string) => Promise<RemoteBackupFile>;
-  deleteFile: (config: WebDavBackupDestination | S3BackupDestination, relativePath: string) => Promise<void>;
-  exists: (config: WebDavBackupDestination | S3BackupDestination, relativePath: string) => Promise<boolean>;
+  upload: (
+    config: WebDavBackupDestination | S3BackupDestination,
+    archive: Uint8Array,
+    fileName: string
+  ) => Promise<BackupUploadResult>;
+  putFile: (
+    config: WebDavBackupDestination | S3BackupDestination,
+    relativePath: string,
+    bytes: Uint8Array,
+    options?: RemoteBackupFilePutOptions
+  ) => Promise<void>;
+  list: (
+    config: WebDavBackupDestination | S3BackupDestination,
+    relativePath: string
+  ) => Promise<RemoteBackupListResult>;
+  download: (
+    config: WebDavBackupDestination | S3BackupDestination,
+    relativePath: string
+  ) => Promise<RemoteBackupFile>;
+  deleteFile: (
+    config: WebDavBackupDestination | S3BackupDestination,
+    relativePath: string
+  ) => Promise<void>;
+  exists: (
+    config: WebDavBackupDestination | S3BackupDestination,
+    relativePath: string
+  ) => Promise<boolean>;
 }
 
 export interface RemoteBackupTransferSession {
   provider: BackupDestinationType;
   uploadArchive(archive: Uint8Array, fileName: string): Promise<BackupUploadResult>;
-  putFile(relativePath: string, bytes: Uint8Array, options?: RemoteBackupFilePutOptions): Promise<void>;
+  putFile(
+    relativePath: string,
+    bytes: Uint8Array,
+    options?: RemoteBackupFilePutOptions
+  ): Promise<void>;
   list(relativePath: string): Promise<RemoteBackupListResult>;
   download(relativePath: string): Promise<RemoteBackupFile>;
   deleteFile(relativePath: string): Promise<void>;
@@ -658,23 +736,33 @@ function resolveConfiguredDestinationAdapter(
     return {
       provider: 'webdav',
       config: destination.destination as WebDavBackupDestination,
-      upload: (config, archive, fileName) => uploadToWebDav(config as WebDavBackupDestination, archive, fileName),
-      putFile: (config, relativePath, bytes, options) => putToWebDav(config as WebDavBackupDestination, relativePath, bytes, options),
-      list: (config, relativePath) => listWebDavEntries(config as WebDavBackupDestination, relativePath),
-      download: (config, relativePath) => downloadFromWebDav(config as WebDavBackupDestination, relativePath),
-      deleteFile: (config, relativePath) => deleteFromWebDav(config as WebDavBackupDestination, relativePath),
-      exists: (config, relativePath) => existsInWebDav(config as WebDavBackupDestination, relativePath),
+      upload: (config, archive, fileName) =>
+        uploadToWebDav(config as WebDavBackupDestination, archive, fileName),
+      putFile: (config, relativePath, bytes, options) =>
+        putToWebDav(config as WebDavBackupDestination, relativePath, bytes, options),
+      list: (config, relativePath) =>
+        listWebDavEntries(config as WebDavBackupDestination, relativePath),
+      download: (config, relativePath) =>
+        downloadFromWebDav(config as WebDavBackupDestination, relativePath),
+      deleteFile: (config, relativePath) =>
+        deleteFromWebDav(config as WebDavBackupDestination, relativePath),
+      exists: (config, relativePath) =>
+        existsInWebDav(config as WebDavBackupDestination, relativePath),
     };
   }
   if (destination.type === 's3') {
     return {
       provider: 's3',
       config: destination.destination as S3BackupDestination,
-      upload: (config, archive, fileName) => uploadToS3(config as S3BackupDestination, archive, fileName),
-      putFile: (config, relativePath, bytes, options) => putToS3(config as S3BackupDestination, relativePath, bytes, options),
+      upload: (config, archive, fileName) =>
+        uploadToS3(config as S3BackupDestination, archive, fileName),
+      putFile: (config, relativePath, bytes, options) =>
+        putToS3(config as S3BackupDestination, relativePath, bytes, options),
       list: (config, relativePath) => listS3Entries(config as S3BackupDestination, relativePath),
-      download: (config, relativePath) => downloadFromS3(config as S3BackupDestination, relativePath),
-      deleteFile: (config, relativePath) => deleteFromS3(config as S3BackupDestination, relativePath),
+      download: (config, relativePath) =>
+        downloadFromS3(config as S3BackupDestination, relativePath),
+      deleteFile: (config, relativePath) =>
+        deleteFromS3(config as S3BackupDestination, relativePath),
       exists: (config, relativePath) => existsInS3(config as S3BackupDestination, relativePath),
     };
   }
@@ -682,14 +770,26 @@ function resolveConfiguredDestinationAdapter(
   throw new Error('Unsupported backup destination type');
 }
 
-export function createRemoteBackupTransferSession(destination: BackupDestinationRecord): RemoteBackupTransferSession {
+export function createRemoteBackupTransferSession(
+  destination: BackupDestinationRecord
+): RemoteBackupTransferSession {
   const adapter = resolveConfiguredDestinationAdapter(destination);
   const ensuredDirectories = adapter.provider === 'webdav' ? new Set<string>() : null;
 
-  const putFile = async (relativePath: string, bytes: Uint8Array, options: RemoteBackupFilePutOptions = {}): Promise<void> => {
+  const putFile = async (
+    relativePath: string,
+    bytes: Uint8Array,
+    options: RemoteBackupFilePutOptions = {}
+  ): Promise<void> => {
     const normalized = normalizeRelativePath(relativePath);
     if (adapter.provider === 'webdav' && ensuredDirectories) {
-      await putToWebDav(adapter.config as WebDavBackupDestination, normalized, bytes, options, ensuredDirectories);
+      await putToWebDav(
+        adapter.config as WebDavBackupDestination,
+        normalized,
+        bytes,
+        options,
+        ensuredDirectories
+      );
       return;
     }
     await adapter.putFile(adapter.config, normalized, bytes, options);
@@ -701,16 +801,19 @@ export function createRemoteBackupTransferSession(destination: BackupDestination
       await putFile(fileName, archive, { contentType: 'application/zip' });
       return {
         provider: adapter.provider,
-        remotePath: adapter.provider === 'webdav'
-          ? buildJoinedPath((adapter.config as WebDavBackupDestination).remotePath, fileName)
-          : normalizeS3ObjectKey(adapter.config as S3BackupDestination, fileName),
+        remotePath:
+          adapter.provider === 'webdav'
+            ? buildJoinedPath((adapter.config as WebDavBackupDestination).remotePath, fileName)
+            : normalizeS3ObjectKey(adapter.config as S3BackupDestination, fileName),
       };
     },
     putFile,
     list: async (relativePath: string) => adapter.list(adapter.config, relativePath),
     download: async (relativePath: string) => adapter.download(adapter.config, relativePath),
-    deleteFile: async (relativePath: string) => adapter.deleteFile(adapter.config, normalizeRelativePath(relativePath)),
-    exists: async (relativePath: string) => adapter.exists(adapter.config, normalizeRelativePath(relativePath)),
+    deleteFile: async (relativePath: string) =>
+      adapter.deleteFile(adapter.config, normalizeRelativePath(relativePath)),
+    exists: async (relativePath: string) =>
+      adapter.exists(adapter.config, normalizeRelativePath(relativePath)),
   };
 }
 
@@ -722,20 +825,32 @@ export async function uploadBackupArchive(
   return createRemoteBackupTransferSession(destination).uploadArchive(archive, fileName);
 }
 
-export async function listRemoteBackupEntries(destination: BackupDestinationRecord, relativePath: string): Promise<RemoteBackupListResult> {
+export async function listRemoteBackupEntries(
+  destination: BackupDestinationRecord,
+  relativePath: string
+): Promise<RemoteBackupListResult> {
   return createRemoteBackupTransferSession(destination).list(relativePath);
 }
 
-export async function downloadRemoteBackupFile(destination: BackupDestinationRecord, relativePath: string): Promise<RemoteBackupFile> {
+export async function downloadRemoteBackupFile(
+  destination: BackupDestinationRecord,
+  relativePath: string
+): Promise<RemoteBackupFile> {
   return createRemoteBackupTransferSession(destination).download(relativePath);
 }
 
-export async function deleteRemoteBackupFile(destination: BackupDestinationRecord, relativePath: string): Promise<void> {
+export async function deleteRemoteBackupFile(
+  destination: BackupDestinationRecord,
+  relativePath: string
+): Promise<void> {
   const normalized = ensureRemoteRestoreCandidate(relativePath);
   await createRemoteBackupTransferSession(destination).deleteFile(normalized);
 }
 
-export async function remoteBackupFileExists(destination: BackupDestinationRecord, relativePath: string): Promise<boolean> {
+export async function remoteBackupFileExists(
+  destination: BackupDestinationRecord,
+  relativePath: string
+): Promise<boolean> {
   const normalized = normalizeRelativePath(relativePath);
   return createRemoteBackupTransferSession(destination).exists(normalized);
 }
@@ -750,7 +865,11 @@ export async function uploadRemoteBackupFile(
   await createRemoteBackupTransferSession(destination).putFile(normalized, bytes, options);
 }
 
-function compareBackupItemsByRecency(a: RemoteBackupItem, b: RemoteBackupItem, preferredFileName?: string): number {
+function compareBackupItemsByRecency(
+  a: RemoteBackupItem,
+  b: RemoteBackupItem,
+  preferredFileName?: string
+): number {
   if (preferredFileName) {
     const aPreferred = a.name === preferredFileName ? 1 : 0;
     const bPreferred = b.name === preferredFileName ? 1 : 0;

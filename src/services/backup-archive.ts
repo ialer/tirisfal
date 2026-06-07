@@ -1,12 +1,10 @@
-import { zipSync, unzipSync } from 'fflate';
-import type { Env } from '../types';
+import { unzipSync, zipSync } from 'fflate';
+
 import { APP_VERSION } from '../../shared/app-version';
+import type { Env } from '../types';
 import { BACKUP_SETTINGS_CONFIG_KEY } from './backup-config';
 import { exportPortableBackupSettingsEnvelope } from './backup-settings-crypto';
-import {
-  getAttachmentObjectKey,
-  getBlobStorageKind,
-} from './blob-store';
+import { getAttachmentObjectKey, getBlobStorageKind } from './blob-store';
 
 // CONTRACT:
 // This file defines the exported instance-backup archive shape. Keep it in lock
@@ -97,10 +95,15 @@ export interface BackupArchiveBuildProgressEvent {
   includeAttachments: boolean;
 }
 
-export type BackupArchiveBuildProgressReporter = (event: BackupArchiveBuildProgressEvent) => Promise<void>;
+export type BackupArchiveBuildProgressReporter = (
+  event: BackupArchiveBuildProgressEvent
+) => Promise<void>;
 
 async function queryRows(db: D1Database, sql: string, ...values: unknown[]): Promise<SqlRow[]> {
-  const result = await db.prepare(sql).bind(...values).all<SqlRow>();
+  const result = await db
+    .prepare(sql)
+    .bind(...values)
+    .all<SqlRow>();
   return (result.results || []).map((row) => ({ ...row }));
 }
 
@@ -111,7 +114,9 @@ function sanitizeConfigRowsForExport(rows: SqlRow[]): SqlRow[] {
     if (!key || key === BACKUP_RUNNER_LOCK_CONFIG_KEY) continue;
 
     if (key === BACKUP_SETTINGS_CONFIG_KEY) {
-      const portableOnly = exportPortableBackupSettingsEnvelope(typeof row.value === 'string' ? row.value : null);
+      const portableOnly = exportPortableBackupSettingsEnvelope(
+        typeof row.value === 'string' ? row.value : null
+      );
       if (portableOnly) sanitized.push({ ...row, value: portableOnly });
       continue;
     }
@@ -123,7 +128,9 @@ function sanitizeConfigRowsForExport(rows: SqlRow[]): SqlRow[] {
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function getDateParts(date: Date, timeZone: string): string {
@@ -173,14 +180,19 @@ export async function inspectBackupArchiveFileNameChecksum(
   };
 }
 
-export async function verifyBackupArchiveFileNameChecksum(bytes: Uint8Array, fileName: string): Promise<boolean> {
+export async function verifyBackupArchiveFileNameChecksum(
+  bytes: Uint8Array,
+  fileName: string
+): Promise<boolean> {
   const result = await inspectBackupArchiveFileNameChecksum(bytes, fileName);
   return result.matches;
 }
 
 function validateArchiveSize(bytes: Uint8Array): void {
   if (bytes.byteLength > MAX_BACKUP_ARCHIVE_BYTES) {
-    throw new Error(`Backup archive is too large. The current restore limit is ${Math.floor(MAX_BACKUP_ARCHIVE_BYTES / (1024 * 1024))} MiB`);
+    throw new Error(
+      `Backup archive is too large. The current restore limit is ${Math.floor(MAX_BACKUP_ARCHIVE_BYTES / (1024 * 1024))} MiB`
+    );
   }
 }
 
@@ -202,7 +214,9 @@ function ensureRowArray(value: unknown, table: string): SqlRow[] {
   return value as SqlRow[];
 }
 
-function createZipEntries(files: Record<string, Uint8Array>): Record<string, Uint8Array | [Uint8Array, { level: 0 | 1 | 6 }]> {
+function createZipEntries(
+  files: Record<string, Uint8Array>
+): Record<string, Uint8Array | [Uint8Array, { level: 0 | 1 | 6 }]> {
   const entries: Record<string, Uint8Array | [Uint8Array, { level: 0 | 1 | 6 }]> = {};
   for (const [path, bytes] of Object.entries(files)) {
     entries[path] = [bytes, { level: BACKUP_TEXT_COMPRESSION_LEVEL }];
@@ -268,10 +282,15 @@ export function parseBackupArchive(
 
   const externalAttachmentKeys = new Set<string>(
     options.allowExternalAttachmentBlobs
-      ? (manifest.attachmentBlobs || []).map((item) => `attachments/${String(item.cipherId || '').trim()}/${String(item.attachmentId || '').trim()}.bin`)
+      ? (manifest.attachmentBlobs || []).map(
+          (item) =>
+            `attachments/${String(item.cipherId || '').trim()}/${String(item.attachmentId || '').trim()}.bin`
+        )
       : []
   );
-  const requiredEntries = getRequiredZipEntries(db).filter((entry) => !externalAttachmentKeys.has(entry));
+  const requiredEntries = getRequiredZipEntries(db).filter(
+    (entry) => !externalAttachmentKeys.has(entry)
+  );
   for (const entry of requiredEntries) {
     if (!zipped[entry]) {
       throw new Error(`Backup archive is missing required file: ${entry}`);
@@ -302,7 +321,10 @@ export function validateBackupPayloadContents(
   const attachmentRows = ensureRowArray(payload.db.attachments, 'attachments');
   const externalAttachmentKeys = new Set<string>(
     options.allowExternalAttachmentBlobs
-      ? (payload.manifest.attachmentBlobs || []).map((item) => `attachments/${String(item.cipherId || '').trim()}/${String(item.attachmentId || '').trim()}.bin`)
+      ? (payload.manifest.attachmentBlobs || []).map(
+          (item) =>
+            `attachments/${String(item.cipherId || '').trim()}/${String(item.attachmentId || '').trim()}.bin`
+        )
       : []
   );
 
@@ -323,7 +345,9 @@ export function validateBackupPayloadContents(
   for (const row of revisionRows) {
     const userId = String(row.user_id || '').trim();
     if (!userId || !userIds.has(userId)) {
-      throw new Error(`Backup archive contains a revision for an unknown user: ${userId || '(empty)'}`);
+      throw new Error(
+        `Backup archive contains a revision for an unknown user: ${userId || '(empty)'}`
+      );
     }
   }
 
@@ -331,7 +355,9 @@ export function validateBackupPayloadContents(
   for (const row of domainSettingsRows) {
     const userId = String(row.user_id || '').trim();
     if (!userId || !userIds.has(userId)) {
-      throw new Error(`Backup archive contains domain settings for an unknown user: ${userId || '(empty)'}`);
+      throw new Error(
+        `Backup archive contains domain settings for an unknown user: ${userId || '(empty)'}`
+      );
     }
     if (domainSettingUserIds.has(userId)) {
       throw new Error(`Backup archive contains duplicate domain settings for user: ${userId}`);
@@ -343,7 +369,8 @@ export function validateBackupPayloadContents(
   for (const row of folderRows) {
     const id = String(row.id || '').trim();
     const userId = String(row.user_id || '').trim();
-    if (!id || !userIds.has(userId)) throw new Error('Backup archive contains an invalid folder row');
+    if (!id || !userIds.has(userId))
+      throw new Error('Backup archive contains an invalid folder row');
     if (folderIds.has(id)) throw new Error(`Backup archive contains duplicate folder id: ${id}`);
     folderIds.add(id);
   }
@@ -353,7 +380,8 @@ export function validateBackupPayloadContents(
     const id = String(row.id || '').trim();
     const userId = String(row.user_id || '').trim();
     const folderId = String(row.folder_id || '').trim();
-    if (!id || !userIds.has(userId)) throw new Error('Backup archive contains an invalid cipher row');
+    if (!id || !userIds.has(userId))
+      throw new Error('Backup archive contains an invalid cipher row');
     if (folderId && !folderIds.has(folderId)) {
       throw new Error(`Backup archive contains a cipher for an unknown folder: ${folderId}`);
     }
@@ -390,14 +418,37 @@ export async function buildBackupArchive(
     includeAttachments,
   });
   const encoder = new TextEncoder();
-  const [configRows, userRows, domainSettingsRows, revisionRows, folderRows, cipherRows, attachmentRows] = await Promise.all([
+  const [
+    configRows,
+    userRows,
+    domainSettingsRows,
+    revisionRows,
+    folderRows,
+    cipherRows,
+    attachmentRows,
+  ] = await Promise.all([
     queryRows(env.DB, 'SELECT key, value FROM config ORDER BY key ASC'),
-    queryRows(env.DB, 'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'),
-    queryRows(env.DB, 'SELECT user_id, equivalent_domains, custom_equivalent_domains, excluded_global_equivalent_domains, updated_at FROM domain_settings ORDER BY user_id ASC'),
+    queryRows(
+      env.DB,
+      'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'
+    ),
+    queryRows(
+      env.DB,
+      'SELECT user_id, equivalent_domains, custom_equivalent_domains, excluded_global_equivalent_domains, updated_at FROM domain_settings ORDER BY user_id ASC'
+    ),
     queryRows(env.DB, 'SELECT user_id, revision_date FROM user_revisions ORDER BY user_id ASC'),
-    queryRows(env.DB, 'SELECT id, user_id, name, created_at, updated_at FROM folders ORDER BY created_at ASC'),
-    queryRows(env.DB, 'SELECT id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers ORDER BY created_at ASC'),
-    queryRows(env.DB, 'SELECT id, cipher_id, file_name, size, size_name, key FROM attachments ORDER BY cipher_id ASC, id ASC'),
+    queryRows(
+      env.DB,
+      'SELECT id, user_id, name, created_at, updated_at FROM folders ORDER BY created_at ASC'
+    ),
+    queryRows(
+      env.DB,
+      'SELECT id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers ORDER BY created_at ASC'
+    ),
+    queryRows(
+      env.DB,
+      'SELECT id, cipher_id, file_name, size, size_name, key FROM attachments ORDER BY cipher_id ASC, id ASC'
+    ),
   ]);
   const exportedConfigRows = sanitizeConfigRowsForExport(configRows);
   const exportedAttachmentRows = includeAttachments ? attachmentRows : [];
@@ -439,15 +490,21 @@ export async function buildBackupArchive(
 
   const files: Record<string, Uint8Array> = {
     'manifest.json': encoder.encode(JSON.stringify(manifestBase, null, BACKUP_JSON_INDENT)),
-    'db.json': encoder.encode(JSON.stringify({
-      config: exportedConfigRows,
-      users: userRows,
-      domain_settings: domainSettingsRows,
-      user_revisions: revisionRows,
-      folders: folderRows,
-      ciphers: cipherRows,
-      attachments: exportedAttachmentRows,
-    }, null, BACKUP_JSON_INDENT)),
+    'db.json': encoder.encode(
+      JSON.stringify(
+        {
+          config: exportedConfigRows,
+          users: userRows,
+          domain_settings: domainSettingsRows,
+          user_revisions: revisionRows,
+          folders: folderRows,
+          ciphers: cipherRows,
+          attachments: exportedAttachmentRows,
+        },
+        null,
+        BACKUP_JSON_INDENT
+      )
+    ),
   };
 
   await options.progress?.({

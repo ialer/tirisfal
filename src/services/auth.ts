@@ -1,5 +1,5 @@
-import { Env, JWTPayload, User } from '../types';
-import { verifyJWT, createJWT, createRefreshToken } from '../utils/jwt';
+import type { Env, JWTPayload, User } from '../types';
+import { createJWT, createRefreshToken, verifyJWT } from '../utils/jwt';
 import { StorageService } from './storage';
 
 // Server-side iterations for second-layer hashing.
@@ -74,7 +74,11 @@ export class AuthService {
     return cached.device;
   }
 
-  private writeCachedDevice(userId: string, deviceId: string, device: Awaited<ReturnType<StorageService['getDevice']>>): void {
+  private writeCachedDevice(
+    userId: string,
+    deviceId: string,
+    device: Awaited<ReturnType<StorageService['getDevice']>>
+  ): void {
     const cacheKey = `${userId}:${deviceId}`;
     AuthService.deviceCache.set(cacheKey, {
       device,
@@ -116,7 +120,7 @@ export class AuthService {
     const bytes = new Uint8Array(bits);
     let binary = '';
     for (const b of bytes) binary += String.fromCharCode(b);
-    return '$s$' + btoa(binary);
+    return `$s$${btoa(binary)}`;
   }
 
   // Verify password: hash the input the same way, then constant-time compare.
@@ -143,7 +147,10 @@ export class AuthService {
   }
 
   // Generate access token
-  async generateAccessToken(user: User, device?: { identifier: string; sessionStamp: string } | null): Promise<string> {
+  async generateAccessToken(
+    user: User,
+    device?: { identifier: string; sessionStamp: string } | null
+  ): Promise<string> {
     return createJWT(
       {
         sub: user.id,
@@ -157,13 +164,24 @@ export class AuthService {
   }
 
   // Generate refresh token
-  async generateRefreshToken(userId: string, device?: { identifier: string; sessionStamp: string } | null): Promise<string> {
+  async generateRefreshToken(
+    userId: string,
+    device?: { identifier: string; sessionStamp: string } | null
+  ): Promise<string> {
     const token = createRefreshToken();
-    await this.storage.saveRefreshToken(token, userId, undefined, device?.identifier ?? null, device?.sessionStamp ?? null);
+    await this.storage.saveRefreshToken(
+      token,
+      userId,
+      undefined,
+      device?.identifier ?? null,
+      device?.sessionStamp ?? null
+    );
     return token;
   }
 
-  async verifyAccessTokenWithUser(authHeader: string | null): Promise<VerifiedAccessContext | null> {
+  async verifyAccessTokenWithUser(
+    authHeader: string | null
+  ): Promise<VerifiedAccessContext | null> {
     if (!authHeader) return null;
 
     const parts = authHeader.split(' ');
@@ -206,7 +224,11 @@ export class AuthService {
   // Refresh access token
   async refreshAccessToken(
     refreshToken: string
-  ): Promise<{ accessToken: string; user: User; device: { identifier: string; sessionStamp: string } | null } | null> {
+  ): Promise<{
+    accessToken: string;
+    user: User;
+    device: { identifier: string; sessionStamp: string } | null;
+  } | null> {
     const record = await this.storage.getRefreshTokenRecord(refreshToken);
     if (!record?.userId) return null;
 

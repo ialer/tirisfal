@@ -1,17 +1,22 @@
-import { Env, Send, SendAuthType, SendType } from '../types';
-import { StorageService } from '../services/storage';
-import { jsonResponse, errorResponse } from '../utils/response';
-import { buildDirectUploadUrl, getSafeJwtSecret, parseDirectUploadPayload } from '../utils/direct-upload';
-import { generateUUID } from '../utils/uuid';
-import { parsePagination, encodeContinuationToken } from '../utils/pagination';
 import { LIMITS } from '../config/limits';
 import {
+  deleteBlobObject,
   getBlobStorageMaxBytes,
   getSendFileObjectKey,
   putBlobObject,
-  deleteBlobObject,
 } from '../services/blob-store';
+import { StorageService } from '../services/storage';
+import type { Env, Send } from '../types';
+import { SendAuthType, SendType } from '../types';
+import {
+  buildDirectUploadUrl,
+  getSafeJwtSecret,
+  parseDirectUploadPayload,
+} from '../utils/direct-upload';
 import { createSendFileUploadToken, verifySendFileUploadToken } from '../utils/jwt';
+import { encodeContinuationToken, parsePagination } from '../utils/pagination';
+import { errorResponse, jsonResponse } from '../utils/response';
+import { generateUUID } from '../utils/uuid';
 import {
   formatSize,
   getAliasedProp,
@@ -81,7 +86,11 @@ async function processSendFileUpload(
   return new Response(null, { status: 201 });
 }
 
-export async function handleGetSends(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleGetSends(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const url = new URL(request.url);
   const pagination = parsePagination(url);
@@ -105,7 +114,12 @@ export async function handleGetSends(request: Request, env: Env, userId: string)
   });
 }
 
-export async function handleGetSend(request: Request, env: Env, userId: string, sendId: string): Promise<Response> {
+export async function handleGetSend(
+  request: Request,
+  env: Env,
+  userId: string,
+  sendId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const send = await storage.getSend(sendId);
@@ -117,7 +131,11 @@ export async function handleGetSend(request: Request, env: Env, userId: string, 
   return jsonResponse(sendToResponse(send));
 }
 
-export async function handleCreateSend(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleCreateSend(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
 
   let body: unknown;
@@ -166,9 +184,10 @@ export async function handleCreateSend(request: Request, env: Env, userId: strin
   if (!maxAccess.ok) return maxAccess.response;
 
   const expirationRaw = getAliasedProp(body, ['expirationDate', 'ExpirationDate']);
-  const expirationDate = expirationRaw.value === null || expirationRaw.value === undefined
-    ? null
-    : parseDate(expirationRaw.value);
+  const expirationDate =
+    expirationRaw.value === null || expirationRaw.value === undefined
+      ? null
+      : parseDate(expirationRaw.value);
   if (expirationRaw.value !== null && expirationRaw.value !== undefined && !expirationDate) {
     return errorResponse('Invalid expirationDate', 400);
   }
@@ -231,7 +250,11 @@ export async function handleCreateSend(request: Request, env: Env, userId: strin
   return jsonResponse(sendToResponse(send));
 }
 
-export async function handleCreateFileSendV2(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleCreateFileSendV2(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const maxFileSize = getBlobStorageMaxBytes(env, LIMITS.send.maxFileSizeBytes);
 
@@ -289,9 +312,10 @@ export async function handleCreateFileSendV2(request: Request, env: Env, userId:
   if (!maxAccess.ok) return maxAccess.response;
 
   const expirationRaw = getAliasedProp(body, ['expirationDate', 'ExpirationDate']);
-  const expirationDate = expirationRaw.value === null || expirationRaw.value === undefined
-    ? null
-    : parseDate(expirationRaw.value);
+  const expirationDate =
+    expirationRaw.value === null || expirationRaw.value === undefined
+      ? null
+      : parseDate(expirationRaw.value);
   if (expirationRaw.value !== null && expirationRaw.value !== undefined && !expirationDate) {
     return errorResponse('Invalid expirationDate', 400);
   }
@@ -455,7 +479,12 @@ export async function handlePublicUploadSendFile(
   return processSendFileUpload(request, env, send, fileId);
 }
 
-export async function handleUpdateSend(request: Request, env: Env, userId: string, sendId: string): Promise<Response> {
+export async function handleUpdateSend(
+  request: Request,
+  env: Env,
+  userId: string,
+  sendId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const send = await storage.getSend(sendId);
   if (!send || send.userId !== userId) {
@@ -601,7 +630,12 @@ export async function handleUpdateSend(request: Request, env: Env, userId: strin
   return jsonResponse(sendToResponse(send));
 }
 
-export async function handleDeleteSend(request: Request, env: Env, userId: string, sendId: string): Promise<Response> {
+export async function handleDeleteSend(
+  request: Request,
+  env: Env,
+  userId: string,
+  sendId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const send = await storage.getSend(sendId);
@@ -624,7 +658,11 @@ export async function handleDeleteSend(request: Request, env: Env, userId: strin
   return new Response(null, { status: 200 });
 }
 
-export async function handleBulkDeleteSends(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleBulkDeleteSends(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
 
   let body: { ids?: string[] };
@@ -656,7 +694,12 @@ export async function handleBulkDeleteSends(request: Request, env: Env, userId: 
   return new Response(null, { status: 200 });
 }
 
-export async function handleRemoveSendPassword(request: Request, env: Env, userId: string, sendId: string): Promise<Response> {
+export async function handleRemoveSendPassword(
+  request: Request,
+  env: Env,
+  userId: string,
+  sendId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const send = await storage.getSend(sendId);
@@ -673,7 +716,12 @@ export async function handleRemoveSendPassword(request: Request, env: Env, userI
   return jsonResponse(sendToResponse(send));
 }
 
-export async function handleRemoveSendAuth(request: Request, env: Env, userId: string, sendId: string): Promise<Response> {
+export async function handleRemoveSendAuth(
+  request: Request,
+  env: Env,
+  userId: string,
+  sendId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const send = await storage.getSend(sendId);

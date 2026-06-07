@@ -103,14 +103,18 @@ export async function getCipher(db: D1Database, id: string): Promise<Cipher | nu
   return parseCipherRow(row);
 }
 
-export async function saveCipher(db: D1Database, safeBind: SafeBind, cipher: Cipher): Promise<void> {
+export async function saveCipher(
+  db: D1Database,
+  safeBind: SafeBind,
+  cipher: Cipher
+): Promise<void> {
   const folderId = normalizeOptionalId(cipher.folderId);
   const data = buildCipherData(cipher, folderId);
   const stmt = db.prepare(
     'INSERT INTO ciphers(id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
-    'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
-    'ON CONFLICT(id) DO UPDATE SET ' +
-    'user_id=excluded.user_id, type=excluded.type, folder_id=excluded.folder_id, name=excluded.name, notes=excluded.notes, favorite=excluded.favorite, data=excluded.data, reprompt=excluded.reprompt, key=excluded.key, updated_at=excluded.updated_at, archived_at=excluded.archived_at, deleted_at=excluded.deleted_at'
+      'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+      'ON CONFLICT(id) DO UPDATE SET ' +
+      'user_id=excluded.user_id, type=excluded.type, folder_id=excluded.folder_id, name=excluded.name, notes=excluded.notes, favorite=excluded.favorite, data=excluded.data, reprompt=excluded.reprompt, key=excluded.key, updated_at=excluded.updated_at, archived_at=excluded.archived_at, deleted_at=excluded.deleted_at'
   );
   await safeBind(
     stmt,
@@ -216,7 +220,10 @@ export async function bulkDeleteCiphers(
   for (let i = 0; i < uniqueIds.length; i += chunkSize) {
     const chunk = uniqueIds.slice(i, i + chunkSize);
     const placeholders = chunk.map(() => '?').join(',');
-    await db.prepare(`DELETE FROM ciphers WHERE user_id = ? AND id IN (${placeholders})`).bind(userId, ...chunk).run();
+    await db
+      .prepare(`DELETE FROM ciphers WHERE user_id = ? AND id IN (${placeholders})`)
+      .bind(userId, ...chunk)
+      .run();
   }
 
   return updateRevisionDate(userId);
@@ -224,7 +231,9 @@ export async function bulkDeleteCiphers(
 
 export async function getAllCiphers(db: D1Database, userId: string): Promise<Cipher[]> {
   const res = await db
-    .prepare(`SELECT ${selectCipherColumns()} FROM ciphers WHERE user_id = ? ORDER BY updated_at DESC`)
+    .prepare(
+      `SELECT ${selectCipherColumns()} FROM ciphers WHERE user_id = ? ORDER BY updated_at DESC`
+    )
     .bind(userId)
     .all<CipherRow>();
   return (res.results || []).flatMap((row) => {
@@ -272,7 +281,9 @@ export async function getCiphersByIds(
   for (let i = 0; i < uniqueIds.length; i += chunkSize) {
     const chunk = uniqueIds.slice(i, i + chunkSize);
     const placeholders = chunk.map(() => '?').join(',');
-    const stmt = db.prepare(`SELECT ${selectCipherColumns()} FROM ciphers WHERE user_id = ? AND id IN (${placeholders})`);
+    const stmt = db.prepare(
+      `SELECT ${selectCipherColumns()} FROM ciphers WHERE user_id = ? AND id IN (${placeholders})`
+    );
     const res = await stmt.bind(userId, ...chunk).all<CipherRow>();
     out.push(
       ...(res.results || []).flatMap((row) => {

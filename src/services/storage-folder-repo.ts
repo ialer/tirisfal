@@ -23,7 +23,7 @@ export async function saveFolder(db: D1Database, folder: Folder): Promise<void> 
   await db
     .prepare(
       'INSERT INTO folders(id, user_id, name, created_at, updated_at) VALUES(?, ?, ?, ?, ?) ' +
-      'ON CONFLICT(id) DO UPDATE SET user_id=excluded.user_id, name=excluded.name, updated_at=excluded.updated_at'
+        'ON CONFLICT(id) DO UPDATE SET user_id=excluded.user_id, name=excluded.name, updated_at=excluded.updated_at'
     )
     .bind(folder.id, folder.userId, folder.name, folder.createdAt, folder.updatedAt)
     .run();
@@ -87,13 +87,20 @@ export async function bulkDeleteFolders(
 
 export async function getAllFolders(db: D1Database, userId: string): Promise<Folder[]> {
   const res = await db
-    .prepare('SELECT id, user_id, name, created_at, updated_at FROM folders WHERE user_id = ? ORDER BY updated_at DESC')
+    .prepare(
+      'SELECT id, user_id, name, created_at, updated_at FROM folders WHERE user_id = ? ORDER BY updated_at DESC'
+    )
     .bind(userId)
     .all<any>();
   return (res.results || []).map((row) => mapFolderRow(row));
 }
 
-export async function getFoldersPage(db: D1Database, userId: string, limit: number, offset: number): Promise<Folder[]> {
+export async function getFoldersPage(
+  db: D1Database,
+  userId: string,
+  limit: number,
+  offset: number
+): Promise<Folder[]> {
   const res = await db
     .prepare(
       'SELECT id, user_id, name, created_at, updated_at FROM folders WHERE user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'

@@ -1,22 +1,17 @@
-import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, TrustedDeviceTokenSummary, RefreshTokenRecord, CustomEquivalentDomain } from '../types';
 import { LIMITS } from '../config/limits';
-import { ensureStorageSchema } from './storage-schema';
-import {
-  getConfigValue as getStoredConfigValue,
-  isRegistered as getRegisteredFlag,
-  setConfigValue as saveConfigValue,
-  setRegistered as saveRegisteredFlag,
-} from './storage-config-repo';
-import {
-  createFirstUser as createFirstStoredUser,
-  createUser as createStoredUser,
-  deleteUserById as deleteStoredUserById,
-  getAllUsers as listStoredUsers,
-  getUser as findStoredUserByEmail,
-  getUserById as findStoredUserById,
-  getUserCount as countStoredUsers,
-  saveUser as saveStoredUser,
-} from './storage-user-repo';
+import type {
+  Attachment,
+  AuditLog,
+  Cipher,
+  CustomEquivalentDomain,
+  Device,
+  Folder,
+  Invite,
+  RefreshTokenRecord,
+  Send,
+  TrustedDeviceTokenSummary,
+  User,
+} from '../types';
 import {
   createAuditLog as createStoredAuditLog,
   createInvite as createStoredInvite,
@@ -26,29 +21,6 @@ import {
   markInviteUsed as markStoredInviteUsed,
   revokeInvite as revokeStoredInvite,
 } from './storage-admin-repo';
-import {
-  bulkDeleteFolders as deleteStoredFolders,
-  clearFolderFromCiphers as clearStoredFolderFromCiphers,
-  deleteFolder as deleteStoredFolder,
-  getAllFolders as listStoredFolders,
-  getFolder as findStoredFolder,
-  getFoldersPage as listStoredFoldersPage,
-  saveFolder as saveStoredFolder,
-} from './storage-folder-repo';
-import {
-  bulkArchiveCiphers as archiveStoredCiphers,
-  bulkDeleteCiphers as deleteStoredCiphers,
-  bulkMoveCiphers as moveStoredCiphers,
-  bulkRestoreCiphers as restoreStoredCiphers,
-  bulkSoftDeleteCiphers as softDeleteStoredCiphers,
-  bulkUnarchiveCiphers as unarchiveStoredCiphers,
-  getAllCiphers as listStoredCiphers,
-  getCipher as findStoredCipher,
-  getCiphersByIds as listStoredCiphersByIds,
-  getCiphersPage as listStoredCiphersPage,
-  saveCipher as saveStoredCipher,
-  deleteCipher as deleteStoredCipher,
-} from './storage-cipher-repo';
 import {
   addAttachmentToCipher as attachStoredAttachmentToCipher,
   bulkDeleteAttachmentsByIds as deleteStoredAttachmentsByIds,
@@ -62,27 +34,33 @@ import {
   updateCipherRevisionDate as updateStoredCipherRevisionDate,
 } from './storage-attachment-repo';
 import {
-  bulkDeleteSends as deleteStoredSends,
-  deleteSend as deleteStoredSend,
-  getAllSends as listStoredSends,
-  getSend as findStoredSend,
-  getSendsByIds as listStoredSendsByIds,
-  getSendsPage as listStoredSendsPage,
-  incrementSendAccessCount as incrementStoredSendAccessCount,
-  saveSend as saveStoredSend,
-} from './storage-send-repo';
+  consumeAttachmentDownloadToken as consumeStoredAttachmentDownloadToken,
+  ensureUsedAttachmentDownloadTokenTable as ensureStoredAttachmentTokenTable,
+} from './storage-attachment-token-repo';
 import {
-  constrainRefreshTokenExpiry as constrainStoredRefreshTokenExpiry,
-  deleteRefreshToken as deleteStoredRefreshToken,
-  deleteRefreshTokensByDevice as deleteStoredRefreshTokensByDevice,
-  deleteRefreshTokensByUserId as deleteStoredRefreshTokensByUserId,
-  getRefreshTokenRecord as findStoredRefreshTokenRecord,
-  saveRefreshToken as saveStoredRefreshToken,
-} from './storage-refresh-token-repo';
+  bulkArchiveCiphers as archiveStoredCiphers,
+  bulkDeleteCiphers as deleteStoredCiphers,
+  bulkMoveCiphers as moveStoredCiphers,
+  bulkRestoreCiphers as restoreStoredCiphers,
+  bulkSoftDeleteCiphers as softDeleteStoredCiphers,
+  bulkUnarchiveCiphers as unarchiveStoredCiphers,
+  deleteCipher as deleteStoredCipher,
+  getAllCiphers as listStoredCiphers,
+  getCipher as findStoredCipher,
+  getCiphersByIds as listStoredCiphersByIds,
+  getCiphersPage as listStoredCiphersPage,
+  saveCipher as saveStoredCipher,
+} from './storage-cipher-repo';
 import {
+  getConfigValue as getStoredConfigValue,
+  isRegistered as getRegisteredFlag,
+  setConfigValue as saveConfigValue,
+  setRegistered as saveRegisteredFlag,
+} from './storage-config-repo';
+import {
+  clearDeviceKeys as clearStoredDeviceKeys,
   deleteDevice as deleteStoredDevice,
   deleteDevicesByUserId as deleteStoredDevicesByUserId,
-  clearDeviceKeys as clearStoredDeviceKeys,
   deleteTrustedTwoFactorTokensByDevice as deleteStoredTrustedTokensByDevice,
   deleteTrustedTwoFactorTokensByUserId as deleteStoredTrustedTokensByUserId,
   getDevice as findStoredDevice,
@@ -93,22 +71,56 @@ import {
   isKnownDeviceByEmail as getKnownStoredDeviceByEmail,
   saveTrustedTwoFactorDeviceToken as saveStoredTrustedDeviceToken,
   touchDeviceLastSeen as touchStoredDeviceLastSeen,
-  upsertDevice as saveStoredDevice,
-  updateDeviceName as updateStoredDeviceName,
   updateDeviceKeys as updateStoredDeviceKeys,
+  updateDeviceName as updateStoredDeviceName,
+  upsertDevice as saveStoredDevice,
 } from './storage-device-repo';
-import {
-  ensureUsedAttachmentDownloadTokenTable as ensureStoredAttachmentTokenTable,
-  consumeAttachmentDownloadToken as consumeStoredAttachmentDownloadToken,
-} from './storage-attachment-token-repo';
-import {
-  getRevisionDate as getStoredRevisionDate,
-  updateRevisionDate as updateStoredRevisionDate,
-} from './storage-revision-repo';
 import {
   getUserDomainSettings as getStoredUserDomainSettings,
   saveUserDomainSettings as saveStoredUserDomainSettings,
 } from './storage-domain-rules-repo';
+import {
+  bulkDeleteFolders as deleteStoredFolders,
+  clearFolderFromCiphers as clearStoredFolderFromCiphers,
+  deleteFolder as deleteStoredFolder,
+  getAllFolders as listStoredFolders,
+  getFolder as findStoredFolder,
+  getFoldersPage as listStoredFoldersPage,
+  saveFolder as saveStoredFolder,
+} from './storage-folder-repo';
+import {
+  constrainRefreshTokenExpiry as constrainStoredRefreshTokenExpiry,
+  deleteRefreshToken as deleteStoredRefreshToken,
+  deleteRefreshTokensByDevice as deleteStoredRefreshTokensByDevice,
+  deleteRefreshTokensByUserId as deleteStoredRefreshTokensByUserId,
+  getRefreshTokenRecord as findStoredRefreshTokenRecord,
+  saveRefreshToken as saveStoredRefreshToken,
+} from './storage-refresh-token-repo';
+import {
+  getRevisionDate as getStoredRevisionDate,
+  updateRevisionDate as updateStoredRevisionDate,
+} from './storage-revision-repo';
+import { ensureStorageSchema } from './storage-schema';
+import {
+  bulkDeleteSends as deleteStoredSends,
+  deleteSend as deleteStoredSend,
+  getAllSends as listStoredSends,
+  getSend as findStoredSend,
+  getSendsByIds as listStoredSendsByIds,
+  getSendsPage as listStoredSendsPage,
+  incrementSendAccessCount as incrementStoredSendAccessCount,
+  saveSend as saveStoredSend,
+} from './storage-send-repo';
+import {
+  createFirstUser as createFirstStoredUser,
+  createUser as createStoredUser,
+  deleteUserById as deleteStoredUserById,
+  getAllUsers as listStoredUsers,
+  getUser as findStoredUserByEmail,
+  getUserById as findStoredUserById,
+  getUserCount as countStoredUsers,
+  saveUser as saveStoredUser,
+} from './storage-user-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
@@ -131,8 +143,10 @@ export class StorageService {
   private static lastAttachmentTokenCleanupAt = 0;
   private static readonly MAX_D1_SQL_VARIABLES = 100;
 
-  private static readonly REFRESH_TOKEN_CLEANUP_INTERVAL_MS = LIMITS.cleanup.refreshTokenCleanupIntervalMs;
-  private static readonly ATTACHMENT_TOKEN_CLEANUP_INTERVAL_MS = LIMITS.cleanup.attachmentTokenCleanupIntervalMs;
+  private static readonly REFRESH_TOKEN_CLEANUP_INTERVAL_MS =
+    LIMITS.cleanup.refreshTokenCleanupIntervalMs;
+  private static readonly ATTACHMENT_TOKEN_CLEANUP_INTERVAL_MS =
+    LIMITS.cleanup.attachmentTokenCleanupIntervalMs;
   private static readonly PERIODIC_CLEANUP_PROBABILITY = LIMITS.cleanup.cleanupProbability;
 
   constructor(private db: D1Database) {}
@@ -144,20 +158,25 @@ export class StorageService {
    * client-supplied JSON may omit fields we later reference as columns.
    */
   private safeBind(stmt: D1PreparedStatement, ...values: any[]): D1PreparedStatement {
-    return stmt.bind(...values.map(v => v === undefined ? null : v));
+    return stmt.bind(...values.map((v) => (v === undefined ? null : v)));
   }
 
   private sqlChunkSize(fixedBindCount: number): number {
     return Math.max(
       1,
-      Math.min(LIMITS.performance.bulkMoveChunkSize, StorageService.MAX_D1_SQL_VARIABLES - fixedBindCount)
+      Math.min(
+        LIMITS.performance.bulkMoveChunkSize,
+        StorageService.MAX_D1_SQL_VARIABLES - fixedBindCount
+      )
     );
   }
 
   private async sha256Hex(input: string): Promise<string> {
     const bytes = new TextEncoder().encode(input);
     const digest = await crypto.subtle.digest('SHA-256', bytes);
-    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
   }
 
   private async refreshTokenKey(token: string): Promise<string> {
@@ -172,7 +191,12 @@ export class StorageService {
   }
 
   private async maybeCleanupExpiredRefreshTokens(nowMs: number): Promise<void> {
-    if (!this.shouldRunPeriodicCleanup(StorageService.lastRefreshTokenCleanupAt, StorageService.REFRESH_TOKEN_CLEANUP_INTERVAL_MS)) {
+    if (
+      !this.shouldRunPeriodicCleanup(
+        StorageService.lastRefreshTokenCleanupAt,
+        StorageService.REFRESH_TOKEN_CLEANUP_INTERVAL_MS
+      )
+    ) {
       return;
     }
 
@@ -188,7 +212,9 @@ export class StorageService {
   async initializeDatabase(): Promise<void> {
     if (StorageService.schemaVerified) return;
 
-    await this.db.prepare('CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)').run();
+    await this.db
+      .prepare('CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+      .run();
     const schemaVersion = await getStoredConfigValue(this.db, STORAGE_SCHEMA_VERSION_KEY);
     if (schemaVersion !== STORAGE_SCHEMA_VERSION) {
       await ensureStorageSchema(this.db);
@@ -316,30 +342,65 @@ export class StorageService {
   }
 
   async bulkSoftDeleteCiphers(ids: string[], userId: string): Promise<string | null> {
-    return softDeleteStoredCiphers(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, userId);
+    return softDeleteStoredCiphers(
+      this.db,
+      this.sqlChunkSize.bind(this),
+      this.updateRevisionDate.bind(this),
+      ids,
+      userId
+    );
   }
 
   async bulkRestoreCiphers(ids: string[], userId: string): Promise<string | null> {
-    return restoreStoredCiphers(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, userId);
+    return restoreStoredCiphers(
+      this.db,
+      this.sqlChunkSize.bind(this),
+      this.updateRevisionDate.bind(this),
+      ids,
+      userId
+    );
   }
 
   async bulkArchiveCiphers(ids: string[], userId: string): Promise<string | null> {
-    return archiveStoredCiphers(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, userId);
+    return archiveStoredCiphers(
+      this.db,
+      this.sqlChunkSize.bind(this),
+      this.updateRevisionDate.bind(this),
+      ids,
+      userId
+    );
   }
 
   async bulkUnarchiveCiphers(ids: string[], userId: string): Promise<string | null> {
-    return unarchiveStoredCiphers(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, userId);
+    return unarchiveStoredCiphers(
+      this.db,
+      this.sqlChunkSize.bind(this),
+      this.updateRevisionDate.bind(this),
+      ids,
+      userId
+    );
   }
 
   async bulkDeleteCiphers(ids: string[], userId: string): Promise<string | null> {
-    return deleteStoredCiphers(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, userId);
+    return deleteStoredCiphers(
+      this.db,
+      this.sqlChunkSize.bind(this),
+      this.updateRevisionDate.bind(this),
+      ids,
+      userId
+    );
   }
 
   async getAllCiphers(userId: string): Promise<Cipher[]> {
     return listStoredCiphers(this.db, userId);
   }
 
-  async getCiphersPage(userId: string, includeDeleted: boolean, limit: number, offset: number): Promise<Cipher[]> {
+  async getCiphersPage(
+    userId: string,
+    includeDeleted: boolean,
+    limit: number,
+    offset: number
+  ): Promise<Cipher[]> {
     return listStoredCiphersPage(this.db, userId, includeDeleted, limit, offset);
   }
 
@@ -347,8 +408,19 @@ export class StorageService {
     return listStoredCiphersByIds(this.db, this.sqlChunkSize.bind(this), ids, userId);
   }
 
-  async bulkMoveCiphers(ids: string[], folderId: string | null, userId: string): Promise<string | null> {
-    return moveStoredCiphers(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, folderId, userId);
+  async bulkMoveCiphers(
+    ids: string[],
+    folderId: string | null,
+    userId: string
+  ): Promise<string | null> {
+    return moveStoredCiphers(
+      this.db,
+      this.sqlChunkSize.bind(this),
+      this.updateRevisionDate.bind(this),
+      ids,
+      folderId,
+      userId
+    );
   }
 
   // --- Folders ---
@@ -427,7 +499,9 @@ export class StorageService {
     await deleteStoredAttachmentsByCipher(this.db, cipherId);
   }
 
-  async updateCipherRevisionDate(cipherId: string): Promise<{ userId: string; revisionDate: string } | null> {
+  async updateCipherRevisionDate(
+    cipherId: string
+  ): Promise<{ userId: string; revisionDate: string } | null> {
     return updateStoredCipherRevisionDate(
       this.getCipher.bind(this),
       this.saveCipher.bind(this),
@@ -445,7 +519,7 @@ export class StorageService {
     deviceIdentifier?: string | null,
     deviceSessionStamp?: string | null
   ): Promise<void> {
-    const expiresAt = expiresAtMs ?? (Date.now() + LIMITS.auth.refreshTokenTtlMs);
+    const expiresAt = expiresAtMs ?? Date.now() + LIMITS.auth.refreshTokenTtlMs;
     await saveStoredRefreshToken(
       this.db,
       this.refreshTokenKey.bind(this),
@@ -506,7 +580,13 @@ export class StorageService {
   }
 
   async bulkDeleteSends(ids: string[], userId: string): Promise<string | null> {
-    return deleteStoredSends(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, userId);
+    return deleteStoredSends(
+      this.db,
+      this.sqlChunkSize.bind(this),
+      this.updateRevisionDate.bind(this),
+      ids,
+      userId
+    );
   }
 
   async getAllSends(userId: string): Promise<Send[]> {
@@ -529,7 +609,12 @@ export class StorageService {
   // multi-context refresh races (e.g. browser extension popup/background).
   // Expiry is only tightened, never extended.
   async constrainRefreshTokenExpiry(token: string, maxExpiresAtMs: number): Promise<void> {
-    await constrainStoredRefreshTokenExpiry(this.db, this.refreshTokenKey.bind(this), token, maxExpiresAtMs);
+    await constrainStoredRefreshTokenExpiry(
+      this.db,
+      this.refreshTokenKey.bind(this),
+      token,
+      maxExpiresAtMs
+    );
   }
 
   private async trustedTwoFactorTokenKey(token: string): Promise<string> {
@@ -551,7 +636,16 @@ export class StorageService {
       encryptedPrivateKey?: string | null;
     }
   ): Promise<void> {
-    await saveStoredDevice(this.db, this.getDevice.bind(this), userId, deviceIdentifier, name, type, sessionStamp, keys);
+    await saveStoredDevice(
+      this.db,
+      this.getDevice.bind(this),
+      userId,
+      deviceIdentifier,
+      name,
+      type,
+      sessionStamp,
+      keys
+    );
   }
 
   async isKnownDevice(userId: string, deviceIdentifier: string): Promise<boolean> {
@@ -559,7 +653,12 @@ export class StorageService {
   }
 
   async isKnownDeviceByEmail(email: string, deviceIdentifier: string): Promise<boolean> {
-    return getKnownStoredDeviceByEmail(this.getUser.bind(this), this.isKnownDevice.bind(this), email, deviceIdentifier);
+    return getKnownStoredDeviceByEmail(
+      this.getUser.bind(this),
+      this.isKnownDevice.bind(this),
+      email,
+      deviceIdentifier
+    );
   }
 
   async getDevicesByUserId(userId: string): Promise<Device[]> {
@@ -602,11 +701,16 @@ export class StorageService {
     return deleteStoredDevicesByUserId(this.db, userId);
   }
 
-  async getTrustedDeviceTokenSummariesByUserId(userId: string): Promise<TrustedDeviceTokenSummary[]> {
+  async getTrustedDeviceTokenSummariesByUserId(
+    userId: string
+  ): Promise<TrustedDeviceTokenSummary[]> {
     return listStoredTrustedTokenSummaries(this.db, userId);
   }
 
-  async deleteTrustedTwoFactorTokensByDevice(userId: string, deviceIdentifier: string): Promise<number> {
+  async deleteTrustedTwoFactorTokensByDevice(
+    userId: string,
+    deviceIdentifier: string
+  ): Promise<number> {
     return deleteStoredTrustedTokensByDevice(this.db, userId, deviceIdentifier);
   }
 
@@ -622,12 +726,27 @@ export class StorageService {
     deviceIdentifier: string,
     expiresAtMs?: number
   ): Promise<void> {
-    const expiresAt = expiresAtMs ?? (Date.now() + TWO_FACTOR_REMEMBER_TTL_MS);
-    await saveStoredTrustedDeviceToken(this.db, this.trustedTwoFactorTokenKey.bind(this), token, userId, deviceIdentifier, expiresAt);
+    const expiresAt = expiresAtMs ?? Date.now() + TWO_FACTOR_REMEMBER_TTL_MS;
+    await saveStoredTrustedDeviceToken(
+      this.db,
+      this.trustedTwoFactorTokenKey.bind(this),
+      token,
+      userId,
+      deviceIdentifier,
+      expiresAt
+    );
   }
 
-  async getTrustedTwoFactorDeviceTokenUserId(token: string, deviceIdentifier: string): Promise<string | null> {
-    return findStoredTrustedTokenUserId(this.db, this.trustedTwoFactorTokenKey.bind(this), token, deviceIdentifier);
+  async getTrustedTwoFactorDeviceTokenUserId(
+    token: string,
+    deviceIdentifier: string
+  ): Promise<string | null> {
+    return findStoredTrustedTokenUserId(
+      this.db,
+      this.trustedTwoFactorTokenKey.bind(this),
+      token,
+      deviceIdentifier
+    );
   }
 
   // --- Revision dates ---

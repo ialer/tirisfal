@@ -22,12 +22,24 @@ export async function getAttachment(db: D1Database, id: string): Promise<Attachm
   };
 }
 
-export async function saveAttachment(db: D1Database, safeBind: SafeBind, attachment: Attachment): Promise<void> {
+export async function saveAttachment(
+  db: D1Database,
+  safeBind: SafeBind,
+  attachment: Attachment
+): Promise<void> {
   const stmt = db.prepare(
     'INSERT INTO attachments(id, cipher_id, file_name, size, size_name, key) VALUES(?, ?, ?, ?, ?, ?) ' +
-    'ON CONFLICT(id) DO UPDATE SET cipher_id=excluded.cipher_id, file_name=excluded.file_name, size=excluded.size, size_name=excluded.size_name, key=excluded.key'
+      'ON CONFLICT(id) DO UPDATE SET cipher_id=excluded.cipher_id, file_name=excluded.file_name, size=excluded.size, size_name=excluded.size_name, key=excluded.key'
   );
-  await safeBind(stmt, attachment.id, attachment.cipherId, attachment.fileName, attachment.size, attachment.sizeName, attachment.key).run();
+  await safeBind(
+    stmt,
+    attachment.id,
+    attachment.cipherId,
+    attachment.fileName,
+    attachment.size,
+    attachment.sizeName,
+    attachment.key
+  ).run();
 }
 
 export async function deleteAttachment(db: D1Database, id: string): Promise<void> {
@@ -39,20 +51,30 @@ export async function bulkDeleteAttachmentsByIds(
   sqlChunkSize: SqlChunkSize,
   attachmentIds: string[]
 ): Promise<void> {
-  const uniqueIds = [...new Set(attachmentIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  const uniqueIds = [
+    ...new Set(attachmentIds.map((id) => String(id || '').trim()).filter(Boolean)),
+  ];
   if (!uniqueIds.length) return;
   const chunkSize = sqlChunkSize(0);
 
   for (let i = 0; i < uniqueIds.length; i += chunkSize) {
     const chunk = uniqueIds.slice(i, i + chunkSize);
     const placeholders = chunk.map(() => '?').join(',');
-    await db.prepare(`DELETE FROM attachments WHERE id IN (${placeholders})`).bind(...chunk).run();
+    await db
+      .prepare(`DELETE FROM attachments WHERE id IN (${placeholders})`)
+      .bind(...chunk)
+      .run();
   }
 }
 
-export async function getAttachmentsByCipher(db: D1Database, cipherId: string): Promise<Attachment[]> {
+export async function getAttachmentsByCipher(
+  db: D1Database,
+  cipherId: string
+): Promise<Attachment[]> {
   const res = await db
-    .prepare('SELECT id, cipher_id, file_name, size, size_name, key FROM attachments WHERE cipher_id = ?')
+    .prepare(
+      'SELECT id, cipher_id, file_name, size, size_name, key FROM attachments WHERE cipher_id = ?'
+    )
     .bind(cipherId)
     .all<any>();
   return (res.results || []).map((r) => ({
@@ -80,7 +102,9 @@ export async function getAttachmentsByCipherIds(
     const chunk = uniqueCipherIds.slice(i, i + chunkSize);
     const placeholders = chunk.map(() => '?').join(',');
     const res = await db
-      .prepare(`SELECT id, cipher_id, file_name, size, size_name, key FROM attachments WHERE cipher_id IN (${placeholders})`)
+      .prepare(
+        `SELECT id, cipher_id, file_name, size, size_name, key FROM attachments WHERE cipher_id IN (${placeholders})`
+      )
       .bind(...chunk)
       .all<any>();
 
@@ -102,7 +126,10 @@ export async function getAttachmentsByCipherIds(
   return grouped;
 }
 
-export async function getAttachmentsByUserId(db: D1Database, userId: string): Promise<Map<string, Attachment[]>> {
+export async function getAttachmentsByUserId(
+  db: D1Database,
+  userId: string
+): Promise<Map<string, Attachment[]>> {
   const grouped = new Map<string, Attachment[]>();
   const res = await db
     .prepare(
@@ -131,11 +158,21 @@ export async function getAttachmentsByUserId(db: D1Database, userId: string): Pr
   return grouped;
 }
 
-export async function addAttachmentToCipher(db: D1Database, cipherId: string, attachmentId: string): Promise<void> {
-  await db.prepare('UPDATE attachments SET cipher_id = ? WHERE id = ?').bind(cipherId, attachmentId).run();
+export async function addAttachmentToCipher(
+  db: D1Database,
+  cipherId: string,
+  attachmentId: string
+): Promise<void> {
+  await db
+    .prepare('UPDATE attachments SET cipher_id = ? WHERE id = ?')
+    .bind(cipherId, attachmentId)
+    .run();
 }
 
-export async function deleteAllAttachmentsByCipher(db: D1Database, cipherId: string): Promise<void> {
+export async function deleteAllAttachmentsByCipher(
+  db: D1Database,
+  cipherId: string
+): Promise<void> {
   await db.prepare('DELETE FROM attachments WHERE cipher_id = ?').bind(cipherId).run();
 }
 

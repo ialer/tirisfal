@@ -1,12 +1,18 @@
 import type { Env, User } from '../types';
-import { KV_MAX_OBJECT_BYTES, deleteBlobObject, getAttachmentObjectKey, getBlobStorageKind, putBlobObject } from './blob-store';
-import { BACKUP_SETTINGS_CONFIG_KEY, normalizeImportedBackupSettingsValue } from './backup-config';
 import {
   type BackupManifestAttachmentBlob,
   type BackupPayload,
   parseBackupArchive,
   validateBackupPayloadContents,
 } from './backup-archive';
+import { BACKUP_SETTINGS_CONFIG_KEY, normalizeImportedBackupSettingsValue } from './backup-config';
+import {
+  deleteBlobObject,
+  getAttachmentObjectKey,
+  getBlobStorageKind,
+  KV_MAX_OBJECT_BYTES,
+  putBlobObject,
+} from './blob-store';
 
 // CONTRACT:
 // Restore is intentionally whitelist-based. Old backups may contain retired
@@ -71,7 +77,10 @@ export interface BackupImportExecutionResult {
 }
 
 async function queryRows(db: D1Database, sql: string, ...values: unknown[]): Promise<SqlRow[]> {
-  const response = await db.prepare(sql).bind(...values).all<SqlRow>();
+  const response = await db
+    .prepare(sql)
+    .bind(...values)
+    .all<SqlRow>();
   return (response.results || []).map((row) => ({ ...row }));
 }
 
@@ -88,24 +97,26 @@ async function getTableCreateSql(db: D1Database, table: BackupTableName): Promis
 }
 
 function buildShadowTableCreateSql(createSql: string, table: BackupTableName): string {
-  const tablePattern = new RegExp(`^CREATE TABLE(?:\\s+IF NOT EXISTS)?\\s+(?:\"${table}\"|${table})(?=\\s*\\()`, 'i');
+  const tablePattern = new RegExp(
+    `^CREATE TABLE(?:\\s+IF NOT EXISTS)?\\s+(?:\"${table}\"|${table})(?=\\s*\\()`,
+    'i'
+  );
   let next = createSql.replace(tablePattern, `CREATE TABLE "${shadowTableName(table)}"`);
   if (next === createSql) {
     throw new Error(`Restore shadow schema could not rewrite CREATE TABLE statement for ${table}`);
   }
   for (const currentTable of BACKUP_TABLES) {
-    const referencePattern = new RegExp(`\\bREFERENCES\\s+(?:\"${currentTable}\"|${currentTable})(?=\\s*\\()`, 'gi');
-    next = next.replace(
-      referencePattern,
-      `REFERENCES "${shadowTableName(currentTable)}"`
+    const referencePattern = new RegExp(
+      `\\bREFERENCES\\s+(?:\"${currentTable}\"|${currentTable})(?=\\s*\\()`,
+      'gi'
     );
+    next = next.replace(referencePattern, `REFERENCES "${shadowTableName(currentTable)}"`);
   }
   return next;
 }
 
 async function resetRestoreArtifacts(db: D1Database): Promise<void> {
-  const dropStatements = BACKUP_TABLES
-    .slice()
+  const dropStatements = BACKUP_TABLES.slice()
     .reverse()
     .map((table) => db.prepare(`DROP TABLE IF EXISTS ${shadowTableName(table)}`));
   if (dropStatements.length) {
@@ -126,14 +137,20 @@ async function validateShadowTableCounts(
   db: D1Database,
   expectedCounts: Partial<Record<BackupTableName, number>>
 ): Promise<void> {
-  await Promise.all(BACKUP_TABLES.map(async (table) => {
-    const expected = expectedCounts[table] ?? 0;
-    const row = await db.prepare(`SELECT COUNT(*) AS count FROM ${shadowTableName(table)}`).first<{ count: number }>();
-    const actual = Number(row?.count || 0);
-    if (actual !== expected) {
-      throw new Error(`Restore shadow validation failed for ${table}: expected ${expected}, received ${actual}`);
-    }
-  }));
+  await Promise.all(
+    BACKUP_TABLES.map(async (table) => {
+      const expected = expectedCounts[table] ?? 0;
+      const row = await db
+        .prepare(`SELECT COUNT(*) AS count FROM ${shadowTableName(table)}`)
+        .first<{ count: number }>();
+      const actual = Number(row?.count || 0);
+      if (actual !== expected) {
+        throw new Error(
+          `Restore shadow validation failed for ${table}: expected ${expected}, received ${actual}`
+        );
+      }
+    })
+  );
 }
 
 async function swapShadowTablesIntoPlace(db: D1Database): Promise<void> {
@@ -233,7 +250,9 @@ export interface BackupRestoreProgressEvent {
   error?: string | null;
 }
 
-export type BackupRestoreProgressReporter = (event: BackupRestoreProgressEvent) => Promise<void> | void;
+export type BackupRestoreProgressReporter = (
+  event: BackupRestoreProgressEvent
+) => Promise<void> | void;
 
 function attachmentRowKey(row: SqlRow): string {
   const attachmentId = String(row.id || '').trim();
@@ -264,7 +283,9 @@ async function prepareImportedConfigRows(
   userRows: SqlRow[]
 ): Promise<SqlRow[]> {
   let nextConfigRows = cloneRows(configRows || []);
-  const rawBackupSettings = nextConfigRows.find((row) => String(row.key || '').trim() === BACKUP_SETTINGS_CONFIG_KEY);
+  const rawBackupSettings = nextConfigRows.find(
+    (row) => String(row.key || '').trim() === BACKUP_SETTINGS_CONFIG_KEY
+  );
   const normalizedBackupSettings = await normalizeImportedBackupSettingsValue(
     typeof rawBackupSettings?.value === 'string' ? rawBackupSettings.value : null,
     env,
@@ -277,13 +298,21 @@ async function prepareImportedConfigRows(
     'UTC'
   );
   if (normalizedBackupSettings !== null) {
-    nextConfigRows = upsertConfigRow(nextConfigRows, BACKUP_SETTINGS_CONFIG_KEY, normalizedBackupSettings);
+    nextConfigRows = upsertConfigRow(
+      nextConfigRows,
+      BACKUP_SETTINGS_CONFIG_KEY,
+      normalizedBackupSettings
+    );
   }
   nextConfigRows = upsertConfigRow(nextConfigRows, 'registered', 'true');
   return nextConfigRows;
 }
 
-async function importPreparedBackupRows(db: D1Database, payload: BackupPayload['db'], env: Env): Promise<BackupPayload['db']> {
+async function importPreparedBackupRows(
+  db: D1Database,
+  payload: BackupPayload['db'],
+  env: Env
+): Promise<BackupPayload['db']> {
   const preparedDb: BackupPayload['db'] = {
     config: await prepareImportedConfigRows(env, payload.config || [], payload.users || []),
     users: cloneRows(payload.users || []).map((row) => ({
@@ -303,7 +332,11 @@ async function importPreparedBackupRows(db: D1Database, payload: BackupPayload['
   return preparedDb;
 }
 
-function prepareImportPayloadForTarget(env: Env, payload: BackupPayload, files: Record<string, Uint8Array>): PreparedBackupImportPayload {
+function prepareImportPayloadForTarget(
+  env: Env,
+  payload: BackupPayload,
+  files: Record<string, Uint8Array>
+): PreparedBackupImportPayload {
   const storageKind = getBlobStorageKind(env);
   if (storageKind === 'r2') {
     return {
@@ -389,14 +422,24 @@ function prepareImportPayloadForTarget(env: Env, payload: BackupPayload, files: 
   return result;
 }
 
-function buildInsertStatements(db: D1Database, table: string, columns: string[], rows: SqlRow[], upsert = false): D1PreparedStatement[] {
+function buildInsertStatements(
+  db: D1Database,
+  table: string,
+  columns: string[],
+  rows: SqlRow[],
+  upsert = false
+): D1PreparedStatement[] {
   if (!rows.length) return [];
   const placeholders = `(${columns.map(() => '?').join(', ')})`;
   const sql = `INSERT ${upsert ? 'OR REPLACE ' : ''}INTO ${table} (${columns.join(', ')}) VALUES ${placeholders}`;
   return rows.map((row) => db.prepare(sql).bind(...columns.map((column) => row[column] ?? null)));
 }
 
-async function runInsertBatch(db: D1Database, table: string, statements: D1PreparedStatement[]): Promise<void> {
+async function runInsertBatch(
+  db: D1Database,
+  table: string,
+  statements: D1PreparedStatement[]
+): Promise<void> {
   if (!statements.length) return;
   try {
     await db.batch(statements);
@@ -406,7 +449,11 @@ async function runInsertBatch(db: D1Database, table: string, statements: D1Prepa
   }
 }
 
-async function restoreBlobFiles(env: Env, db: BackupPayload['db'], files: Record<string, Uint8Array>): Promise<AttachmentRestoreResult> {
+async function restoreBlobFiles(
+  env: Env,
+  db: BackupPayload['db'],
+  files: Record<string, Uint8Array>
+): Promise<AttachmentRestoreResult> {
   const restoredAttachments: SqlRow[] = [];
   const skippedItems: BackupImportSkipSummary['items'] = [];
 
@@ -450,7 +497,9 @@ async function restoreBlobFiles(env: Env, db: BackupPayload['db'], files: Record
   };
 }
 
-function buildAttachmentBlobLookup(manifest: BackupPayload['manifest']): Map<string, BackupManifestAttachmentBlob> {
+function buildAttachmentBlobLookup(
+  manifest: BackupPayload['manifest']
+): Map<string, BackupManifestAttachmentBlob> {
   return new Map(
     (manifest.attachmentBlobs || []).map((item) => [`${item.cipherId}/${item.attachmentId}`, item])
   );
@@ -504,7 +553,9 @@ async function prepareRemoteAttachmentPayload(
       },
     },
     skipped: {
-      reason: skippedItems.length ? 'Some remote attachments were unavailable and were skipped' : null,
+      reason: skippedItems.length
+        ? 'Some remote attachments were unavailable and were skipped'
+        : null,
       attachments: skippedItems.length,
       items: skippedItems,
     },
@@ -512,7 +563,11 @@ async function prepareRemoteAttachmentPayload(
   return result;
 }
 
-async function removeAttachmentRows(db: D1Database, attachmentRows: SqlRow[], useShadowTable: boolean = false): Promise<void> {
+async function removeAttachmentRows(
+  db: D1Database,
+  attachmentRows: SqlRow[],
+  useShadowTable: boolean = false
+): Promise<void> {
   if (!attachmentRows.length) return;
   const tableName = useShadowTable ? shadowTableName('attachments') : 'attachments';
   const statements = attachmentRows
@@ -520,7 +575,9 @@ async function removeAttachmentRows(db: D1Database, attachmentRows: SqlRow[], us
       const attachmentId = String(row.id || '').trim();
       const cipherId = String(row.cipher_id || '').trim();
       if (!attachmentId || !cipherId) return null;
-      return db.prepare(`DELETE FROM ${tableName} WHERE id = ? AND cipher_id = ?`).bind(attachmentId, cipherId);
+      return db
+        .prepare(`DELETE FROM ${tableName} WHERE id = ? AND cipher_id = ?`)
+        .bind(attachmentId, cipherId);
     })
     .filter((statement): statement is D1PreparedStatement => !!statement);
   if (!statements.length) return;
@@ -589,15 +646,24 @@ async function restoreRemoteAttachmentFiles(
   };
 }
 
-async function cleanupOrphanedBlobFiles(env: Env, beforeKeys: Set<string>, afterKeys: Set<string>): Promise<void> {
+async function cleanupOrphanedBlobFiles(
+  env: Env,
+  beforeKeys: Set<string>,
+  afterKeys: Set<string>
+): Promise<void> {
   const staleKeys = Array.from(beforeKeys).filter((key) => !afterKeys.has(key));
   for (const key of staleKeys) {
     await deleteBlobObject(env, key);
   }
 }
 
-async function importBackupRows(db: D1Database, payload: BackupPayload['db'], useShadowTables: boolean = false): Promise<void> {
-  const tableName = (table: BackupTableName): string => (useShadowTables ? shadowTableName(table) : table);
+async function importBackupRows(
+  db: D1Database,
+  payload: BackupPayload['db'],
+  useShadowTables: boolean = false
+): Promise<void> {
+  const tableName = (table: BackupTableName): string =>
+    useShadowTables ? shadowTableName(table) : table;
   await runInsertBatch(
     db,
     tableName('config'),
@@ -609,14 +675,41 @@ async function importBackupRows(db: D1Database, payload: BackupPayload['db'], us
     buildInsertStatements(
       db,
       tableName('users'),
-      ['id', 'email', 'name', 'master_password_hint', 'master_password_hash', 'key', 'private_key', 'public_key', 'kdf_type', 'kdf_iterations', 'kdf_memory', 'kdf_parallelism', 'security_stamp', 'role', 'status', 'verify_devices', 'totp_secret', 'totp_recovery_code', 'created_at', 'updated_at'],
+      [
+        'id',
+        'email',
+        'name',
+        'master_password_hint',
+        'master_password_hash',
+        'key',
+        'private_key',
+        'public_key',
+        'kdf_type',
+        'kdf_iterations',
+        'kdf_memory',
+        'kdf_parallelism',
+        'security_stamp',
+        'role',
+        'status',
+        'verify_devices',
+        'totp_secret',
+        'totp_recovery_code',
+        'created_at',
+        'updated_at',
+      ],
       payload.users || []
     )
   );
   await runInsertBatch(
     db,
     tableName('user_revisions'),
-    buildInsertStatements(db, tableName('user_revisions'), ['user_id', 'revision_date'], payload.user_revisions || [], true)
+    buildInsertStatements(
+      db,
+      tableName('user_revisions'),
+      ['user_id', 'revision_date'],
+      payload.user_revisions || [],
+      true
+    )
   );
   await runInsertBatch(
     db,
@@ -624,7 +717,13 @@ async function importBackupRows(db: D1Database, payload: BackupPayload['db'], us
     buildInsertStatements(
       db,
       tableName('domain_settings'),
-      ['user_id', 'equivalent_domains', 'custom_equivalent_domains', 'excluded_global_equivalent_domains', 'updated_at'],
+      [
+        'user_id',
+        'equivalent_domains',
+        'custom_equivalent_domains',
+        'excluded_global_equivalent_domains',
+        'updated_at',
+      ],
       payload.domain_settings || [],
       true
     )
@@ -632,7 +731,12 @@ async function importBackupRows(db: D1Database, payload: BackupPayload['db'], us
   await runInsertBatch(
     db,
     tableName('folders'),
-    buildInsertStatements(db, tableName('folders'), ['id', 'user_id', 'name', 'created_at', 'updated_at'], payload.folders || [])
+    buildInsertStatements(
+      db,
+      tableName('folders'),
+      ['id', 'user_id', 'name', 'created_at', 'updated_at'],
+      payload.folders || []
+    )
   );
   await runInsertBatch(
     db,
@@ -640,14 +744,34 @@ async function importBackupRows(db: D1Database, payload: BackupPayload['db'], us
     buildInsertStatements(
       db,
       tableName('ciphers'),
-      ['id', 'user_id', 'type', 'folder_id', 'name', 'notes', 'favorite', 'data', 'reprompt', 'key', 'created_at', 'updated_at', 'archived_at', 'deleted_at'],
+      [
+        'id',
+        'user_id',
+        'type',
+        'folder_id',
+        'name',
+        'notes',
+        'favorite',
+        'data',
+        'reprompt',
+        'key',
+        'created_at',
+        'updated_at',
+        'archived_at',
+        'deleted_at',
+      ],
       payload.ciphers || []
     )
   );
   await runInsertBatch(
     db,
     tableName('attachments'),
-    buildInsertStatements(db, tableName('attachments'), ['id', 'cipher_id', 'file_name', 'size', 'size_name', 'key'], payload.attachments || [])
+    buildInsertStatements(
+      db,
+      tableName('attachments'),
+      ['id', 'cipher_id', 'file_name', 'size', 'size_name', 'key'],
+      payload.attachments || []
+    )
   );
 }
 
@@ -672,7 +796,9 @@ export async function importBackupArchiveBytes(
   }
 
   await resetRestoreArtifacts(env.DB);
-  const previousBlobKeys = replaceExisting ? await collectCurrentBlobKeys(env.DB) : new Set<string>();
+  const previousBlobKeys = replaceExisting
+    ? await collectCurrentBlobKeys(env.DB)
+    : new Set<string>();
   try {
     await progress?.({
       source: 'local',
@@ -711,8 +837,12 @@ export async function importBackupArchiveBytes(
       replaceExisting,
     });
     const restored = await restoreBlobFiles(env, db, parsed.files);
-    const restoredAttachmentKeys = new Set((restored.restoredAttachments || []).map(attachmentRowKey));
-    const failedRestoreRows = (db.attachments || []).filter((row) => !restoredAttachmentKeys.has(attachmentRowKey(row)));
+    const restoredAttachmentKeys = new Set(
+      (restored.restoredAttachments || []).map(attachmentRowKey)
+    );
+    const failedRestoreRows = (db.attachments || []).filter(
+      (row) => !restoredAttachmentKeys.has(attachmentRowKey(row))
+    );
     await removeAttachmentRows(env.DB, failedRestoreRows, true).catch(() => undefined);
     await validateShadowTableCounts(env.DB, {
       config: (db.config || []).length,
@@ -751,7 +881,9 @@ export async function importBackupArchiveBytes(
       ok: true,
     });
     return {
-      auditActorUserId: (db.users || []).some((row) => String(row.id || '').trim() === actorUserId) ? actorUserId : null,
+      auditActorUserId: (db.users || []).some((row) => String(row.id || '').trim() === actorUserId)
+        ? actorUserId
+        : null,
       result: {
         object: 'instance-backup-import',
         imported: {
@@ -798,8 +930,15 @@ export async function importRemoteBackupArchiveBytes(
   fileName: string = 'tirisfal_backup.zip'
 ): Promise<BackupImportExecutionResult> {
   const parsed = parseBackupArchive(archiveBytes, { allowExternalAttachmentBlobs: true });
-  const preparedRemote = await prepareRemoteAttachmentPayload(env, parsed.payload, parsed.files, source);
-  validateBackupPayloadContents(preparedRemote.payload, parsed.files, { allowExternalAttachmentBlobs: true });
+  const preparedRemote = await prepareRemoteAttachmentPayload(
+    env,
+    parsed.payload,
+    parsed.files,
+    source
+  );
+  validateBackupPayloadContents(preparedRemote.payload, parsed.files, {
+    allowExternalAttachmentBlobs: true,
+  });
 
   try {
     await ensureImportTargetIsFresh(env.DB);
@@ -810,7 +949,9 @@ export async function importRemoteBackupArchiveBytes(
   }
 
   await resetRestoreArtifacts(env.DB);
-  const previousBlobKeys = replaceExisting ? await collectCurrentBlobKeys(env.DB) : new Set<string>();
+  const previousBlobKeys = replaceExisting
+    ? await collectCurrentBlobKeys(env.DB)
+    : new Set<string>();
   try {
     await progress?.({
       source: 'remote',
@@ -848,9 +989,18 @@ export async function importRemoteBackupArchiveBytes(
       stageDetail: 'txt_backup_restore_progress_remote_files_detail',
       replaceExisting,
     });
-    const restored = await restoreRemoteAttachmentFiles(env, preparedRemote.payload, parsed.files, source);
-    const restoredAttachmentKeys = new Set((restored.restoredAttachments || []).map(attachmentRowKey));
-    const failedRestoreRows = (db.attachments || []).filter((row) => !restoredAttachmentKeys.has(attachmentRowKey(row)));
+    const restored = await restoreRemoteAttachmentFiles(
+      env,
+      preparedRemote.payload,
+      parsed.files,
+      source
+    );
+    const restoredAttachmentKeys = new Set(
+      (restored.restoredAttachments || []).map(attachmentRowKey)
+    );
+    const failedRestoreRows = (db.attachments || []).filter(
+      (row) => !restoredAttachmentKeys.has(attachmentRowKey(row))
+    );
     await removeAttachmentRows(env.DB, failedRestoreRows, true).catch(() => undefined);
     await validateShadowTableCounts(env.DB, {
       config: (db.config || []).length,
@@ -895,7 +1045,9 @@ export async function importRemoteBackupArchiveBytes(
       : null;
 
     return {
-      auditActorUserId: (db.users || []).some((row) => String(row.id || '').trim() === actorUserId) ? actorUserId : null,
+      auditActorUserId: (db.users || []).some((row) => String(row.id || '').trim() === actorUserId)
+        ? actorUserId
+        : null,
       result: {
         object: 'instance-backup-import',
         imported: {

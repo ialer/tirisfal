@@ -1,9 +1,10 @@
-import { Env, Send, SendAuthType, SendResponse, SendType, DEFAULT_DEV_SECRET } from '../types';
-import { notifyUserVaultSync } from '../durable/notifications-hub';
-import { StorageService } from '../services/storage';
-import { jsonResponse, errorResponse } from '../utils/response';
-import { readActingDeviceIdentifier } from '../utils/device';
 import { LIMITS } from '../config/limits';
+import { notifyUserVaultSync } from '../durable/notifications-hub';
+import type { StorageService } from '../services/storage';
+import type { Env, Send, SendResponse } from '../types';
+import { DEFAULT_DEV_SECRET, SendAuthType, SendType } from '../types';
+import { readActingDeviceIdentifier } from '../utils/device';
+import { errorResponse, jsonResponse } from '../utils/response';
 
 export const SEND_INACCESSIBLE_MSG = 'Send does not exist or is no longer available';
 const SEND_PASSWORD_ITERATIONS = 100_000;
@@ -18,7 +19,10 @@ export function notifyVaultSyncForRequest(
   notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
 }
 
-export function getAliasedProp(source: unknown, aliases: string[]): { present: boolean; value: unknown } {
+export function getAliasedProp(
+  source: unknown,
+  aliases: string[]
+): { present: boolean; value: unknown } {
   if (!source || typeof source !== 'object') return { present: false, value: undefined };
   for (const key of aliases) {
     if (Object.prototype.hasOwnProperty.call(source, key)) {
@@ -59,7 +63,9 @@ function uuidToBytes(uuid: string): Uint8Array | null {
 
 function bytesToUuid(bytes: Uint8Array): string | null {
   if (bytes.length !== 16) return null;
-  const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const hex = Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
   return [
     hex.slice(0, 8),
     hex.slice(8, 12),
@@ -85,7 +91,10 @@ function isLikelyUuid(value: string): boolean {
   return /^[a-f0-9-]{36}$/i.test(value);
 }
 
-export async function resolveSendFromIdOrAccessId(storage: StorageService, idOrAccessId: string): Promise<Send | null> {
+export async function resolveSendFromIdOrAccessId(
+  storage: StorageService,
+  idOrAccessId: string
+): Promise<Send | null> {
   if (isLikelyUuid(idOrAccessId)) {
     const send = await storage.getSend(idOrAccessId);
     if (send) return send;
@@ -170,9 +179,19 @@ export function isSendAvailable(send: Send): boolean {
   return true;
 }
 
-async function deriveSendPasswordHash(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+async function deriveSendPasswordHash(
+  password: string,
+  salt: Uint8Array,
+  iterations: number
+): Promise<Uint8Array> {
   const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', encoder.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(password),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveBits']
+  );
   const bits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
@@ -267,7 +286,9 @@ export function validateDeletionDate(date: Date): Response | null {
   return null;
 }
 
-export function parseMaxAccessCount(value: unknown): { ok: true; value: number | null } | { ok: false; response: Response } {
+export function parseMaxAccessCount(
+  value: unknown
+): { ok: true; value: number | null } | { ok: false; response: Response } {
   const parsed = parseInteger(value);
   if (value === undefined || value === null || value === '') {
     return { ok: true, value: null };
@@ -278,7 +299,9 @@ export function parseMaxAccessCount(value: unknown): { ok: true; value: number |
   return { ok: true, value: parsed };
 }
 
-export function parseFileLength(value: unknown): { ok: true; value: number } | { ok: false; response: Response } {
+export function parseFileLength(
+  value: unknown
+): { ok: true; value: number } | { ok: false; response: Response } {
   const parsed = parseInteger(value);
   if (parsed === null) {
     return { ok: false, response: errorResponse('Invalid send length', 400) };
@@ -298,7 +321,11 @@ export function parseSendType(value: unknown): SendType | null {
 export function parseSendAuthType(value: unknown): SendAuthType | null {
   if (value === undefined || value === null || value === '') return null;
   const parsed = parseInteger(value);
-  if (parsed === SendAuthType.Email || parsed === SendAuthType.Password || parsed === SendAuthType.None) {
+  if (
+    parsed === SendAuthType.Email ||
+    parsed === SendAuthType.Password ||
+    parsed === SendAuthType.None
+  ) {
     return parsed;
   }
   return null;
@@ -319,7 +346,9 @@ export function hasEmailAuth(send: Send): boolean {
   return send.authType === SendAuthType.Email;
 }
 
-export function getSafeJwtSecret(env: Env): { ok: true; secret: string } | { ok: false; response: Response } {
+export function getSafeJwtSecret(
+  env: Env
+): { ok: true; secret: string } | { ok: false; response: Response } {
   const secret = (env.JWT_SECRET || '').trim();
   if (!secret || secret.length < LIMITS.auth.jwtSecretMinLength || secret === DEFAULT_DEV_SECRET) {
     return { ok: false, response: errorResponse('Server configuration error', 500) };
@@ -359,7 +388,10 @@ export function sendToResponse(send: Send): SendResponse {
   };
 }
 
-export function sendToAccessResponse(send: Send, creatorIdentifier: string | null): Record<string, unknown> {
+export function sendToAccessResponse(
+  send: Send,
+  creatorIdentifier: string | null
+): Record<string, unknown> {
   const data = normalizeSendDataSizeField(parseStoredSendData(send));
   return {
     id: send.id,
@@ -374,7 +406,10 @@ export function sendToAccessResponse(send: Send, creatorIdentifier: string | nul
   };
 }
 
-export async function getCreatorIdentifier(storage: StorageService, send: Send): Promise<string | null> {
+export async function getCreatorIdentifier(
+  storage: StorageService,
+  send: Send
+): Promise<string | null> {
   if (send.hideEmail) return null;
   const owner = await storage.getUserById(send.userId);
   return owner?.email ?? null;
@@ -382,7 +417,11 @@ export async function getCreatorIdentifier(storage: StorageService, send: Send):
 
 export type PublicSendAccessValidationResult =
   | { ok: true }
-  | { ok: false; response: Response; reason: 'email_auth_unsupported' | 'password_missing' | 'invalid_password' };
+  | {
+      ok: false;
+      response: Response;
+      reason: 'email_auth_unsupported' | 'password_missing' | 'invalid_password';
+    };
 
 export function sendPasswordLimitKey(clientIdentifier: string): string {
   return `${clientIdentifier}:${SEND_PASSWORD_LIMIT_SCOPE}`;
@@ -412,9 +451,16 @@ export function sendPasswordLockedOAuthResponse(retryAfterSeconds: number): Resp
   );
 }
 
-export async function validatePublicSendAccess(send: Send, body: unknown): Promise<PublicSendAccessValidationResult> {
+export async function validatePublicSendAccess(
+  send: Send,
+  body: unknown
+): Promise<PublicSendAccessValidationResult> {
   if (hasEmailAuth(send)) {
-    return { ok: false, response: errorResponse(SEND_INACCESSIBLE_MSG, 404), reason: 'email_auth_unsupported' };
+    return {
+      ok: false,
+      response: errorResponse(SEND_INACCESSIBLE_MSG, 404),
+      reason: 'email_auth_unsupported',
+    };
   }
 
   if (!send.passwordHash) return { ok: true };
@@ -430,7 +476,11 @@ export async function validatePublicSendAccess(send: Send, body: unknown): Promi
   let validPassword = false;
   if (send.passwordSalt && send.passwordIterations) {
     if (typeof passwordRaw.value !== 'string') {
-      return { ok: false, response: errorResponse('Password not provided', 401), reason: 'password_missing' };
+      return {
+        ok: false,
+        response: errorResponse('Password not provided', 401),
+        reason: 'password_missing',
+      };
     }
     validPassword = await verifySendPassword(send, passwordRaw.value);
   } else {
@@ -440,11 +490,20 @@ export async function validatePublicSendAccess(send: Send, body: unknown): Promi
         : typeof passwordRaw.value === 'string'
           ? passwordRaw.value
           : '';
-    if (!candidate) return { ok: false, response: errorResponse('Password not provided', 401), reason: 'password_missing' };
+    if (!candidate)
+      return {
+        ok: false,
+        response: errorResponse('Password not provided', 401),
+        reason: 'password_missing',
+      };
     validPassword = verifySendPasswordHashB64(send, candidate);
   }
   if (!validPassword) {
-    return { ok: false, response: errorResponse('Invalid password', 400), reason: 'invalid_password' };
+    return {
+      ok: false,
+      response: errorResponse('Invalid password', 400),
+      reason: 'invalid_password',
+    };
   }
 
   return { ok: true };

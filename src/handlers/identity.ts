@@ -1,19 +1,16 @@
-import { Env, TokenResponse } from '../types';
-import { StorageService } from '../services/storage';
-import { AuthService } from '../services/auth';
-import { RateLimitService, getClientIdentifier } from '../services/ratelimit';
-import { jsonResponse, errorResponse, identityErrorResponse } from '../utils/response';
 import { LIMITS } from '../config/limits';
-import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
-import { createRefreshToken } from '../utils/jwt';
+import { AuthService } from '../services/auth';
+import { getClientIdentifier, RateLimitService } from '../services/ratelimit';
+import { StorageService } from '../services/storage';
+import type { Env, TokenResponse } from '../types';
 import { readAuthRequestDeviceInfo } from '../utils/device';
+import { createRefreshToken } from '../utils/jwt';
 import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
+import { errorResponse, identityErrorResponse, jsonResponse } from '../utils/response';
+import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
+import { buildAccountKeys, buildUserDecryptionOptions } from '../utils/user-decryption';
 import { generateUUID } from '../utils/uuid';
 import { issueSendAccessToken } from './sends';
-import {
-  buildAccountKeys,
-  buildUserDecryptionOptions,
-} from '../utils/user-decryption';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
@@ -77,7 +74,11 @@ function buildClearedRefreshCookie(request: Request): string {
   return buildRefreshCookie(request, '', 0);
 }
 
-function withWebRefreshCookie(request: Request, response: Response, refreshToken: string | null): Response {
+function withWebRefreshCookie(
+  request: Request,
+  response: Response,
+  refreshToken: string | null
+): Response {
   const headers = new Headers(response.headers);
   headers.append(
     'Set-Cookie',
@@ -114,7 +115,10 @@ function buildPreloginResponse(
   };
 }
 
-function twoFactorRequiredResponse(message: string = 'Two factor required.', includeRecoveryCode: boolean = false): Response {
+function twoFactorRequiredResponse(
+  message: string = 'Two factor required.',
+  includeRecoveryCode: boolean = false
+): Response {
   const providers = includeRecoveryCode
     ? [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR), TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE]
     : [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)];
@@ -236,7 +240,11 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const user = await storage.getUser(email);
     if (!user) {
       await rateLimit.recordFailedLogin(loginIdentifier);
-      return identityErrorResponse('Username or password is incorrect. Try again', 'invalid_grant', 400);
+      return identityErrorResponse(
+        'Username or password is incorrect. Try again',
+        'invalid_grant',
+        400
+      );
     }
     if (user.status !== 'active') {
       await rateLimit.recordFailedLogin(loginIdentifier);
@@ -259,7 +267,9 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       const canUseRecoveryCode = !!user.totpRecoveryCode;
       const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
       const normalizedTwoFactorToken = String(twoFactorToken ?? '').trim();
-      let rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
+      let rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(
+        String(twoFactorRemember || '').trim()
+      );
       const hasProvider = normalizedTwoFactorProvider.length > 0;
       const hasToken = normalizedTwoFactorToken.length > 0;
 
@@ -320,10 +330,9 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     }
 
     // Persist device only after successful password + (optional) 2FA verification.
-    const deviceSession =
-      deviceInfo.deviceIdentifier
-        ? { identifier: deviceInfo.deviceIdentifier, sessionStamp: generateUUID() }
-        : null;
+    const deviceSession = deviceInfo.deviceIdentifier
+      ? { identifier: deviceInfo.deviceIdentifier, sessionStamp: generateUUID() }
+      : null;
     if (deviceSession) {
       await storage.upsertDevice(
         user.id,
@@ -372,7 +381,6 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     return shouldUseWebSession(request)
       ? withWebRefreshCookie(request, baseResponse, refreshToken)
       : baseResponse;
-
   } else if (grantType === 'client_credentials') {
     // Login with client credentials
     const clientId = body.client_id;
@@ -400,7 +408,11 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const user = await storage.getUserById(uid);
     if (!user) {
       await rateLimit.recordFailedLogin(loginIdentifier);
-      return identityErrorResponse('ClientId or clientSecret is incorrect. Try again', 'invalid_grant', 400);
+      return identityErrorResponse(
+        'ClientId or clientSecret is incorrect. Try again',
+        'invalid_grant',
+        400
+      );
     }
     if (user.status !== 'active') {
       await rateLimit.recordFailedLogin(loginIdentifier);
@@ -409,14 +421,17 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
     if (!user.apiKey || !constantTimeEquals(clientSecret, user.apiKey)) {
       await rateLimit.recordFailedLogin(loginIdentifier);
-      return identityErrorResponse('ClientId or clientSecret is incorrect. Try again', 'invalid_grant', 400);
+      return identityErrorResponse(
+        'ClientId or clientSecret is incorrect. Try again',
+        'invalid_grant',
+        400
+      );
     }
 
     // Persist device only after successful client credential verification.
-    const deviceSession =
-      deviceInfo.deviceIdentifier
-        ? { identifier: deviceInfo.deviceIdentifier, sessionStamp: generateUUID() }
-        : null;
+    const deviceSession = deviceInfo.deviceIdentifier
+      ? { identifier: deviceInfo.deviceIdentifier, sessionStamp: generateUUID() }
+      : null;
     if (deviceSession) {
       await storage.upsertDevice(
         user.id,
@@ -464,9 +479,11 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     return shouldUseWebSession(request)
       ? withWebRefreshCookie(request, baseResponse, refreshToken)
       : baseResponse;
-
   } else if (grantType === 'send_access') {
-    const sendAccessLimit = await rateLimit.consumeBudget(`${clientIdentifier}:public`, LIMITS.rateLimit.publicRequestsPerMinute);
+    const sendAccessLimit = await rateLimit.consumeBudget(
+      `${clientIdentifier}:public`,
+      LIMITS.rateLimit.publicRequestsPerMinute
+    );
     if (!sendAccessLimit.allowed) {
       return identityErrorResponse(
         `Rate limit exceeded. Try again in ${sendAccessLimit.retryAfterSeconds} seconds.`,
@@ -491,9 +508,14 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       );
     }
 
-    const passwordHashB64 = String(
-      body.password_hash_b64 || body.passwordHashB64 || body.passwordHash || body.password_hash || ''
-    ).trim() || null;
+    const passwordHashB64 =
+      String(
+        body.password_hash_b64 ||
+          body.passwordHashB64 ||
+          body.passwordHash ||
+          body.password_hash ||
+          ''
+      ).trim() || null;
     const password = String(body.password || '').trim() || null;
 
     const result = await issueSendAccessToken(
@@ -529,11 +551,9 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     }
 
     // Refresh token
-    const refreshToken = String(body.refresh_token || '').trim() || (
-      shouldUseWebSession(request)
-        ? parseCookieValue(request, WEB_REFRESH_COOKIE)
-        : null
-    );
+    const refreshToken =
+      String(body.refresh_token || '').trim() ||
+      (shouldUseWebSession(request) ? parseCookieValue(request, WEB_REFRESH_COOKIE) : null);
     if (!refreshToken) {
       return identityErrorResponse('Refresh token is required', 'invalid_request', 400);
     }
@@ -565,7 +585,9 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       access_token: accessToken,
       expires_in: LIMITS.auth.accessTokenTtlSeconds,
       token_type: 'Bearer',
-      ...(shouldUseWebSession(request) ? { web_session: true } : { refresh_token: newRefreshToken }),
+      ...(shouldUseWebSession(request)
+        ? { web_session: true }
+        : { refresh_token: newRefreshToken }),
       Key: user.key,
       PrivateKey: user.privateKey,
       AccountKeys: accountKeys,
@@ -621,7 +643,9 @@ export async function handlePrelogin(request: Request, env: Env): Promise<Respon
   const kdfMemory = user?.kdfMemory ?? null;
   const kdfParallelism = user?.kdfParallelism ?? null;
 
-  return jsonResponse(buildPreloginResponse(email, kdfType, kdfIterations, kdfMemory, kdfParallelism));
+  return jsonResponse(
+    buildPreloginResponse(email, kdfType, kdfIterations, kdfMemory, kdfParallelism)
+  );
 }
 
 // POST /identity/connect/revocation
@@ -643,11 +667,9 @@ export async function handleRevocation(request: Request, env: Env): Promise<Resp
     return new Response(null, { status: 200 });
   }
 
-  const token = String(body.token || '').trim() || (
-    shouldUseWebSession(request)
-      ? (parseCookieValue(request, WEB_REFRESH_COOKIE) || '')
-      : ''
-  );
+  const token =
+    String(body.token || '').trim() ||
+    (shouldUseWebSession(request) ? parseCookieValue(request, WEB_REFRESH_COOKIE) || '' : '');
   if (token) {
     await storage.deleteRefreshToken(token);
   }
@@ -658,7 +680,11 @@ export async function handleRevocation(request: Request, env: Env): Promise<Resp
     : baseResponse;
 }
 
-export function checkClientCredentialsParam(clientId: string, clientSecret: string, scope: string): boolean {
+export function checkClientCredentialsParam(
+  clientId: string,
+  clientSecret: string,
+  scope: string
+): boolean {
   if (scope !== 'api') {
     return false;
   }

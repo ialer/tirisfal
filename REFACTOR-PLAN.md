@@ -1,132 +1,183 @@
-# Tirisfal Secrets Manager 重构计划
+# Tirisfal 代码重构计划
 
-## 项目分析
+## 📋 重构目标
 
-Tirisfal 是 NodeWarden 的改进版，功能更完善，但仍然缺少 Secrets Manager 功能。
+1. **降低代码复杂度** - 拆分大文件 (>500行)
+2. **提高可测试性** - 添加单元测试
+3. **统一代码风格** - ESLint + Prettier
 
-### 优势
-- 更完善的备份系统
-- 更好的导入/导出支持
-- 更完善的 UI
-- 代码质量有改进
+---
 
-### 需要添加的功能
-- Machine Accounts（机器账号）
-- Secrets（凭证管理）
-- Projects（项目分组）
-- Access Tokens（访问令牌）
-- Audit Logs（审计日志）
+## 🔧 重构任务
 
-## 重构策略
+### 任务1: 拆分 backup.ts (1025行)
 
-### 策略：基于 Tirisfal 扩展，而不是从头写
+**当前问题**: 单个文件包含所有备份相关逻辑
 
-1. **复用现有架构** — Tirisfal 已有成熟的代码结构
-2. **增量添加功能** — 只添加 Secrets Manager 相关模块
-3. **保持兼容性** — 不破坏现有 Bitwarden 兼容功能
-4. **统一代码风格** — 遵循 Tirisfal 的代码规范
+**重构方案**:
+```
+src/handlers/backup.ts (1025行)
+  ↓ 拆分为
+src/handlers/backup/
+├── index.ts                    # 主入口 (导出)
+├── runner.ts                   # 备份运行器 (锁、调度)
+├── admin.ts                    # 管理员API处理
+├── restore.ts                  # 恢复逻辑
+└── utils.ts                    # 工具函数
+```
 
-## 实施步骤
+**具体拆分**:
+1. **runner.ts** - 备份运行器
+   - BackupRunnerLease 接口
+   - acquireBackupRunnerLease()
+   - releaseBackupRunnerLease()
 
-### Phase 1: 数据库扩展 (1天)
-- 创建 Secrets Manager 相关表
-- 集成到现有 schema
+2. **admin.ts** - 管理员API
+   - handleBackupSettings()
+   - handleBackupDestination()
+   - handleBackupNow()
 
-### Phase 2: 核心服务 (2天)
-- MachineAccountService
-- SecretService
-- ProjectService
+3. **restore.ts** - 恢复逻辑
+   - handleBackupRestore()
+   - importBackupArchive()
 
-### Phase 3: API 路由 (2天)
-- Machine Accounts API
-- Secrets API
-- Projects API
+4. **utils.ts** - 工具函数
+   - isAdmin()
+   - writeAuditLog()
+   - getBackupDestinationSummary()
 
-### Phase 4: 权限控制 (1天)
-- Machine Account 认证
-- 项目级访问控制
+---
 
-### Phase 5: 审计日志 (1天)
-- 访问日志记录
-- 日志查询
+### 任务2: 拆分 backup-import.ts (933行)
 
-### Phase 6: CLI 工具 (1天)
-- nw CLI 工具
+**重构方案**:
+```
+src/services/backup-import.ts (933行)
+  ↓ 拆分为
+src/services/backup-import/
+├── index.ts                    # 主入口
+├── parser.ts                   # 解析逻辑
+├── validator.ts                 # 验证逻辑
+├── importer.ts                 # 导入逻辑
+└── types.ts                    # 类型定义
+```
 
-### Phase 7: Web UI (3天)
-- Secrets Manager 管理界面
+---
 
-## 文件结构
+### 任务3: 拆分 ciphers.ts (923行)
+
+**重构方案**:
+```
+src/handlers/ciphers.ts (923行)
+  ↓ 拆分为
+src/handlers/ciphers/
+├── index.ts                    # 主入口
+├── crud.ts                     # CRUD操作
+├── share.ts                    # 分享逻辑
+├── folders.ts                  # 文件夹操作
+└── attachments.ts              # 附件处理
+```
+
+---
+
+## 📊 重构优先级
+
+| 优先级 | 文件 | 当前行数 | 目标行数 | 复杂度 |
+|--------|------|----------|----------|--------|
+| P0 | backup.ts | 1025 | <300 | 高 |
+| P1 | backup-import.ts | 933 | <300 | 高 |
+| P1 | ciphers.ts | 923 | <300 | 中 |
+| P2 | accounts.ts | 830 | <250 | 中 |
+| P2 | backup-uploader.ts | 789 | <250 | 中 |
+
+---
+
+## 🧪 测试策略
+
+### 测试覆盖目标
+
+| 模块 | 目标覆盖率 | 测试类型 |
+|------|------------|----------|
+| handlers | 80% | 单元测试 |
+| services | 85% | 单元测试 |
+| utils | 90% | 单元测试 |
+
+### 测试文件结构
 
 ```
-src/
-├── services/
-│   ├── sm-schema.ts          # 新增：Secrets Manager 表结构
-│   ├── sm-service.ts         # 新增：核心业务逻辑
-│   └── storage-schema.ts     # 修改：集成 SM schema
+tests/
 ├── handlers/
-│   ├── sm-machine-accounts.ts # 新增：Machine Accounts API
-│   ├── sm-secrets.ts         # 新增：Secrets API
-│   └── sm-projects.ts        # 新增：Projects API
-├── types/
-│   └── sm.ts                 # 新增：SM 类型定义
-├── router-sm.ts              # 新增：SM 路由
-└── router.ts                 # 修改：集成 SM 路由
+│   ├── backup.test.ts
+│   ├── ciphers.test.ts
+│   └── accounts.test.ts
+├── services/
+│   ├── backup-import.test.ts
+│   ├── backup-uploader.test.ts
+│   └── storage.test.ts
+└── utils/
+    ├── response.test.ts
+    └── uuid.test.ts
 ```
 
-## API 设计
+---
 
-### Machine Accounts
-- POST /api/machine-accounts
-- GET /api/machine-accounts
-- GET /api/machine-accounts/:id
-- PUT /api/machine-accounts/:id
-- DELETE /api/machine-accounts/:id
-- POST /api/machine-accounts/:id/token
+## 📝 执行步骤
 
-### Secrets
-- POST /api/secrets
-- GET /api/secrets
-- GET /api/secrets/:id
-- PUT /api/secrets/:id
-- DELETE /api/secrets/:id
+### Phase 1: 工具配置 (已完成)
+- [x] 添加 ESLint 配置
+- [x] 添加 Prettier 配置
+- [x] 添加 Vitest 配置
+- [x] 更新 package.json
 
-### Projects
-- POST /api/projects
-- GET /api/projects
-- GET /api/projects/:id
-- PUT /api/projects/:id
-- DELETE /api/projects/:id
+### Phase 2: 拆分 backup.ts
+- [ ] 创建 backup/ 目录结构
+- [ ] 提取 runner.ts
+- [ ] 提取 admin.ts
+- [ ] 提取 restore.ts
+- [ ] 提取 utils.ts
+- [ ] 更新导入路径
+- [ ] 添加单元测试
 
-## Agent 调用方式
+### Phase 3: 拆分 backup-import.ts
+- [ ] 创建 backup-import/ 目录结构
+- [ ] 提取 parser.ts
+- [ ] 提取 validator.ts
+- [ ] 提取 importer.ts
+- [ ] 添加单元测试
 
-### HTTP API
-```bash
-# 获取凭证
-curl https://tirisfal.workers.dev/api/secrets/XIAOMI_API_KEY \
-  -H "Authorization: Bearer <access-token>"
-```
+### Phase 4: 拆分 ciphers.ts
+- [ ] 创建 ciphers/ 目录结构
+- [ ] 提取 crud.ts
+- [ ] 提取 share.ts
+- [ ] 提取 folders.ts
+- [ ] 添加单元测试
 
-### 环境变量注入
-```bash
-# 通过项目注入所有凭证
-curl https://tirisfal.workers.dev/api/projects/SN-Team/secrets \
-  -H "Authorization: Bearer <access-token>"
-```
+### Phase 5: 验证
+- [ ] 运行测试
+- [ ] 运行 lint
+- [ ] 运行 typecheck
+- [ ] 验证功能
 
-## 安全设计
+---
 
-### 加密
-- 使用 Web Crypto API (AES-GCM)
-- 密钥派生: PBKDF2
-- 每个 Secret 独立加密
+## ⚠️ 注意事项
 
-### 认证
-- Access Token: JWT 格式
-- 支持 Token 轮换
-- Token 过期时间可配置
+1. **保持向后兼容**
+   - 重构后导出接口不变
+   - 更新导入路径
 
-### 审计
-- 所有访问记录
-- IP 地址记录
-- User Agent 记录
+2. **逐步重构**
+   - 每次只重构一个文件
+   - 确保测试通过
+
+3. **文档更新**
+   - 更新 DEVE LOPMENT-FLOW.md
+   - 添加重构说明
+
+---
+
+## 📚 参考
+
+- [TypeScript重构最佳实践](https://www.typescriptlang.org/docs/handbook/declaration-files/introduction.html)
+- [Vitest测试指南](https://vitest.dev/guide/)
+- [ESLint配置](https://eslint.org/docs/latest/use/configure/)

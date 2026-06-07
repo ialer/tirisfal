@@ -42,16 +42,30 @@ export async function getRefreshTokenRecord(
   await maybeCleanupExpiredRefreshTokens(now);
   const tokenKey = await refreshTokenKey(token);
 
-  let row = await db
-    .prepare('SELECT user_id, expires_at, device_identifier, device_session_stamp FROM refresh_tokens WHERE token = ?')
+  const row = await db
+    .prepare(
+      'SELECT user_id, expires_at, device_identifier, device_session_stamp FROM refresh_tokens WHERE token = ?'
+    )
     .bind(tokenKey)
-    .first<{ user_id: string; expires_at: number; device_identifier: string | null; device_session_stamp: string | null }>();
+    .first<{
+      user_id: string;
+      expires_at: number;
+      device_identifier: string | null;
+      device_session_stamp: string | null;
+    }>();
 
   if (!row) {
     const legacyRow = await db
-      .prepare('SELECT user_id, expires_at, device_identifier, device_session_stamp FROM refresh_tokens WHERE token = ?')
+      .prepare(
+        'SELECT user_id, expires_at, device_identifier, device_session_stamp FROM refresh_tokens WHERE token = ?'
+      )
       .bind(token)
-      .first<{ user_id: string; expires_at: number; device_identifier: string | null; device_session_stamp: string | null }>();
+      .first<{
+        user_id: string;
+        expires_at: number;
+        device_identifier: string | null;
+        device_session_stamp: string | null;
+      }>();
 
     if (legacyRow) {
       if (legacyRow.expires_at && legacyRow.expires_at < now) {
@@ -88,18 +102,29 @@ export async function getRefreshTokenRecord(
   };
 }
 
-export async function deleteRefreshToken(db: D1Database, refreshTokenKey: RefreshTokenKeyFn, token: string): Promise<void> {
+export async function deleteRefreshToken(
+  db: D1Database,
+  refreshTokenKey: RefreshTokenKeyFn,
+  token: string
+): Promise<void> {
   const tokenKey = await refreshTokenKey(token);
   await db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(token).run();
   await db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(tokenKey).run();
 }
 
 export async function deleteRefreshTokensByUserId(db: D1Database, userId: string): Promise<number> {
-  const result = await db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').bind(userId).run();
+  const result = await db
+    .prepare('DELETE FROM refresh_tokens WHERE user_id = ?')
+    .bind(userId)
+    .run();
   return Number(result.meta.changes ?? 0);
 }
 
-export async function deleteRefreshTokensByDevice(db: D1Database, userId: string, deviceIdentifier: string): Promise<number> {
+export async function deleteRefreshTokensByDevice(
+  db: D1Database,
+  userId: string,
+  deviceIdentifier: string
+): Promise<number> {
   const result = await db
     .prepare('DELETE FROM refresh_tokens WHERE user_id = ? AND device_identifier = ?')
     .bind(userId, deviceIdentifier)

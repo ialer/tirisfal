@@ -1,13 +1,14 @@
-import { Env, User, ProfileResponse, DEFAULT_DEV_SECRET } from '../types';
-import { StorageService } from '../services/storage';
-import { AuthService } from '../services/auth';
-import { RateLimitService, getClientIdentifier } from '../services/ratelimit';
-import { jsonResponse, errorResponse } from '../utils/response';
-import { generateUUID } from '../utils/uuid';
 import { LIMITS } from '../config/limits';
-import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
+import { AuthService } from '../services/auth';
+import { getClientIdentifier, RateLimitService } from '../services/ratelimit';
+import { StorageService } from '../services/storage';
+import type { Env, ProfileResponse, User } from '../types';
+import { DEFAULT_DEV_SECRET } from '../types';
 import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
+import { errorResponse, jsonResponse } from '../utils/response';
+import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
 import { buildAccountKeys } from '../utils/user-decryption';
+import { generateUUID } from '../utils/uuid';
 
 // CONTRACT:
 // users.master_password_hash is server-side login verification only. It does
@@ -28,7 +29,12 @@ function looksLikeEncString(value: string): boolean {
  * Validate KDF parameters according to Bitwarden minimum requirements.
  * Returns an error message if invalid, or null if OK.
  */
-function validateKdfParams(kdfType: number | undefined, kdfIterations: number | undefined, kdfMemory?: number | undefined, kdfParallelism?: number | undefined): string | null {
+function validateKdfParams(
+  kdfType: number | undefined,
+  kdfIterations: number | undefined,
+  kdfMemory?: number | undefined,
+  kdfParallelism?: number | undefined
+): string | null {
   const type = kdfType ?? 0;
   if (type === 0) {
     // PBKDF2-SHA256: minimum 100 000 iterations
@@ -64,7 +70,9 @@ function normalizeTotpSecret(input: string): string {
 }
 
 function normalizeRecoveryCodeInput(input: string): string {
-  return String(input || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
+  return String(input || '')
+    .toUpperCase()
+    .replace(/[^A-Z2-7]/g, '');
 }
 
 function normalizeMasterPasswordHint(input: string | null | undefined): string | null {
@@ -129,11 +137,12 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
 
   const unsafe = jwtSecretUnsafeReason(env);
   if (unsafe) {
-    const message = unsafe === 'missing'
-      ? 'JWT_SECRET is not set'
-      : unsafe === 'default'
-        ? 'JWT_SECRET is using the default/sample value. Please change it.'
-        : 'JWT_SECRET must be at least 32 characters';
+    const message =
+      unsafe === 'missing'
+        ? 'JWT_SECRET is not set'
+        : unsafe === 'default'
+          ? 'JWT_SECRET is using the default/sample value. Please change it.'
+          : 'JWT_SECRET must be at least 32 characters';
     return errorResponse(message, 400);
   }
 
@@ -188,7 +197,12 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     return errorResponse('masterPasswordHint must be 120 characters or fewer', 400);
   }
 
-  const kdfErr = validateKdfParams(body.kdf, body.kdfIterations, body.kdfMemory, body.kdfParallelism);
+  const kdfErr = validateKdfParams(
+    body.kdf,
+    body.kdfIterations,
+    body.kdfMemory,
+    body.kdfParallelism
+  );
   if (kdfErr) return errorResponse(kdfErr, 400);
 
   const now = new Date().toISOString();
@@ -287,7 +301,9 @@ export async function handleGetPasswordHint(request: Request, env: Env): Promise
     return errorResponse('Invalid JSON', 400);
   }
 
-  const email = String(body.email || '').trim().toLowerCase();
+  const email = String(body.email || '')
+    .trim()
+    .toLowerCase();
   if (!email) {
     return errorResponse('Email is required', 400);
   }
@@ -338,7 +354,8 @@ export async function handleGetPasswordHint(request: Request, env: Env): Promise
   }
 
   const user = await storage.getUser(email);
-  const hint = user?.status === 'active' ? normalizeMasterPasswordHint(user.masterPasswordHint) : null;
+  const hint =
+    user?.status === 'active' ? normalizeMasterPasswordHint(user.masterPasswordHint) : null;
   return jsonResponse({
     object: 'passwordHint',
     hasHint: !!hint,
@@ -347,7 +364,11 @@ export async function handleGetPasswordHint(request: Request, env: Env): Promise
 }
 
 // GET /api/accounts/profile
-export async function handleGetProfile(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleGetProfile(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const user = await storage.getUserById(userId);
@@ -356,7 +377,11 @@ export async function handleGetProfile(request: Request, env: Env, userId: strin
 }
 
 // PUT /api/accounts/profile
-export async function handleUpdateProfile(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleUpdateProfile(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const user = await storage.getUserById(userId);
   if (!user) return errorResponse('User not found', 404);
@@ -383,7 +408,11 @@ export async function handleUpdateProfile(request: Request, env: Env, userId: st
 }
 
 // PUT/POST /api/accounts/verify-devices
-export async function handleSetVerifyDevices(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleSetVerifyDevices(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const auth = new AuthService(env);
   const user = await storage.getUserById(userId);
@@ -443,7 +472,11 @@ export async function handleSetKeys(request: Request, env: Env, userId: string):
   if (!body.masterPasswordHash) {
     return errorResponse('masterPasswordHash is required', 400);
   }
-  const passwordValid = await auth.verifyPassword(body.masterPasswordHash, user.masterPasswordHash, user.email);
+  const passwordValid = await auth.verifyPassword(
+    body.masterPasswordHash,
+    user.masterPasswordHash,
+    user.email
+  );
   if (!passwordValid) {
     return errorResponse('Invalid password', 400);
   }
@@ -466,7 +499,11 @@ export async function handleSetKeys(request: Request, env: Env, userId: string):
 }
 
 // POST/PUT /api/accounts/password
-export async function handleChangePassword(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleChangePassword(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const auth = new AuthService(env);
   const user = await storage.getUserById(userId);
@@ -511,7 +548,12 @@ export async function handleChangePassword(request: Request, env: Env, userId: s
     return errorResponse('new encryptedPrivateKey is not a valid encrypted string', 400);
   }
 
-  const kdfErr = validateKdfParams(body.kdf ?? user.kdfType, body.kdfIterations, body.kdfMemory, body.kdfParallelism);
+  const kdfErr = validateKdfParams(
+    body.kdf ?? user.kdfType,
+    body.kdfIterations,
+    body.kdfMemory,
+    body.kdfParallelism
+  );
   if (kdfErr) return errorResponse(kdfErr, 400);
 
   user.masterPasswordHash = await auth.hashPasswordServer(body.newMasterPasswordHash, user.email);
@@ -540,7 +582,11 @@ export async function handleChangePassword(request: Request, env: Env, userId: s
 }
 
 // GET /api/accounts/totp
-export async function handleGetTotpStatus(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleGetTotpStatus(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const user = await storage.getUserById(userId);
@@ -555,7 +601,11 @@ export async function handleGetTotpStatus(request: Request, env: Env, userId: st
 // PUT /api/accounts/totp
 // enable: { enabled: true, secret: "...", token: "123456" }
 // disable: { enabled: false, masterPasswordHash: "..." }
-export async function handleSetTotpStatus(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleSetTotpStatus(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const auth = new AuthService(env);
   const user = await storage.getUserById(userId);
@@ -587,14 +637,22 @@ export async function handleSetTotpStatus(request: Request, env: Env, userId: st
     user.updatedAt = new Date().toISOString();
     await storage.saveUser(user);
     await storage.deleteRefreshTokensByUserId(user.id);
-    return jsonResponse({ enabled: true, recoveryCode: user.totpRecoveryCode, object: 'twoFactor' });
+    return jsonResponse({
+      enabled: true,
+      recoveryCode: user.totpRecoveryCode,
+      object: 'twoFactor',
+    });
   }
 
   if (body.enabled === false) {
     if (!body.masterPasswordHash) {
       return errorResponse('masterPasswordHash is required to disable TOTP', 400);
     }
-    const valid = await auth.verifyPassword(body.masterPasswordHash, user.masterPasswordHash, user.email);
+    const valid = await auth.verifyPassword(
+      body.masterPasswordHash,
+      user.masterPasswordHash,
+      user.email
+    );
     if (!valid) return errorResponse('Invalid password', 400);
 
     user.totpSecret = null;
@@ -608,7 +666,11 @@ export async function handleSetTotpStatus(request: Request, env: Env, userId: st
 }
 
 // POST /api/accounts/totp/recovery-code
-export async function handleGetTotpRecoveryCode(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleGetTotpRecoveryCode(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const auth = new AuthService(env);
   const user = await storage.getUserById(userId);
@@ -627,7 +689,9 @@ export async function handleGetTotpRecoveryCode(request: Request, env: Env, user
     return errorResponse('Invalid JSON', 400);
   }
 
-  const currentHash = String(body.masterPasswordHash || body.master_password_hash || body.password || '').trim();
+  const currentHash = String(
+    body.masterPasswordHash || body.master_password_hash || body.password || ''
+  ).trim();
   if (!currentHash) return errorResponse('masterPasswordHash is required', 400);
   const valid = await auth.verifyPassword(currentHash, user.masterPasswordHash, user.email);
   if (!valid) return errorResponse('Invalid password', 400);
@@ -664,9 +728,13 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
     return errorResponse('Invalid JSON', 400);
   }
 
-  const email = String(body.email || body.username || '').trim().toLowerCase();
+  const email = String(body.email || body.username || '')
+    .trim()
+    .toLowerCase();
   const masterPasswordHash = String(body.masterPasswordHash || body.password || '').trim();
-  const recoveryCode = normalizeRecoveryCodeInput(String(body.recoveryCode || body.twoFactorToken || body.recovery_code || ''));
+  const recoveryCode = normalizeRecoveryCodeInput(
+    String(body.recoveryCode || body.twoFactorToken || body.recovery_code || '')
+  );
   const clientIdentifier = getClientIdentifier(request);
   if (!clientIdentifier) {
     return errorResponse('Client IP is required', 403);
@@ -691,7 +759,11 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
     return errorResponse('Invalid credentials or recovery code', 400);
   }
 
-  const validPassword = await auth.verifyPassword(masterPasswordHash, user.masterPasswordHash, user.email);
+  const validPassword = await auth.verifyPassword(
+    masterPasswordHash,
+    user.masterPasswordHash,
+    user.email
+  );
   if (!validPassword) {
     await rateLimit.recordFailedLogin(recoverLimitKey);
     return errorResponse('Invalid credentials or recovery code', 400);
@@ -719,7 +791,11 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
 }
 
 // GET /api/accounts/revision-date
-export async function handleGetRevisionDate(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleGetRevisionDate(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const revisionDate = await storage.getRevisionDate(userId);
@@ -730,7 +806,11 @@ export async function handleGetRevisionDate(request: Request, env: Env, userId: 
 }
 
 // POST /api/accounts/verify-password
-export async function handleVerifyPassword(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleVerifyPassword(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const auth = new AuthService(env);
   const user = await storage.getUserById(userId);
@@ -750,7 +830,11 @@ export async function handleVerifyPassword(request: Request, env: Env, userId: s
     return errorResponse('masterPasswordHash is required', 400);
   }
 
-  const valid = await auth.verifyPassword(body.masterPasswordHash, user.masterPasswordHash, user.email);
+  const valid = await auth.verifyPassword(
+    body.masterPasswordHash,
+    user.masterPasswordHash,
+    user.email
+  );
   if (!valid) {
     return errorResponse('Invalid password', 400);
   }
@@ -759,16 +843,29 @@ export async function handleVerifyPassword(request: Request, env: Env, userId: s
 }
 
 // POST /api/accounts/api-key
-export async function handleGetApiKey(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleGetApiKey(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   return apiKey(request, env, userId, false);
 }
 
 // POST /api/accounts/rotate-api-key
-export async function handleRotateApiKey(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleRotateApiKey(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   return apiKey(request, env, userId, true);
 }
 
-async function apiKey(request: Request, env: Env, userId: string, rotate: boolean): Promise<Response> {
+async function apiKey(
+  request: Request,
+  env: Env,
+  userId: string,
+  rotate: boolean
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const auth = new AuthService(env);
   const user = await storage.getUserById(userId);
@@ -787,7 +884,9 @@ async function apiKey(request: Request, env: Env, userId: string, rotate: boolea
     return errorResponse('Invalid JSON', 400);
   }
 
-  const currentHash = String(body.masterPasswordHash || body.master_password_hash || body.password || '').trim();
+  const currentHash = String(
+    body.masterPasswordHash || body.master_password_hash || body.password || ''
+  ).trim();
   if (!currentHash) return errorResponse('masterPasswordHash is required', 400);
   const valid = await auth.verifyPassword(currentHash, user.masterPasswordHash, user.email);
   if (!valid) return errorResponse('Invalid password', 400);

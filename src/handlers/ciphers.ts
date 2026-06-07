@@ -1,5 +1,7 @@
-import {
-  Env,
+import { notifyUserVaultSync } from '../durable/notifications-hub';
+import { StorageService } from '../services/storage';
+import type {
+  Attachment,
   Cipher,
   CipherCard,
   CipherIdentity,
@@ -7,16 +9,14 @@ import {
   CipherResponse,
   CipherSecureNote,
   CipherSshKey,
-  Attachment,
+  Env,
   PasswordHistory,
 } from '../types';
-import { StorageService } from '../services/storage';
-import { notifyUserVaultSync } from '../durable/notifications-hub';
-import { jsonResponse, errorResponse } from '../utils/response';
+import { readActingDeviceIdentifier } from '../utils/device';
+import { encodeContinuationToken, parsePagination } from '../utils/pagination';
+import { errorResponse, jsonResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
 import { deleteAllAttachmentsForCipher, deleteAllAttachmentsForCiphers } from './attachments';
-import { parsePagination, encodeContinuationToken } from '../utils/pagination';
-import { readActingDeviceIdentifier } from '../utils/device';
 
 // CONTRACT:
 // Cipher JSON is the highest-risk Bitwarden compatibility surface. Preserve
@@ -24,7 +24,7 @@ import { readActingDeviceIdentifier } from '../utils/device';
 // fields. Any change to cipher response shape must be checked against /api/sync,
 // attachments, import/export, and current official clients.
 function normalizeOptionalId(value: unknown): string | null {
-  if (value == null) return null;
+  if (value === null) return null;
   const normalized = String(value).trim();
   return normalized ? normalized : null;
 }
@@ -38,7 +38,10 @@ function notifyVaultSyncForRequest(
   notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
 }
 
-function getAliasedProp(source: any, aliases: string[]): { present: boolean; value: any } {
+function getAliasedProp(
+  source: Record<string, unknown> | null | undefined,
+  aliases: string[]
+): { present: boolean; value: unknown } {
   if (!source || typeof source !== 'object') return { present: false, value: undefined };
   for (const key of aliases) {
     if (Object.prototype.hasOwnProperty.call(source, key)) {
@@ -48,28 +51,39 @@ function getAliasedProp(source: any, aliases: string[]): { present: boolean; val
   return { present: false, value: undefined };
 }
 
-function readCipherProp<T = unknown>(source: any, aliases: string[]): { present: boolean; value: T | undefined } {
+function readCipherProp<T = unknown>(
+  source: Record<string, unknown> | null | undefined,
+  aliases: string[]
+): { present: boolean; value: T | undefined } {
   return getAliasedProp(source, aliases) as { present: boolean; value: T | undefined };
 }
 
 function normalizeCipherTimestamp(value: unknown): string | null {
-  if (value == null || value === '') return null;
+  if (value === null || value === '') return null;
   const parsed = new Date(String(value));
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
 }
 
-function readCipherArchivedAt(source: any, fallback: string | null = null): string | null {
-  const archived = getAliasedProp(source, ['archivedAt', 'ArchivedAt', 'archivedDate', 'ArchivedDate']);
+function readCipherArchivedAt(source: Record<string, unknown> | null | undefined, fallback: string | null = null): string | null {
+  const archived = getAliasedProp(source, [
+    'archivedAt',
+    'ArchivedAt',
+    'archivedDate',
+    'ArchivedDate',
+  ]);
   return archived.present ? normalizeCipherTimestamp(archived.value) : fallback;
 }
 
-function readCipherRevisionDate(source: any): string | null {
+function readCipherRevisionDate(source: Record<string, unknown> | null | undefined): string | null {
   const revision = getAliasedProp(source, ['lastKnownRevisionDate', 'LastKnownRevisionDate']);
   return revision.present ? normalizeCipherTimestamp(revision.value) : null;
 }
 
-function isStaleCipherUpdate(existingUpdatedAt: string, clientRevisionDate: string | null): boolean {
+function isStaleCipherUpdate(
+  existingUpdatedAt: string,
+  clientRevisionDate: string | null
+): boolean {
   if (!clientRevisionDate) return false;
   const existingTs = Date.parse(existingUpdatedAt);
   const clientTs = Date.parse(clientRevisionDate);
@@ -103,16 +117,16 @@ function isValidEncString(value: unknown): value is string {
 }
 
 function optionalEncString(value: unknown): string | null {
-  if (value == null || value === '') return null;
+  if (value === null || value === '') return null;
   return isValidEncString(value) ? value.trim() : null;
 }
 
-function sanitizeEncryptedObject<T extends Record<string, any>>(
+function sanitizeEncryptedObject<T extends Record<string, unknown>>(
   source: T | null | undefined,
   encryptedKeys: readonly string[]
 ): T | null {
   if (!source || typeof source !== 'object') return source ?? null;
-  const next: Record<string, any> = { ...source };
+  const next = { ...source } as Record<string, unknown>;
   for (const key of encryptedKeys) {
     if (!Object.prototype.hasOwnProperty.call(next, key)) continue;
     next[key] = optionalEncString(next[key]);
@@ -121,17 +135,19 @@ function sanitizeEncryptedObject<T extends Record<string, any>>(
 }
 
 function normalizeCipherForStorage(cipher: Cipher): Cipher {
-  cipher.login = normalizeCipherLoginForStorage(cipher.login);
-  cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey);
+  cipher.login = normalizeCipherLoginForStorage(cipher.login as Record<string, unknown>);
+  cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey as Record<string, unknown>);
   cipher.folderId = normalizeOptionalId(cipher.folderId);
   const hasArchivedAt = Object.prototype.hasOwnProperty.call(cipher as object, 'archivedAt');
   cipher.archivedAt = hasArchivedAt
-    ? normalizeCipherTimestamp(cipher.archivedAt) ?? null
-    : normalizeCipherTimestamp(cipher.archivedDate) ?? null;
+    ? (normalizeCipherTimestamp(cipher.archivedAt) ?? null)
+    : (normalizeCipherTimestamp(cipher.archivedDate) ?? null);
   return syncCipherComputedAliases(cipher);
 }
 
-export function normalizeCipherLoginForStorage(login: any): any {
+export function normalizeCipherLoginForStorage(
+  login: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
   if (!login || typeof login !== 'object') return login ?? null;
   return {
     ...login,
@@ -139,21 +155,25 @@ export function normalizeCipherLoginForStorage(login: any): any {
   };
 }
 
-export function normalizeCipherLoginForCompatibility(login: any): any {
+export function normalizeCipherLoginForCompatibility(
+  login: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
   const normalized = normalizeCipherLoginForStorage(login);
   if (!normalized || typeof normalized !== 'object') return normalized ?? null;
   const next = sanitizeEncryptedObject(normalized, ['username', 'password', 'totp', 'uri']);
   if (!next) return null;
   next.uris = Array.isArray(next.uris)
-    ? next.uris
-        .map((uri: any) => sanitizeEncryptedObject(uri, ['uri', 'uriChecksum']))
-        .filter((uri: any) => !!uri && (uri.uri || uri.uriChecksum || uri.match != null))
+    ? (next.uris as Record<string, unknown>[])
+        .map((uri) => sanitizeEncryptedObject(uri, ['uri', 'uriChecksum']))
+        .filter((uri) => !!uri && (uri.uri || uri.uriChecksum || uri.match !== null))
     : null;
   next.fido2Credentials = normalizeFido2CredentialsForCompatibility(next.fido2Credentials);
   return next;
 }
 
-function normalizeFido2CredentialsForCompatibility(credentials: any): any[] | null {
+function normalizeFido2CredentialsForCompatibility(
+  credentials: unknown
+): Record<string, unknown>[] | null {
   if (!Array.isArray(credentials) || credentials.length === 0) return null;
   const requiredEncryptedKeys = [
     'credentialId',
@@ -166,11 +186,11 @@ function normalizeFido2CredentialsForCompatibility(credentials: any): any[] | nu
     'discoverable',
   ];
   const optionalEncryptedKeys = ['userHandle', 'userName', 'rpName', 'userDisplayName'];
-  const out: any[] = [];
+  const out: Record<string, unknown>[] = [];
 
   for (const credential of credentials) {
     if (!credential || typeof credential !== 'object') continue;
-    const next: Record<string, any> = { ...credential };
+    const next = { ...credential } as Record<string, unknown>;
     let valid = true;
     for (const key of requiredEncryptedKeys) {
       if (!isValidEncString(next[key])) {
@@ -193,7 +213,9 @@ function normalizeFido2CredentialsForCompatibility(credentials: any): any[] | nu
 
 // Android 2026.2.0 requires sshKey.keyFingerprint in sync payloads.
 // Keep legacy alias "fingerprint" in parallel for older web payloads.
-export function normalizeCipherSshKeyForCompatibility(sshKey: any): any {
+export function normalizeCipherSshKeyForCompatibility(
+  sshKey: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
   if (!sshKey || typeof sshKey !== 'object') return sshKey ?? null;
 
   const candidate =
@@ -202,9 +224,7 @@ export function normalizeCipherSshKeyForCompatibility(sshKey: any): any {
       : sshKey.fingerprint;
 
   const normalizedFingerprint =
-    candidate === undefined || candidate === null
-      ? ''
-      : String(candidate);
+    candidate === undefined || candidate === null ? '' : String(candidate);
 
   if (
     !isValidEncString(sshKey.privateKey) ||
@@ -228,41 +248,48 @@ export function formatAttachments(attachments: Attachment[]): any[] | null {
   if (attachments.length === 0) return null;
   const formatted = attachments
     .filter((a) => isValidEncString(a.fileName))
-    .map(a => ({
+    .map((a) => ({
       id: a.id,
       fileName: a.fileName.trim(),
       // Bitwarden clients decode attachment size as string in cipher payloads.
       size: String(Number(a.size) || 0),
       sizeName: a.sizeName,
       key: optionalEncString(a.key),
-      url: `/api/ciphers/${a.cipherId}/attachment/${a.id}`,  // Android requires non-null url!
+      url: `/api/ciphers/${a.cipherId}/attachment/${a.id}`, // Android requires non-null url!
       object: 'attachment',
     }));
   return formatted.length ? formatted : null;
 }
 
-function normalizeCipherFieldsForCompatibility(fields: any): any[] | null {
+function normalizeCipherFieldsForCompatibility(
+  fields: unknown
+): Record<string, unknown>[] | null {
   if (!Array.isArray(fields) || fields.length === 0) return null;
   const out = fields
-    .map((field: any) => {
+    .map((field) => {
       if (!field || typeof field !== 'object') return null;
+      const f = field as Record<string, unknown>;
       return {
-        ...field,
-        name: optionalEncString(field.name),
-        value: optionalEncString(field.value),
-        type: Number(field.type) || 0,
-        linkedId: field.linkedId ?? null,
+        ...f,
+        name: optionalEncString(f.name),
+        value: optionalEncString(f.value),
+        type: Number(f.type) || 0,
+        linkedId: f.linkedId ?? null,
       };
     })
     .filter(Boolean);
-  return out.length ? out : null;
+  return out.length ? (out as Record<string, unknown>[]) : null;
 }
 
-function normalizePasswordHistoryForCompatibility(passwordHistory: any): PasswordHistory[] | null {
+function normalizePasswordHistoryForCompatibility(
+  passwordHistory: unknown
+): PasswordHistory[] | null {
   if (!Array.isArray(passwordHistory) || passwordHistory.length === 0) return null;
   const out = passwordHistory
-    .filter((entry: any) => entry && typeof entry === 'object' && isValidEncString(entry.password))
-    .map((entry: any) => ({
+    .filter((entry): entry is Record<string, unknown> =>
+      entry !== null && typeof entry === 'object' && isValidEncString((entry as Record<string, unknown>).password)
+    )
+    .map((entry) => ({
       ...entry,
       password: String(entry.password).trim(),
       lastUsedDate: normalizeCipherTimestamp(entry.lastUsedDate) ?? new Date().toISOString(),
@@ -278,15 +305,19 @@ export function isCipherResponseSyncCompatible(cipher: CipherResponse): boolean 
 // Uses opaque passthrough: spreads ALL stored fields (including unknown/future ones),
 // then overlays server-computed fields. This ensures new Bitwarden client fields
 // survive a round-trip without code changes.
-export function cipherToResponse(
-  cipher: Cipher,
-  attachments: Attachment[] = []
-): CipherResponse {
+export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = []): CipherResponse {
   // Strip internal-only fields that must not appear in the API response
   const { userId, createdAt, updatedAt, archivedAt, deletedAt, ...passthrough } = cipher;
-  const normalizedLogin = normalizeCipherLoginForCompatibility((passthrough as any).login ?? null);
-  const normalizedCard = sanitizeEncryptedObject((passthrough as any).card ?? null, ['cardholderName', 'brand', 'number', 'expMonth', 'expYear', 'code']);
-  const normalizedIdentity = sanitizeEncryptedObject((passthrough as any).identity ?? null, [
+  const normalizedLogin = normalizeCipherLoginForCompatibility((passthrough as Record<string, unknown>).login ?? null);
+  const normalizedCard = sanitizeEncryptedObject((passthrough as Record<string, unknown>).card ?? null, [
+    'cardholderName',
+    'brand',
+    'number',
+    'expMonth',
+    'expYear',
+    'code',
+  ]);
+  const normalizedIdentity = sanitizeEncryptedObject((passthrough as Record<string, unknown>).identity ?? null, [
     'title',
     'firstName',
     'middleName',
@@ -306,7 +337,9 @@ export function cipherToResponse(
     'passportNumber',
     'licenseNumber',
   ]);
-  const normalizedSshKey = normalizeCipherSshKeyForCompatibility((passthrough as any).sshKey ?? null);
+  const normalizedSshKey = normalizeCipherSshKeyForCompatibility(
+    (passthrough as Record<string, unknown>).sshKey ?? null
+  );
 
   return {
     // Pass through ALL stored cipher fields (known + unknown)
@@ -314,8 +347,8 @@ export function cipherToResponse(
     // Server-computed / enforced fields (always override)
     folderId: normalizeOptionalId(cipher.folderId),
     type: Number(cipher.type) || 1,
-    organizationId: normalizeOptionalId((passthrough as any).organizationId ?? null),
-    organizationUseTotp: !!((passthrough as any).organizationUseTotp ?? false),
+    organizationId: normalizeOptionalId((passthrough as Record<string, unknown>).organizationId ?? null),
+    organizationUseTotp: !!((passthrough as Record<string, unknown>).organizationUseTotp ?? false),
     creationDate: createdAt,
     revisionDate: updatedAt,
     deletedDate: deletedAt,
@@ -327,23 +360,29 @@ export function cipherToResponse(
       restore: true,
     },
     object: 'cipherDetails',
-    collectionIds: Array.isArray((passthrough as any).collectionIds) ? (passthrough as any).collectionIds : [],
+    collectionIds: Array.isArray((passthrough as Record<string, unknown>).collectionIds)
+      ? (passthrough as Record<string, unknown>).collectionIds
+      : [],
     attachments: formatAttachments(attachments),
     name: isValidEncString(cipher.name) ? cipher.name.trim() : cipher.name,
     notes: optionalEncString(cipher.notes),
     login: normalizedLogin,
     card: normalizedCard,
     identity: normalizedIdentity,
-    fields: normalizeCipherFieldsForCompatibility((passthrough as any).fields),
-    passwordHistory: normalizePasswordHistoryForCompatibility((passthrough as any).passwordHistory),
+    fields: normalizeCipherFieldsForCompatibility((passthrough as Record<string, unknown>).fields),
+    passwordHistory: normalizePasswordHistoryForCompatibility((passthrough as Record<string, unknown>).passwordHistory),
     sshKey: normalizedSshKey,
     key: optionalEncString(cipher.key),
-    encryptedFor: (passthrough as any).encryptedFor ?? null,
+    encryptedFor: (passthrough as Record<string, unknown>).encryptedFor ?? null,
   };
 }
 
 // GET /api/ciphers
-export async function handleGetCiphers(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleGetCiphers(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const url = new URL(request.url);
   const includeDeleted = url.searchParams.get('deleted') === 'true';
@@ -360,12 +399,12 @@ export async function handleGetCiphers(request: Request, env: Env, userId: strin
     );
     const hasNext = pageRows.length > pagination.limit;
     filteredCiphers = hasNext ? pageRows.slice(0, pagination.limit) : pageRows;
-    continuationToken = hasNext ? encodeContinuationToken(pagination.offset + filteredCiphers.length) : null;
+    continuationToken = hasNext
+      ? encodeContinuationToken(pagination.offset + filteredCiphers.length)
+      : null;
   } else {
     const ciphers = await storage.getAllCiphers(userId);
-    filteredCiphers = includeDeleted
-      ? ciphers
-      : ciphers.filter(c => !c.deletedAt);
+    filteredCiphers = includeDeleted ? ciphers : ciphers.filter((c) => !c.deletedAt);
   }
 
   const attachmentsByCipher = await storage.getAttachmentsByCipherIds(
@@ -387,7 +426,12 @@ export async function handleGetCiphers(request: Request, env: Env, userId: strin
 }
 
 // GET /api/ciphers/:id
-export async function handleGetCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+export async function handleGetCipher(
+  request: Request,
+  env: Env,
+  userId: string,
+  id: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const cipher = await storage.getCipher(id);
 
@@ -396,22 +440,28 @@ export async function handleGetCipher(request: Request, env: Env, userId: string
   }
 
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
-  return jsonResponse(
-    cipherToResponse(cipher, attachments)
-  );
+  return jsonResponse(cipherToResponse(cipher, attachments));
 }
 
-async function verifyFolderOwnership(storage: StorageService, folderId: string | null | undefined, userId: string): Promise<boolean> {
+async function verifyFolderOwnership(
+  storage: StorageService,
+  folderId: string | null | undefined,
+  userId: string
+): Promise<boolean> {
   if (!folderId) return true;
   const folder = await storage.getFolder(folderId);
   return !!(folder && folder.userId === userId);
 }
 
 // POST /api/ciphers
-export async function handleCreateCipher(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleCreateCipher(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
 
-  let body: any;
+  let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
@@ -420,15 +470,24 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
 
   // Handle nested cipher object (from some clients)
   // Android client sends PascalCase "Cipher" for organization ciphers
-  const cipherData = body.Cipher || body.cipher || body;
+  const cipherData = (body.Cipher || body.cipher || body) as Record<string, unknown>;
   const createFolderId = readCipherProp<string | null>(cipherData, ['folderId', 'FolderId']);
   const createKey = readCipherProp<string | null>(cipherData, ['key', 'Key']);
   const createLogin = readCipherProp<CipherLogin | null>(cipherData, ['login', 'Login']);
   const createCard = readCipherProp<CipherCard | null>(cipherData, ['card', 'Card']);
-  const createIdentity = readCipherProp<CipherIdentity | null>(cipherData, ['identity', 'Identity']);
-  const createSecureNote = readCipherProp<CipherSecureNote | null>(cipherData, ['secureNote', 'SecureNote']);
+  const createIdentity = readCipherProp<CipherIdentity | null>(cipherData, [
+    'identity',
+    'Identity',
+  ]);
+  const createSecureNote = readCipherProp<CipherSecureNote | null>(cipherData, [
+    'secureNote',
+    'SecureNote',
+  ]);
   const createSshKey = readCipherProp<CipherSshKey | null>(cipherData, ['sshKey', 'SshKey']);
-  const createPasswordHistory = readCipherProp<PasswordHistory[] | null>(cipherData, ['passwordHistory', 'PasswordHistory']);
+  const createPasswordHistory = readCipherProp<PasswordHistory[] | null>(cipherData, [
+    'passwordHistory',
+    'PasswordHistory',
+  ]);
 
   const now = new Date().toISOString();
   // Opaque passthrough: spread ALL client fields to preserve unknown/future ones,
@@ -446,14 +505,22 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
     archivedAt: readCipherArchivedAt(cipherData, null),
     deletedAt: null,
   };
-  cipher.folderId = createFolderId.present ? normalizeOptionalId(createFolderId.value) : normalizeOptionalId(cipher.folderId);
+  cipher.folderId = createFolderId.present
+    ? normalizeOptionalId(createFolderId.value)
+    : normalizeOptionalId(cipher.folderId);
   cipher.key = createKey.present ? (createKey.value ?? null) : (cipher.key ?? null);
   cipher.login = createLogin.present ? (createLogin.value ?? null) : (cipher.login ?? null);
   cipher.card = createCard.present ? (createCard.value ?? null) : (cipher.card ?? null);
-  cipher.identity = createIdentity.present ? (createIdentity.value ?? null) : (cipher.identity ?? null);
-  cipher.secureNote = createSecureNote.present ? (createSecureNote.value ?? null) : (cipher.secureNote ?? null);
+  cipher.identity = createIdentity.present
+    ? (createIdentity.value ?? null)
+    : (cipher.identity ?? null);
+  cipher.secureNote = createSecureNote.present
+    ? (createSecureNote.value ?? null)
+    : (cipher.secureNote ?? null);
   cipher.sshKey = createSshKey.present ? (createSshKey.value ?? null) : (cipher.sshKey ?? null);
-  cipher.passwordHistory = createPasswordHistory.present ? (createPasswordHistory.value ?? null) : (cipher.passwordHistory ?? null);
+  cipher.passwordHistory = createPasswordHistory.present
+    ? (createPasswordHistory.value ?? null)
+    : (cipher.passwordHistory ?? null);
   const createFields = getAliasedProp(cipherData, ['fields', 'Fields']);
   cipher.fields = createFields.present ? (createFields.value ?? null) : (cipher.fields ?? null);
   normalizeCipherForStorage(cipher);
@@ -468,14 +535,16 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
 
-  return jsonResponse(
-    cipherToResponse(cipher, []),
-    200
-  );
+  return jsonResponse(cipherToResponse(cipher, []), 200);
 }
 
 // PUT /api/ciphers/:id
-export async function handleUpdateCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+export async function handleUpdateCipher(
+  request: Request,
+  env: Env,
+  userId: string,
+  id: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const existingCipher = await storage.getCipher(id);
 
@@ -483,7 +552,7 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
     return errorResponse('Cipher not found', 404);
   }
 
-  let body: any;
+  let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
@@ -492,19 +561,31 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
 
   // Handle nested cipher object
   // Android client sends PascalCase "Cipher" for organization ciphers
-  const cipherData = body.Cipher || body.cipher || body;
+  const cipherData = (body.Cipher || body.cipher || body) as Record<string, unknown>;
   const incomingFolderId = readCipherProp<string | null>(cipherData, ['folderId', 'FolderId']);
   const incomingKey = readCipherProp<string | null>(cipherData, ['key', 'Key']);
   const incomingLogin = readCipherProp<CipherLogin | null>(cipherData, ['login', 'Login']);
   const incomingCard = readCipherProp<CipherCard | null>(cipherData, ['card', 'Card']);
-  const incomingIdentity = readCipherProp<CipherIdentity | null>(cipherData, ['identity', 'Identity']);
-  const incomingSecureNote = readCipherProp<CipherSecureNote | null>(cipherData, ['secureNote', 'SecureNote']);
+  const incomingIdentity = readCipherProp<CipherIdentity | null>(cipherData, [
+    'identity',
+    'Identity',
+  ]);
+  const incomingSecureNote = readCipherProp<CipherSecureNote | null>(cipherData, [
+    'secureNote',
+    'SecureNote',
+  ]);
   const incomingSshKey = readCipherProp<CipherSshKey | null>(cipherData, ['sshKey', 'SshKey']);
-  const incomingPasswordHistory = readCipherProp<PasswordHistory[] | null>(cipherData, ['passwordHistory', 'PasswordHistory']);
+  const incomingPasswordHistory = readCipherProp<PasswordHistory[] | null>(cipherData, [
+    'passwordHistory',
+    'PasswordHistory',
+  ]);
   const incomingRevisionDate = readCipherRevisionDate(cipherData);
 
   if (isStaleCipherUpdate(existingCipher.updatedAt, incomingRevisionDate)) {
-    return errorResponse('The client copy of this cipher is out of date. Resync the client and try again.', 400);
+    return errorResponse(
+      'The client copy of this cipher is out of date. Resync the client and try again.',
+      400
+    );
   }
 
   const nextType = Number(cipherData.type) || existingCipher.type;
@@ -512,8 +593,8 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
   // Opaque passthrough: merge existing stored data with ALL incoming client fields.
   // Unknown/future fields from the client are preserved; server-controlled fields are protected.
   const cipher: Cipher = {
-    ...existingCipher,   // start with all existing stored data (including unknowns)
-    ...cipherData,       // overlay all client data (including new/unknown fields)
+    ...existingCipher, // start with all existing stored data (including unknowns)
+    ...cipherData, // overlay all client data (including new/unknown fields)
     // Server-controlled fields (never from client)
     id: existingCipher.id,
     userId: existingCipher.userId,
@@ -531,11 +612,36 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
   if (incomingKey.present) {
     cipher.key = incomingKey.value ?? null;
   }
-  cipher.login = nextType === 1 ? (incomingLogin.present ? (incomingLogin.value ?? null) : (existingCipher.login ?? null)) : null;
-  cipher.secureNote = nextType === 2 ? (incomingSecureNote.present ? (incomingSecureNote.value ?? null) : (existingCipher.secureNote ?? null)) : null;
-  cipher.card = nextType === 3 ? (incomingCard.present ? (incomingCard.value ?? null) : (existingCipher.card ?? null)) : null;
-  cipher.identity = nextType === 4 ? (incomingIdentity.present ? (incomingIdentity.value ?? null) : (existingCipher.identity ?? null)) : null;
-  cipher.sshKey = nextType === 5 ? (incomingSshKey.present ? (incomingSshKey.value ?? null) : (existingCipher.sshKey ?? null)) : null;
+  cipher.login =
+    nextType === 1
+      ? incomingLogin.present
+        ? (incomingLogin.value ?? null)
+        : (existingCipher.login ?? null)
+      : null;
+  cipher.secureNote =
+    nextType === 2
+      ? incomingSecureNote.present
+        ? (incomingSecureNote.value ?? null)
+        : (existingCipher.secureNote ?? null)
+      : null;
+  cipher.card =
+    nextType === 3
+      ? incomingCard.present
+        ? (incomingCard.value ?? null)
+        : (existingCipher.card ?? null)
+      : null;
+  cipher.identity =
+    nextType === 4
+      ? incomingIdentity.present
+        ? (incomingIdentity.value ?? null)
+        : (existingCipher.identity ?? null)
+      : null;
+  cipher.sshKey =
+    nextType === 5
+      ? incomingSshKey.present
+        ? (incomingSshKey.value ?? null)
+        : (existingCipher.sshKey ?? null)
+      : null;
   if (incomingPasswordHistory.present) {
     cipher.passwordHistory = incomingPasswordHistory.value ?? null;
   }
@@ -563,13 +669,16 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
 
-  return jsonResponse(
-    cipherToResponse(cipher, attachments)
-  );
+  return jsonResponse(cipherToResponse(cipher, attachments));
 }
 
 // DELETE /api/ciphers/:id
-export async function handleDeleteCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+export async function handleDeleteCipher(
+  request: Request,
+  env: Env,
+  userId: string,
+  id: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const cipher = await storage.getCipher(id);
 
@@ -585,9 +694,7 @@ export async function handleDeleteCipher(request: Request, env: Env, userId: str
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
 
-  return jsonResponse(
-    cipherToResponse(cipher, [])
-  );
+  return jsonResponse(cipherToResponse(cipher, []));
 }
 
 // DELETE /api/ciphers/:id (compat mode)
@@ -595,7 +702,12 @@ export async function handleDeleteCipher(request: Request, env: Env, userId: str
 // For compatibility:
 // - If item is active -> soft delete.
 // - If item is already soft-deleted -> hard delete.
-export async function handleDeleteCipherCompat(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+export async function handleDeleteCipherCompat(
+  request: Request,
+  env: Env,
+  userId: string,
+  id: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const cipher = await storage.getCipher(id);
 
@@ -615,7 +727,12 @@ export async function handleDeleteCipherCompat(request: Request, env: Env, userI
 }
 
 // DELETE /api/ciphers/:id (permanent)
-export async function handlePermanentDeleteCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+export async function handlePermanentDeleteCipher(
+  request: Request,
+  env: Env,
+  userId: string,
+  id: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const cipher = await storage.getCipher(id);
 
@@ -634,7 +751,12 @@ export async function handlePermanentDeleteCipher(request: Request, env: Env, us
 }
 
 // PUT /api/ciphers/:id/restore
-export async function handleRestoreCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+export async function handleRestoreCipher(
+  request: Request,
+  env: Env,
+  userId: string,
+  id: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const cipher = await storage.getCipher(id);
 
@@ -649,13 +771,16 @@ export async function handleRestoreCipher(request: Request, env: Env, userId: st
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
 
-  return jsonResponse(
-    cipherToResponse(cipher, [])
-  );
+  return jsonResponse(cipherToResponse(cipher, []));
 }
 
 // PUT /api/ciphers/:id/partial - Update only favorite/folderId
-export async function handlePartialUpdateCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+export async function handlePartialUpdateCipher(
+  request: Request,
+  env: Env,
+  userId: string,
+  id: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const cipher = await storage.getCipher(id);
 
@@ -688,13 +813,15 @@ export async function handlePartialUpdateCipher(request: Request, env: Env, user
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
 
-  return jsonResponse(
-    cipherToResponse(cipher, [])
-  );
+  return jsonResponse(cipherToResponse(cipher, []));
 }
 
 // POST/PUT /api/ciphers/move - Bulk move to folder
-export async function handleBulkMoveCiphers(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleBulkMoveCiphers(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
 
   let body: { ids?: string[]; folderId?: string | null };
@@ -729,7 +856,9 @@ async function buildCipherListResponse(
   ids: string[]
 ): Promise<Response> {
   const ciphers = await storage.getCiphersByIds(ids, userId);
-  const attachmentsByCipher = await storage.getAttachmentsByCipherIds(ciphers.map((cipher) => cipher.id));
+  const attachmentsByCipher = await storage.getAttachmentsByCipherIds(
+    ciphers.map((cipher) => cipher.id)
+  );
 
   return jsonResponse({
     data: ciphers.map((cipher) =>
@@ -746,7 +875,12 @@ function parseCipherIdList(body: { ids?: unknown }): string[] | null {
 }
 
 // PUT/POST /api/ciphers/:id/archive
-export async function handleArchiveCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+export async function handleArchiveCipher(
+  request: Request,
+  env: Env,
+  userId: string,
+  id: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const cipher = await storage.getCipher(id);
 
@@ -765,13 +899,16 @@ export async function handleArchiveCipher(request: Request, env: Env, userId: st
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
 
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
-  return jsonResponse(
-    cipherToResponse(cipher, attachments)
-  );
+  return jsonResponse(cipherToResponse(cipher, attachments));
 }
 
 // PUT/POST /api/ciphers/:id/unarchive
-export async function handleUnarchiveCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+export async function handleUnarchiveCipher(
+  request: Request,
+  env: Env,
+  userId: string,
+  id: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
   const cipher = await storage.getCipher(id);
 
@@ -787,13 +924,15 @@ export async function handleUnarchiveCipher(request: Request, env: Env, userId: 
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
 
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
-  return jsonResponse(
-    cipherToResponse(cipher, attachments)
-  );
+  return jsonResponse(cipherToResponse(cipher, attachments));
 }
 
 // PUT/POST /api/ciphers/archive
-export async function handleBulkArchiveCiphers(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleBulkArchiveCiphers(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
 
   let body: { ids?: unknown };
@@ -817,7 +956,11 @@ export async function handleBulkArchiveCiphers(request: Request, env: Env, userI
 }
 
 // PUT/POST /api/ciphers/unarchive
-export async function handleBulkUnarchiveCiphers(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleBulkUnarchiveCiphers(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
 
   let body: { ids?: unknown };
@@ -841,7 +984,11 @@ export async function handleBulkUnarchiveCiphers(request: Request, env: Env, use
 }
 
 // POST /api/ciphers/delete - Bulk soft delete
-export async function handleBulkDeleteCiphers(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleBulkDeleteCiphers(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
 
   let body: { ids?: string[] };
@@ -864,7 +1011,11 @@ export async function handleBulkDeleteCiphers(request: Request, env: Env, userId
 }
 
 // POST /api/ciphers/restore - Bulk restore
-export async function handleBulkRestoreCiphers(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleBulkRestoreCiphers(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
 
   let body: { ids?: string[] };
@@ -887,7 +1038,11 @@ export async function handleBulkRestoreCiphers(request: Request, env: Env, userI
 }
 
 // POST /api/ciphers/delete-permanent - Bulk permanent delete
-export async function handleBulkPermanentDeleteCiphers(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleBulkPermanentDeleteCiphers(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   const storage = new StorageService(env.DB);
 
   let body: { ids?: string[] };

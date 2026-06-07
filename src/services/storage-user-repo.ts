@@ -66,10 +66,10 @@ export async function saveUser(db: D1Database, safeBind: SafeBind, user: User): 
   const email = user.email.toLowerCase();
   const stmt = db.prepare(
     'INSERT INTO users(id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, totp_secret, totp_recovery_code, api_key, created_at, updated_at) ' +
-    'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
-    'ON CONFLICT(id) DO UPDATE SET ' +
-    'email=excluded.email, name=excluded.name, master_password_hint=excluded.master_password_hint, master_password_hash=excluded.master_password_hash, key=excluded.key, private_key=excluded.private_key, public_key=excluded.public_key, ' +
-    'kdf_type=excluded.kdf_type, kdf_iterations=excluded.kdf_iterations, kdf_memory=excluded.kdf_memory, kdf_parallelism=excluded.kdf_parallelism, security_stamp=excluded.security_stamp, role=excluded.role, status=excluded.status, verify_devices=excluded.verify_devices, totp_secret=excluded.totp_secret, totp_recovery_code=excluded.totp_recovery_code, api_key=excluded.api_key, updated_at=excluded.updated_at'
+      'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+      'ON CONFLICT(id) DO UPDATE SET ' +
+      'email=excluded.email, name=excluded.name, master_password_hint=excluded.master_password_hint, master_password_hash=excluded.master_password_hash, key=excluded.key, private_key=excluded.private_key, public_key=excluded.public_key, ' +
+      'kdf_type=excluded.kdf_type, kdf_iterations=excluded.kdf_iterations, kdf_memory=excluded.kdf_memory, kdf_parallelism=excluded.kdf_parallelism, security_stamp=excluded.security_stamp, role=excluded.role, status=excluded.status, verify_devices=excluded.verify_devices, totp_secret=excluded.totp_secret, totp_recovery_code=excluded.totp_recovery_code, api_key=excluded.api_key, updated_at=excluded.updated_at'
   );
   await safeBind(
     stmt,
@@ -101,12 +101,16 @@ export async function createUser(db: D1Database, safeBind: SafeBind, user: User)
   await saveUser(db, safeBind, user);
 }
 
-export async function createFirstUser(db: D1Database, safeBind: SafeBind, user: User): Promise<boolean> {
+export async function createFirstUser(
+  db: D1Database,
+  safeBind: SafeBind,
+  user: User
+): Promise<boolean> {
   const email = user.email.toLowerCase();
   const stmt = db.prepare(
     'INSERT INTO users(id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, totp_secret, totp_recovery_code, api_key, created_at, updated_at) ' +
-    'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ' +
-    'WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1)'
+      'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ' +
+      'WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1)'
   );
   const result = await safeBind(
     stmt,

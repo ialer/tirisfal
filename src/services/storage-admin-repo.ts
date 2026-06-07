@@ -5,13 +5,23 @@ export async function createInvite(db: D1Database, invite: Invite): Promise<void
     .prepare(
       'INSERT INTO invites(code, created_by, used_by, expires_at, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)'
     )
-    .bind(invite.code, invite.createdBy, invite.usedBy, invite.expiresAt, invite.status, invite.createdAt, invite.updatedAt)
+    .bind(
+      invite.code,
+      invite.createdBy,
+      invite.usedBy,
+      invite.expiresAt,
+      invite.status,
+      invite.createdAt,
+      invite.updatedAt
+    )
     .run();
 }
 
 export async function getInvite(db: D1Database, code: string): Promise<Invite | null> {
   const row = await db
-    .prepare('SELECT code, created_by, used_by, expires_at, status, created_at, updated_at FROM invites WHERE code = ?')
+    .prepare(
+      'SELECT code, created_by, used_by, expires_at, status, created_at, updated_at FROM invites WHERE code = ?'
+    )
     .bind(code)
     .first<any>();
   if (!row) return null;
@@ -26,11 +36,12 @@ export async function getInvite(db: D1Database, code: string): Promise<Invite | 
   };
 }
 
-export async function listInvites(db: D1Database, includeInactive: boolean = false): Promise<Invite[]> {
+export async function listInvites(
+  db: D1Database,
+  includeInactive: boolean = false
+): Promise<Invite[]> {
   const now = new Date().toISOString();
-  const predicate = includeInactive
-    ? '1 = 1'
-    : "(status = 'active' AND expires_at > ?)";
+  const predicate = includeInactive ? '1 = 1' : "(status = 'active' AND expires_at > ?)";
   const query =
     'SELECT code, created_by, used_by, expires_at, status, created_at, updated_at FROM invites ' +
     `WHERE ${predicate} ORDER BY created_at DESC`;
@@ -49,7 +60,11 @@ export async function listInvites(db: D1Database, includeInactive: boolean = fal
   }));
 }
 
-export async function markInviteUsed(db: D1Database, code: string, userId: string): Promise<boolean> {
+export async function markInviteUsed(
+  db: D1Database,
+  code: string,
+  userId: string
+): Promise<boolean> {
   const now = new Date().toISOString();
   const result = await db
     .prepare(
@@ -63,7 +78,9 @@ export async function markInviteUsed(db: D1Database, code: string, userId: strin
 export async function revokeInvite(db: D1Database, code: string): Promise<boolean> {
   const now = new Date().toISOString();
   const result = await db
-    .prepare("UPDATE invites SET status = 'revoked', updated_at = ? WHERE code = ? AND status = 'active'")
+    .prepare(
+      "UPDATE invites SET status = 'revoked', updated_at = ? WHERE code = ? AND status = 'active'"
+    )
     .bind(now, code)
     .run();
   return (result.meta.changes ?? 0) > 0;
@@ -79,6 +96,14 @@ export async function createAuditLog(db: D1Database, log: AuditLog): Promise<voi
     .prepare(
       'INSERT INTO audit_logs(id, actor_user_id, action, target_type, target_id, metadata, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)'
     )
-    .bind(log.id, log.actorUserId, log.action, log.targetType, log.targetId, log.metadata, log.createdAt)
+    .bind(
+      log.id,
+      log.actorUserId,
+      log.action,
+      log.targetType,
+      log.targetId,
+      log.metadata,
+      log.createdAt
+    )
     .run();
 }

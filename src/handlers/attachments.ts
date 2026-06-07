@@ -1,18 +1,5 @@
-import { Env, Attachment, DEFAULT_DEV_SECRET } from '../types';
-import { notifyUserVaultSync } from '../durable/notifications-hub';
-import { StorageService } from '../services/storage';
-import { jsonResponse, errorResponse } from '../utils/response';
-import { buildDirectUploadUrl, getSafeJwtSecret, parseDirectUploadPayload } from '../utils/direct-upload';
-import { generateUUID } from '../utils/uuid';
-import {
-  createAttachmentUploadToken,
-  createFileDownloadToken,
-  verifyAttachmentUploadToken,
-  verifyFileDownloadToken,
-} from '../utils/jwt';
-import { cipherToResponse } from './ciphers';
 import { LIMITS } from '../config/limits';
-import { readActingDeviceIdentifier } from '../utils/device';
+import { notifyUserVaultSync } from '../durable/notifications-hub';
 import {
   deleteBlobObject,
   getAttachmentObjectKey,
@@ -20,6 +7,24 @@ import {
   getBlobStorageMaxBytes,
   putBlobObject,
 } from '../services/blob-store';
+import { StorageService } from '../services/storage';
+import type { Attachment, Env } from '../types';
+import { DEFAULT_DEV_SECRET } from '../types';
+import { readActingDeviceIdentifier } from '../utils/device';
+import {
+  buildDirectUploadUrl,
+  getSafeJwtSecret,
+  parseDirectUploadPayload,
+} from '../utils/direct-upload';
+import {
+  createAttachmentUploadToken,
+  createFileDownloadToken,
+  verifyAttachmentUploadToken,
+  verifyFileDownloadToken,
+} from '../utils/jwt';
+import { errorResponse, jsonResponse } from '../utils/response';
+import { generateUUID } from '../utils/uuid';
+import { cipherToResponse } from './ciphers';
 
 function notifyVaultSyncForRequest(
   request: Request,
@@ -80,7 +85,10 @@ async function processAttachmentUpload(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('KV object too large')) {
-      return errorResponse(`File too large. Maximum size is ${Math.floor(maxFileSize / (1024 * 1024))}MB`, 413);
+      return errorResponse(
+        `File too large. Maximum size is ${Math.floor(maxFileSize / (1024 * 1024))}MB`,
+        413
+      );
     }
     return errorResponse('Attachment storage is not configured', 500);
   }
@@ -168,7 +176,11 @@ export async function handleCreateAttachment(
   return jsonResponse({
     object: 'attachment-fileUpload',
     attachmentId: attachmentId,
-    url: buildDirectUploadUrl(request, `/api/ciphers/${cipherId}/attachment/${attachmentId}`, uploadToken),
+    url: buildDirectUploadUrl(
+      request,
+      `/api/ciphers/${cipherId}/attachment/${attachmentId}`,
+      uploadToken
+    ),
     fileUploadType: 1,
     cipherResponse: cipherToResponse(updatedCipher!, attachments),
   });
@@ -263,7 +275,7 @@ export async function handleGetAttachment(
 
   // Generate short-lived download token
   const token = await createFileDownloadToken(cipherId, attachmentId, env.JWT_SECRET);
-  
+
   // Generate download URL with token
   const url = new URL(request.url);
   const downloadUrl = `${url.origin}/api/attachments/${cipherId}/${attachmentId}?token=${token}`;
@@ -307,7 +319,10 @@ export async function handleUpdateAttachmentMetadata(
     return errorResponse('Invalid JSON', 400);
   }
 
-  if (!Object.prototype.hasOwnProperty.call(body, 'fileName') && !Object.prototype.hasOwnProperty.call(body, 'key')) {
+  if (
+    !Object.prototype.hasOwnProperty.call(body, 'fileName') &&
+    !Object.prototype.hasOwnProperty.call(body, 'key')
+  ) {
     return errorResponse('No metadata fields supplied', 400);
   }
 
@@ -442,17 +457,11 @@ export async function handleDeleteAttachment(
 }
 
 // Delete all attachments for a cipher (used when deleting cipher)
-export async function deleteAllAttachmentsForCipher(
-  env: Env,
-  cipherId: string
-): Promise<void> {
+export async function deleteAllAttachmentsForCipher(env: Env, cipherId: string): Promise<void> {
   await deleteAllAttachmentsForCiphers(env, [cipherId]);
 }
 
-export async function deleteAllAttachmentsForCiphers(
-  env: Env,
-  cipherIds: string[]
-): Promise<void> {
+export async function deleteAllAttachmentsForCiphers(env: Env, cipherIds: string[]): Promise<void> {
   const storage = new StorageService(env.DB);
   const attachmentsByCipher = await storage.getAttachmentsByCipherIds(cipherIds);
   const attachments = Array.from(attachmentsByCipher.entries()).flatMap(([ownedCipherId, items]) =>
@@ -460,10 +469,14 @@ export async function deleteAllAttachmentsForCiphers(
   );
   if (!attachments.length) return;
 
-  await runWithConcurrency(attachments, LIMITS.performance.attachmentDeleteConcurrency, async ({ attachment, cipherId }) => {
-    const path = getAttachmentObjectKey(cipherId, attachment.id);
-    await deleteBlobObject(env, path);
-  });
+  await runWithConcurrency(
+    attachments,
+    LIMITS.performance.attachmentDeleteConcurrency,
+    async ({ attachment, cipherId }) => {
+      const path = getAttachmentObjectKey(cipherId, attachment.id);
+      await deleteBlobObject(env, path);
+    }
+  );
 
   await storage.bulkDeleteAttachmentsByIds(attachments.map(({ attachment }) => attachment.id));
 }

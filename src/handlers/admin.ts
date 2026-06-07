@@ -1,8 +1,12 @@
-import { Env, User, Invite } from '../types';
+import {
+  deleteBlobObject,
+  getAttachmentObjectKey,
+  getSendFileObjectKey,
+} from '../services/blob-store';
 import { StorageService } from '../services/storage';
-import { jsonResponse, errorResponse } from '../utils/response';
+import type { Env, Invite, User } from '../types';
+import { errorResponse, jsonResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
-import { deleteBlobObject, getAttachmentObjectKey, getSendFileObjectKey } from '../services/blob-store';
 
 function isAdmin(user: User): boolean {
   return user.role === 'admin' && user.status === 'active';
@@ -10,7 +14,9 @@ function isAdmin(user: User): boolean {
 
 function randomHex(bytes: number): string {
   const data = crypto.getRandomValues(new Uint8Array(bytes));
-  return Array.from(data).map(v => v.toString(16).padStart(2, '0')).join('');
+  return Array.from(data)
+    .map((v) => v.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function buildInviteLink(request: Request, code: string): string {
@@ -65,7 +71,7 @@ export async function handleAdminListUsers(
   const storage = new StorageService(env.DB);
   const users = await storage.getAllUsers();
   return jsonResponse({
-    data: users.map(user => ({
+    data: users.map((user) => ({
       id: user.id,
       email: user.email,
       name: user.name,
@@ -137,7 +143,7 @@ export async function handleAdminListInvites(
   const includeInactive = url.searchParams.get('includeInactive') === 'true';
   const invites = await storage.listInvites(includeInactive);
   return jsonResponse({
-    data: invites.map(invite => toInviteResponse(request, invite)),
+    data: invites.map((invite) => toInviteResponse(request, invite)),
     object: 'list',
     continuationToken: null,
   });
@@ -202,7 +208,8 @@ export async function handleAdminSetUserStatus(
     return errorResponse('Invalid JSON', 400);
   }
 
-  const nextStatus = body.status === 'banned' ? 'banned' : body.status === 'active' ? 'active' : null;
+  const nextStatus =
+    body.status === 'banned' ? 'banned' : body.status === 'active' ? 'active' : null;
   if (!nextStatus) {
     return errorResponse('status must be active or banned', 400);
   }
@@ -267,14 +274,17 @@ export async function handleAdminDeleteUser(
   // 2. Send files (keyed by sends/sendId/fileId)
   const sends = await storage.getAllSends(target.id);
   for (const send of sends) {
-    if (send.type === 1) { // SendType.File
+    if (send.type === 1) {
+      // SendType.File
       try {
         const parsed = JSON.parse(send.data) as Record<string, unknown>;
         const fileId = typeof parsed.id === 'string' ? parsed.id : null;
         if (fileId) {
           await deleteBlobObject(env, getSendFileObjectKey(send.id, fileId));
         }
-      } catch { /* non-file send or bad data, skip */ }
+      } catch {
+        /* non-file send or bad data, skip */
+      }
     }
   }
 

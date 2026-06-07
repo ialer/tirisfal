@@ -1,7 +1,7 @@
+import { normalizeEquivalentDomain } from '../../shared/domain-normalize';
 import bitwardenGlobalDomainsRaw from '../static/global_domains.bitwarden.json';
 import customGlobalDomainsRaw from '../static/global_domains.custom.json';
 import type { CustomEquivalentDomain, DomainRulesResponse, GlobalEquivalentDomain } from '../types';
-import { normalizeEquivalentDomain } from '../../shared/domain-normalize';
 
 // CONTRACT:
 // Equivalent domains are a Bitwarden compatibility surface. The DB stores both
@@ -127,10 +127,9 @@ export function expandCustomEquivalentDomainsWithGlobals(
   if (!normalizedCustomGroups.length) return [];
 
   const customDomains = new Set(normalizedCustomGroups.flat());
-  return mergeEquivalentDomainGroups([
-    ...activeGlobalGroups,
-    ...normalizedCustomGroups,
-  ]).filter((group) => group.some((domain) => customDomains.has(domain)));
+  return mergeEquivalentDomainGroups([...activeGlobalGroups, ...normalizedCustomGroups]).filter(
+    (group) => group.some((domain) => customDomains.has(domain))
+  );
 }
 
 function createCustomDomainId(domains: string[], index: number): string {
@@ -146,7 +145,7 @@ export function normalizeCustomEquivalentDomains(input: unknown): CustomEquivale
     const record = Array.isArray(item)
       ? { domains: item, excluded: false, id: '' }
       : item && typeof item === 'object'
-        ? item as Record<string, unknown>
+        ? (item as Record<string, unknown>)
         : null;
     if (!record) continue;
 
@@ -168,9 +167,9 @@ export function normalizeCustomEquivalentDomains(input: unknown): CustomEquivale
 }
 
 export function customRulesToActiveEquivalentDomains(rules: CustomEquivalentDomain[]): string[][] {
-  return mergeEquivalentDomainGroups(rules
-    .filter((rule) => !rule.excluded)
-    .map((rule) => rule.domains));
+  return mergeEquivalentDomainGroups(
+    rules.filter((rule) => !rule.excluded).map((rule) => rule.domains)
+  );
 }
 
 export function normalizeExcludedGlobalTypes(input: unknown): number[] {
@@ -180,10 +179,13 @@ export function normalizeExcludedGlobalTypes(input: unknown): number[] {
   const seen = new Set<number>();
   const out: number[] = [];
   for (const item of input) {
-    const type = Number(typeof item === 'object' && item !== null ? (item as Record<string, unknown>).type : item);
-    const excluded = typeof item === 'object' && item !== null
-      ? Boolean((item as Record<string, unknown>).excluded)
-      : true;
+    const type = Number(
+      typeof item === 'object' && item !== null ? (item as Record<string, unknown>).type : item
+    );
+    const excluded =
+      typeof item === 'object' && item !== null
+        ? Boolean((item as Record<string, unknown>).excluded)
+        : true;
     if (!excluded || !Number.isInteger(type) || !validTypes.has(type) || seen.has(type)) continue;
     seen.add(type);
     out.push(type);

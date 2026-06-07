@@ -13,7 +13,10 @@ function extractAccessToken(request: Request): string | null {
   return match?.[1]?.trim() || null;
 }
 
-async function authenticateNotificationsRequest(request: Request, env: Env): Promise<JWTPayload | null> {
+async function authenticateNotificationsRequest(
+  request: Request,
+  env: Env
+): Promise<JWTPayload | null> {
   const accessToken = extractAccessToken(request);
   if (!accessToken) return null;
 

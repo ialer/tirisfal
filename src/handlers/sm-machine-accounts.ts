@@ -1,8 +1,8 @@
 // Machine Accounts API Handlers
 
-import { Env } from '../types';
 import { SecretsManagerService } from '../services/sm-service';
-import { jsonResponse, errorResponse } from '../utils/response';
+import type { Env } from '../types';
+import { errorResponse, jsonResponse } from '../utils/response';
 
 export async function handleMachineAccounts(
   request: Request,
@@ -15,8 +15,8 @@ export async function handleMachineAccounts(
 
   // POST /api/machine-accounts - 创建机器账号
   if (method === 'POST' && path === '/api/machine-accounts') {
-    const body = await request.json() as { name: string; description?: string };
-    
+    const body = await request.json();
+
     if (!body.name) {
       return errorResponse('Name is required', 400);
     }
@@ -56,9 +56,10 @@ export async function handleMachineAccounts(
         return errorResponse('Not found', 404);
       }
 
-      const body = await request.json() as { name?: string; status?: string; description?: string };
+      const body = await request.json();
       // 确保 status 是有效的值
-      const validStatus = body.status === 'active' || body.status === 'disabled' ? body.status : undefined;
+      const validStatus =
+        body.status === 'active' || body.status === 'disabled' ? body.status : undefined;
       const updated = await smService.updateMachineAccount(accountId, {
         ...body,
         status: validStatus,
@@ -83,7 +84,7 @@ export async function handleMachineAccounts(
   if (tokenMatch && method === 'POST') {
     const accountId = tokenMatch[1];
     const account = await smService.getMachineAccount(accountId);
-    
+
     if (!account || account.user_id !== userId) {
       return errorResponse('Not found', 404);
     }

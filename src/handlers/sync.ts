@@ -1,22 +1,28 @@
-import { Env, SyncResponse, CipherResponse, FolderResponse, ProfileResponse } from '../types';
-import { StorageService } from '../services/storage';
-import { errorResponse } from '../utils/response';
-import { cipherToResponse, isCipherResponseSyncCompatible } from './ciphers';
-import { sendToResponse } from './sends';
 import { LIMITS } from '../config/limits';
+import { buildDomainsResponse } from '../services/domain-rules';
+import { StorageService } from '../services/storage';
+import type { CipherResponse, Env, FolderResponse, ProfileResponse, SyncResponse } from '../types';
+import { errorResponse } from '../utils/response';
 import {
   buildAccountKeys,
   buildUserDecryptionCompat,
   buildUserDecryptionOptions,
 } from '../utils/user-decryption';
-import { buildDomainsResponse } from '../services/domain-rules';
+import { cipherToResponse, isCipherResponseSyncCompatible } from './ciphers';
+import { sendToResponse } from './sends';
 
 // CONTRACT:
 // /api/sync reuses cipherToResponse() as the single cipher response shaper.
 // Filtering invalid cipher responses here protects clients from stored rows that
 // would otherwise make official apps fail after an HTTP 200 sync.
 // Keep this aligned with src/handlers/ciphers.ts when adding new vault fields.
-function buildSyncCacheRequest(request: Request, userId: string, revisionDate: string, excludeDomains: boolean, excludeSends: boolean): Request {
+function buildSyncCacheRequest(
+  request: Request,
+  userId: string,
+  revisionDate: string,
+  excludeDomains: boolean,
+  excludeSends: boolean
+): Request {
   const url = new URL(request.url);
   const cacheUrl = new URL(
     `/__tirisfal/cache/sync/${encodeURIComponent(userId)}/${encodeURIComponent(revisionDate)}/${excludeDomains ? '1' : '0'}/${excludeSends ? '1' : '0'}`,
@@ -40,7 +46,8 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   const storage = new StorageService(env.DB);
   const url = new URL(request.url);
   const excludeDomainsParam = url.searchParams.get('excludeDomains');
-  const excludeDomains = excludeDomainsParam !== null && /^(1|true|yes)$/i.test(excludeDomainsParam);
+  const excludeDomains =
+    excludeDomainsParam !== null && /^(1|true|yes)$/i.test(excludeDomainsParam);
   const excludeSendsParam = url.searchParams.get('excludeSends');
   const excludeSends = excludeSendsParam !== null && /^(1|true|yes)$/i.test(excludeSendsParam);
 
@@ -50,7 +57,13 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   }
 
   const revisionDate = await storage.getRevisionDate(userId);
-  const cacheRequest = buildSyncCacheRequest(request, userId, revisionDate, excludeDomains, excludeSends);
+  const cacheRequest = buildSyncCacheRequest(
+    request,
+    userId,
+    revisionDate,
+    excludeDomains,
+    excludeSends
+  );
   const cachedResponse = await readSyncCache(cacheRequest);
   if (cachedResponse) {
     return cachedResponse;

@@ -1,4 +1,4 @@
-import { Env } from '../types';
+import type { Env } from '../types';
 
 const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 export const KV_MAX_OBJECT_BYTES = 25 * 1024 * 1024;

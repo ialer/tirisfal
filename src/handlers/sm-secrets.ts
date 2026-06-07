@@ -1,8 +1,8 @@
 // Secrets API Handlers
 
-import { Env } from '../types';
 import { SecretsManagerService } from '../services/sm-service';
-import { jsonResponse, errorResponse } from '../utils/response';
+import type { Env } from '../types';
+import { errorResponse, jsonResponse } from '../utils/response';
 
 export async function handleSecrets(
   request: Request,
@@ -15,14 +15,8 @@ export async function handleSecrets(
 
   // POST /api/secrets - 创建凭证
   if (method === 'POST' && path === '/api/secrets') {
-    const body = await request.json() as {
-      name: string;
-      value: string;
-      project_id: string;
-      environment?: string;
-      note?: string;
-    };
-    
+    const body = await request.json();
+
     if (!body.name || !body.value || !body.project_id) {
       return errorResponse('Name, value, and project_id are required', 400);
     }
@@ -73,7 +67,7 @@ export async function handleSecrets(
         return errorResponse('Not found', 404);
       }
 
-      const body = await request.json() as { value?: string; note?: string };
+      const body = await request.json();
       const updated = await smService.updateSecret(secretId, body);
       return jsonResponse(updated);
     }

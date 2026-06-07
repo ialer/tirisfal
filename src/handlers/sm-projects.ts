@@ -1,8 +1,8 @@
 // Projects API Handlers
 
-import { Env } from '../types';
 import { SecretsManagerService } from '../services/sm-service';
-import { jsonResponse, errorResponse } from '../utils/response';
+import type { Env } from '../types';
+import { errorResponse, jsonResponse } from '../utils/response';
 
 export async function handleProjects(
   request: Request,
@@ -15,8 +15,8 @@ export async function handleProjects(
 
   // POST /api/projects - 创建项目
   if (method === 'POST' && path === '/api/projects') {
-    const body = await request.json() as { name: string; description?: string };
-    
+    const body = await request.json();
+
     if (!body.name) {
       return errorResponse('Name is required', 400);
     }

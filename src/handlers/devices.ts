@@ -1,16 +1,23 @@
-import type { Device, DevicePendingAuthRequest, DeviceResponse, ProtectedDeviceResponse as ProtectedDeviceWireResponse } from '../types';
-import { Env } from '../types';
 import { getOnlineUserDevices, notifyUserLogout } from '../durable/notifications-hub';
 import { StorageService } from '../services/storage';
-import { errorResponse, jsonResponse } from '../utils/response';
+import type {
+  Device,
+  DevicePendingAuthRequest,
+  DeviceResponse,
+  ProtectedDeviceResponse as ProtectedDeviceWireResponse,
+} from '../types';
+import type { Env } from '../types';
 import { readKnownDeviceProbe } from '../utils/device';
+import { errorResponse, jsonResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
 
 function normalizeIdentifier(value: string | null | undefined): string {
   return String(value || '').trim();
 }
 
-function buildDevicePendingAuthRequest(value?: { id?: string | null; creationDate?: string | null } | null): DevicePendingAuthRequest | null {
+function buildDevicePendingAuthRequest(
+  value?: { id?: string | null; creationDate?: string | null } | null
+): DevicePendingAuthRequest | null {
   if (!value?.id || !value.creationDate) return null;
   return {
     id: String(value.id),
@@ -85,24 +92,24 @@ function buildProtectedDeviceResponse(device: Device): ProtectedDeviceWireRespon
   return response as ProtectedDeviceWireResponse;
 }
 
-function parseKeysBody(body: any, fallback?: Device): {
+function parseKeysBody(
+  body: any,
+  fallback?: Device
+): {
   encryptedUserKey?: string | null;
   encryptedPublicKey?: string | null;
   encryptedPrivateKey?: string | null;
 } {
   return {
-    encryptedUserKey:
-      Object.prototype.hasOwnProperty.call(body || {}, 'encryptedUserKey')
-        ? body?.encryptedUserKey ?? null
-        : fallback?.encryptedUserKey ?? null,
-    encryptedPublicKey:
-      Object.prototype.hasOwnProperty.call(body || {}, 'encryptedPublicKey')
-        ? body?.encryptedPublicKey ?? null
-        : fallback?.encryptedPublicKey ?? null,
-    encryptedPrivateKey:
-      Object.prototype.hasOwnProperty.call(body || {}, 'encryptedPrivateKey')
-        ? body?.encryptedPrivateKey ?? null
-        : fallback?.encryptedPrivateKey ?? null,
+    encryptedUserKey: Object.prototype.hasOwnProperty.call(body || {}, 'encryptedUserKey')
+      ? (body?.encryptedUserKey ?? null)
+      : (fallback?.encryptedUserKey ?? null),
+    encryptedPublicKey: Object.prototype.hasOwnProperty.call(body || {}, 'encryptedPublicKey')
+      ? (body?.encryptedPublicKey ?? null)
+      : (fallback?.encryptedPublicKey ?? null),
+    encryptedPrivateKey: Object.prototype.hasOwnProperty.call(body || {}, 'encryptedPrivateKey')
+      ? (body?.encryptedPrivateKey ?? null)
+      : (fallback?.encryptedPrivateKey ?? null),
   };
 }
 
@@ -115,7 +122,9 @@ async function readJsonBody(request: Request): Promise<any> {
 }
 
 function parseDeviceName(value: unknown): string {
-  return String(value || '').trim().slice(0, 128);
+  return String(value || '')
+    .trim()
+    .slice(0, 128);
 }
 
 // GET /api/devices/knowndevice
@@ -135,7 +144,11 @@ export async function handleKnownDevice(request: Request, env: Env): Promise<Res
 }
 
 // GET /api/devices
-export async function handleGetDevices(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleGetDevices(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const devices = await storage.getDevicesByUserId(userId);
@@ -179,7 +192,11 @@ export async function handleGetDevice(
 
 // GET /api/devices/authorized
 // Returns known devices together with active 2FA remember-token expiry.
-export async function handleGetAuthorizedDevices(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleGetAuthorizedDevices(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const [devices, trusted, onlineDeviceIdentifiers] = await Promise.all([
@@ -191,11 +208,14 @@ export async function handleGetAuthorizedDevices(request: Request, env: Env, use
 
   const trustedByIdentifier = new Map<string, { expiresAt: number; tokenCount: number }>();
   for (const row of trusted) {
-    trustedByIdentifier.set(row.deviceIdentifier, { expiresAt: row.expiresAt, tokenCount: row.tokenCount });
+    trustedByIdentifier.set(row.deviceIdentifier, {
+      expiresAt: row.expiresAt,
+      tokenCount: row.tokenCount,
+    });
   }
 
   const knownIdentifiers = new Set<string>();
-  const data = devices.map(device => {
+  const data = devices.map((device) => {
     knownIdentifiers.add(device.deviceIdentifier);
     const trustedInfo = trustedByIdentifier.get(device.deviceIdentifier);
     return {
@@ -245,7 +265,11 @@ export async function handleGetAuthorizedDevices(request: Request, env: Env, use
 }
 
 // DELETE /api/devices/authorized
-export async function handleRevokeAllTrustedDevices(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleRevokeAllTrustedDevices(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const removed = await storage.deleteTrustedTwoFactorTokensByUserId(userId);
@@ -313,7 +337,11 @@ export async function handleUpdateDeviceName(
 }
 
 // DELETE /api/devices
-export async function handleDeleteAllDevices(request: Request, env: Env, userId: string): Promise<Response> {
+export async function handleDeleteAllDevices(
+  request: Request,
+  env: Env,
+  userId: string
+): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const user = await storage.getUserById(userId);
@@ -328,7 +356,12 @@ export async function handleDeleteAllDevices(request: Request, env: Env, userId:
   user.updatedAt = new Date().toISOString();
   await storage.saveUser(user);
   notifyUserLogout(env, userId, null);
-  return jsonResponse({ success: true, removedTrusted, removedSessions: removedSessions ?? 0, removedDevices });
+  return jsonResponse({
+    success: true,
+    removedTrusted,
+    removedSessions: removedSessions ?? 0,
+    removedDevices,
+  });
 }
 
 // PUT/POST /api/devices/identifier/:deviceIdentifier/keys
@@ -381,7 +414,10 @@ export async function handleUpdateDeviceTrust(
   if (currentDeviceIdentifier && body?.currentDevice) {
     updates.push({
       deviceIdentifier: currentDeviceIdentifier,
-      keys: parseKeysBody(body.currentDevice, await storage.getDevice(userId, currentDeviceIdentifier) || undefined),
+      keys: parseKeysBody(
+        body.currentDevice,
+        (await storage.getDevice(userId, currentDeviceIdentifier)) || undefined
+      ),
     });
   }
 
@@ -391,7 +427,7 @@ export async function handleUpdateDeviceTrust(
       if (!deviceIdentifier) continue;
       updates.push({
         deviceIdentifier,
-        keys: parseKeysBody(item, await storage.getDevice(userId, deviceIdentifier) || undefined),
+        keys: parseKeysBody(item, (await storage.getDevice(userId, deviceIdentifier)) || undefined),
       });
     }
   }
@@ -413,7 +449,9 @@ export async function handleUntrustDevices(
 ): Promise<Response> {
   const body = await readJsonBody(request);
   const storage = new StorageService(env.DB);
-  const devices = Array.isArray(body?.devices) ? body.devices.map((id: unknown) => normalizeIdentifier(String(id))) : [];
+  const devices = Array.isArray(body?.devices)
+    ? body.devices.map((id: unknown) => normalizeIdentifier(String(id)))
+    : [];
   const removed = await storage.clearDeviceKeys(userId, devices);
   for (const deviceIdentifier of devices) {
     if (!deviceIdentifier) continue;
@@ -506,4 +544,3 @@ export async function handleClearDeviceToken(
   void deviceIdentifier;
   return new Response(null, { status: 200 });
 }
-
