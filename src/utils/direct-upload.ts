@@ -1,5 +1,6 @@
 import { LIMITS } from '../config/limits';
-import { DEFAULT_DEV_SECRET, Env } from '../types';
+import type { Env } from '../types';
+import { DEFAULT_DEV_SECRET } from '../types';
 import { errorResponse } from './response';
 
 export interface DirectUploadPayload {

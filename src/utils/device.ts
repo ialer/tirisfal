@@ -63,7 +63,10 @@ export function readAuthRequestDeviceInfo(
   };
 }
 
-export function readKnownDeviceProbe(request: Request): { email: string | null; deviceIdentifier: string | null } {
+export function readKnownDeviceProbe(request: Request): {
+  email: string | null;
+  deviceIdentifier: string | null;
+} {
   const encodedEmail = request.headers.get('X-Request-Email') || '';
   const decodedEmail = decodeBase64UrlUtf8(encodedEmail);
   const fallbackRawEmail = request.headers.get('X-Request-Email');
@@ -75,4 +78,3 @@ export function readKnownDeviceProbe(request: Request): { email: string | null; 
 export function readActingDeviceIdentifier(request: Request): string | null {
   return normalizeDeviceIdentifier(request.headers.get('X-Tirisfal-Acting-Device-Id'));
 }
-

@@ -2,12 +2,12 @@
  * Tirisfal — 自托管密码管理器
  * https://github.com/ialer/tirisfal
  */
-import { Env } from './types';
 import { NotificationsHub } from './durable/notifications-hub';
+import { runScheduledBackupIfDue } from './handlers/backup';
 import { handleRequest } from './router';
 import { StorageService } from './services/storage';
+import type { Env } from './types';
 import { applyCors, jsonResponse } from './utils/response';
-import { runScheduledBackupIfDue } from './handlers/backup';
 
 let dbInitialized = false;
 let dbInitError: string | null = null;
@@ -15,7 +15,8 @@ let dbInitPromise: Promise<void> | null = null;
 
 function normalizeRequestUrl(request: Request): Request {
   const url = new URL(request.url);
-  const normalizedPathname = url.pathname.length <= 1 ? url.pathname : url.pathname.replace(/\/+$/, '');
+  const normalizedPathname =
+    url.pathname.length <= 1 ? url.pathname : url.pathname.replace(/\/+$/, '');
   if (normalizedPathname === url.pathname) return request;
 
   url.pathname = normalizedPathname;
@@ -38,9 +39,7 @@ function isWorkerHandledPath(path: string): boolean {
 function addSearchIndexHeaders(request: Request, response: Response): Response {
   const url = new URL(request.url);
   const contentType = String(response.headers.get('Content-Type') || '').toLowerCase();
-  const shouldNoIndex =
-    url.pathname === '/robots.txt' ||
-    contentType.includes('text/html');
+  const shouldNoIndex = url.pathname === '/robots.txt' || contentType.includes('text/html');
 
   if (!shouldNoIndex) return response;
 
@@ -76,7 +75,8 @@ async function ensureDatabaseInitialized(env: Env): Promise<void> {
     })()
       .catch((error: unknown) => {
         console.error('Failed to initialize database:', error);
-        dbInitError = error instanceof Error ? error.message : 'Unknown database initialization error';
+        dbInitError =
+          error instanceof Error ? error.message : 'Unknown database initialization error';
       })
       .finally(() => {
         dbInitPromise = null;
@@ -124,9 +124,11 @@ export default {
       console.error('Skipping scheduled backup because DB init failed:', dbInitError);
       return;
     }
-    ctx.waitUntil(runScheduledBackupIfDue(env).catch((error) => {
-      console.error('Scheduled backup failed:', error);
-    }));
+    ctx.waitUntil(
+      runScheduledBackupIfDue(env).catch((error) => {
+        console.error('Scheduled backup failed:', error);
+      })
+    );
   },
 };
 

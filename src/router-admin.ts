@@ -1,14 +1,14 @@
-import type { Env, User } from './types';
 import {
-  handleAdminListUsers,
   handleAdminCreateInvite,
-  handleAdminListInvites,
   handleAdminDeleteAllInvites,
+  handleAdminDeleteUser,
+  handleAdminListInvites,
+  handleAdminListUsers,
   handleAdminRevokeInvite,
   handleAdminSetUserStatus,
-  handleAdminDeleteUser,
 } from './handlers/admin';
 import { handleAdminBackupRoute } from './router-admin-backup';
+import type { Env, User } from './types';
 
 export async function handleAdminRoute(
   request: Request,

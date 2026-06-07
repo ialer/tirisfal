@@ -46,13 +46,9 @@ async function hotp(secret: Uint8Array, counter: number): Promise<string> {
     c = Math.floor(c / 256);
   }
 
-  const key = await crypto.subtle.importKey(
-    'raw',
-    secret,
-    { name: 'HMAC', hash: 'SHA-1' },
-    false,
-    ['sign']
-  );
+  const key = await crypto.subtle.importKey('raw', secret, { name: 'HMAC', hash: 'SHA-1' }, false, [
+    'sign',
+  ]);
 
   const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, counterBytes));
   const offset = signature[signature.length - 1] & 0x0f;
@@ -62,7 +58,7 @@ async function hotp(secret: Uint8Array, counter: number): Promise<string> {
     ((signature[offset + 2] & 0xff) << 8) |
     (signature[offset + 3] & 0xff);
 
-  const otp = binary % (10 ** TOTP_DIGITS);
+  const otp = binary % 10 ** TOTP_DIGITS;
   return otp.toString().padStart(TOTP_DIGITS, '0');
 }
 
@@ -70,7 +66,11 @@ function normalizeToken(token: string): string {
   return token.replace(/\s+/g, '');
 }
 
-export async function verifyTotpToken(secretRaw: string, tokenRaw: string, nowMs: number = Date.now()): Promise<boolean> {
+export async function verifyTotpToken(
+  secretRaw: string,
+  tokenRaw: string,
+  nowMs: number = Date.now()
+): Promise<boolean> {
   const token = normalizeToken(tokenRaw);
   if (!/^\d{6}$/.test(token)) return false;
 

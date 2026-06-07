@@ -1,4 +1,5 @@
 import { DurableObject, waitUntil } from 'cloudflare:workers';
+
 import type { Env } from '../types';
 
 const SIGNALR_RECORD_SEPARATOR = 0x1e;
@@ -86,9 +87,7 @@ function encodeMsgPackArray(values: unknown[]): Uint8Array {
   const items = values.map(encodeMsgPack);
   const len = items.length;
   const header =
-    len < 16
-      ? new Uint8Array([0x90 | len])
-      : new Uint8Array([0xdc, (len >> 8) & 0xff, len & 0xff]);
+    len < 16 ? new Uint8Array([0x90 | len]) : new Uint8Array([0xdc, (len >> 8) & 0xff, len & 0xff]);
   return concatBytes([header, ...items]);
 }
 
@@ -96,9 +95,7 @@ function encodeMsgPackMap(value: Record<string, unknown>): Uint8Array {
   const entries = Object.entries(value);
   const len = entries.length;
   const header =
-    len < 16
-      ? new Uint8Array([0x80 | len])
-      : new Uint8Array([0xde, (len >> 8) & 0xff, len & 0xff]);
+    len < 16 ? new Uint8Array([0x80 | len]) : new Uint8Array([0xde, (len >> 8) & 0xff, len & 0xff]);
   const chunks: Uint8Array[] = [header];
   for (const [key, entryValue] of entries) {
     chunks.push(encodeMsgPackString(key), encodeMsgPack(entryValue));
@@ -139,17 +136,19 @@ function buildSignalRJsonInvocation(
   payload: Record<string, unknown>,
   contextId: string | null
 ): string {
-  return JSON.stringify({
-    type: 1,
-    target: 'ReceiveMessage',
-    arguments: [
+  return (
+    JSON.stringify({
+      type: 1,
+      target: 'ReceiveMessage',
+      arguments: [
         {
           ContextId: contextId,
           Type: updateType,
           Payload: payload,
         },
       ],
-    }) + String.fromCharCode(SIGNALR_RECORD_SEPARATOR);
+    }) + String.fromCharCode(SIGNALR_RECORD_SEPARATOR)
+  );
 }
 
 function buildSignalRMessagePackInvocation(
@@ -201,25 +200,31 @@ export class NotificationsHub extends DurableObject<Env> {
       const revisionDate = String(body?.revisionDate || '').trim() || new Date().toISOString();
       const userId = String(request.headers.get('X-Tirisfal-UserId') || body?.userId || '').trim();
       const contextId = String(body?.contextId || '').trim() || null;
-      const updateType = Number(body?.updateType || SIGNALR_UPDATE_TYPE_SYNC_VAULT) || SIGNALR_UPDATE_TYPE_SYNC_VAULT;
+      const updateType =
+        Number(body?.updateType || SIGNALR_UPDATE_TYPE_SYNC_VAULT) ||
+        SIGNALR_UPDATE_TYPE_SYNC_VAULT;
       const targetDeviceIdentifier = String(body?.targetDeviceIdentifier || '').trim() || null;
-      const payload = body?.payload && typeof body.payload === 'object'
-        ? body.payload
-        : {
-          UserId: userId,
-          Date: revisionDate,
-        };
+      const payload =
+        body?.payload && typeof body.payload === 'object'
+          ? body.payload
+          : {
+              UserId: userId,
+              Date: revisionDate,
+            };
       this.broadcastMessage(updateType, payload, contextId, targetDeviceIdentifier);
       return new Response(null, { status: 204 });
     }
 
     if (url.pathname === '/internal/online' && request.method === 'GET') {
-      return new Response(JSON.stringify({ deviceIdentifiers: this.getOnlineDeviceIdentifiers() }), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      return new Response(
+        JSON.stringify({ deviceIdentifiers: this.getOnlineDeviceIdentifiers() }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
     }
 
     if (url.pathname !== '/notifications/hub') {
@@ -260,7 +265,10 @@ export class NotificationsHub extends DurableObject<Env> {
     });
   }
 
-  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer | ArrayBufferView): Promise<void> {
+  async webSocketMessage(
+    ws: WebSocket,
+    message: string | ArrayBuffer | ArrayBufferView
+  ): Promise<void> {
     const attachment = ws.deserializeAttachment() as WsAttachment | null;
     if (!attachment) return;
 
@@ -292,7 +300,12 @@ export class NotificationsHub extends DurableObject<Env> {
     }
   }
 
-  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
+  async webSocketClose(
+    ws: WebSocket,
+    code: number,
+    reason: string,
+    wasClean: boolean
+  ): Promise<void> {
     const attachment = ws.deserializeAttachment() as WsAttachment | null;
     const shouldBroadcast = !!attachment?.handshakeComplete;
     if (shouldBroadcast && attachment?.userId) {
@@ -368,7 +381,16 @@ export function notifyUserVaultSync(
   revisionDate: string,
   contextId?: string | null
 ): void {
-  waitUntil(notifyUserUpdate(env, userId, SIGNALR_UPDATE_TYPE_SYNC_VAULT, revisionDate, contextId ?? null, null));
+  waitUntil(
+    notifyUserUpdate(
+      env,
+      userId,
+      SIGNALR_UPDATE_TYPE_SYNC_VAULT,
+      revisionDate,
+      contextId ?? null,
+      null
+    )
+  );
 }
 
 export function notifyUserLogout(
@@ -376,7 +398,16 @@ export function notifyUserLogout(
   userId: string,
   targetDeviceIdentifier?: string | null
 ): void {
-  waitUntil(notifyUserUpdate(env, userId, SIGNALR_UPDATE_TYPE_LOG_OUT, new Date().toISOString(), null, targetDeviceIdentifier ?? null));
+  waitUntil(
+    notifyUserUpdate(
+      env,
+      userId,
+      SIGNALR_UPDATE_TYPE_LOG_OUT,
+      new Date().toISOString(),
+      null,
+      targetDeviceIdentifier ?? null
+    )
+  );
 }
 
 export async function getOnlineUserDevices(env: Env, userId: string): Promise<string[]> {
@@ -385,8 +416,12 @@ export async function getOnlineUserDevices(env: Env, userId: string): Promise<st
     const stub = env.NOTIFICATIONS_HUB.get(id);
     const response = await stub.fetch('https://notifications/internal/online');
     if (!response.ok) return [];
-    const body = (await response.json().catch(() => null)) as { deviceIdentifiers?: string[] } | null;
-    return Array.isArray(body?.deviceIdentifiers) ? body.deviceIdentifiers.filter((value) => !!String(value || '').trim()) : [];
+    const body = (await response.json().catch(() => null)) as {
+      deviceIdentifiers?: string[];
+    } | null;
+    return Array.isArray(body?.deviceIdentifiers)
+      ? body.deviceIdentifiers.filter((value) => !!String(value || '').trim())
+      : [];
   } catch {
     return [];
   }

@@ -1,23 +1,23 @@
-import type { Env } from './types';
 import {
-  handleGetAuthorizedDevices,
-  handleGetDevice,
-  handleGetDevices,
-  handleGetDeviceByIdentifier,
-  handleUpdateDeviceKeys,
-  handleUpdateDeviceTrust,
-  handleUntrustDevices,
-  handleRetrieveDeviceKeys,
+  handleClearDeviceToken,
   handleDeactivateDevice,
-  handleRevokeAllTrustedDevices,
-  handleRevokeTrustedDevice,
   handleDeleteAllDevices,
   handleDeleteDevice,
+  handleGetAuthorizedDevices,
+  handleGetDevice,
+  handleGetDeviceByIdentifier,
+  handleGetDevices,
+  handleRetrieveDeviceKeys,
+  handleRevokeAllTrustedDevices,
+  handleRevokeTrustedDevice,
+  handleUntrustDevices,
+  handleUpdateDeviceKeys,
   handleUpdateDeviceName,
   handleUpdateDeviceToken,
+  handleUpdateDeviceTrust,
   handleUpdateDeviceWebPushAuth,
-  handleClearDeviceToken,
 } from './handlers/devices';
+import type { Env } from './types';
 
 export async function handleAuthenticatedDeviceRoute(
   request: Request,
@@ -66,7 +66,9 @@ export async function handleAuthenticatedDeviceRoute(
     return handleGetDeviceByIdentifier(request, env, userId, deviceIdentifier);
   }
 
-  const deviceKeysMatch = path.match(/^\/api\/devices\/([^/]+)\/keys$/i) || path.match(/^\/api\/devices\/identifier\/([^/]+)\/keys$/i);
+  const deviceKeysMatch =
+    path.match(/^\/api\/devices\/([^/]+)\/keys$/i) ||
+    path.match(/^\/api\/devices\/identifier\/([^/]+)\/keys$/i);
   if (deviceKeysMatch && (method === 'PUT' || method === 'POST')) {
     const deviceIdentifier = decodeURIComponent(deviceKeysMatch[1]);
     return handleUpdateDeviceKeys(request, env, userId, deviceIdentifier);
@@ -78,13 +80,17 @@ export async function handleAuthenticatedDeviceRoute(
     return handleUpdateDeviceToken(request, env, userId, deviceIdentifier);
   }
 
-  const identifierWebPushMatch = path.match(/^\/api\/devices\/identifier\/([^/]+)\/web-push-auth$/i);
+  const identifierWebPushMatch = path.match(
+    /^\/api\/devices\/identifier\/([^/]+)\/web-push-auth$/i
+  );
   if (identifierWebPushMatch && (method === 'PUT' || method === 'POST')) {
     const deviceIdentifier = decodeURIComponent(identifierWebPushMatch[1]);
     return handleUpdateDeviceWebPushAuth(request, env, userId, deviceIdentifier);
   }
 
-  const identifierClearTokenMatch = path.match(/^\/api\/devices\/identifier\/([^/]+)\/clear-token$/i);
+  const identifierClearTokenMatch = path.match(
+    /^\/api\/devices\/identifier\/([^/]+)\/clear-token$/i
+  );
   if (identifierClearTokenMatch && (method === 'PUT' || method === 'POST')) {
     const deviceIdentifier = decodeURIComponent(identifierClearTokenMatch[1]);
     return handleClearDeviceToken(request, env, userId, deviceIdentifier);

@@ -5,7 +5,9 @@ export function bytesToBase64Url(bytes: Uint8Array): string {
 }
 
 export function base64UrlToBytes(input: string): Uint8Array {
-  const normalized = String(input || '').replace(/-/g, '+').replace(/_/g, '/');
+  const normalized = String(input || '')
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
   const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4);
   const binary = atob(padded);
   const out = new Uint8Array(binary.length);
@@ -17,7 +19,9 @@ export function randomChallenge(size: number = 32): string {
   return bytesToBase64Url(crypto.getRandomValues(new Uint8Array(size)));
 }
 
-export function parseClientDataJSON(base64Url: string): { type?: string; challenge?: string; origin?: string } | null {
+export function parseClientDataJSON(
+  base64Url: string
+): { type?: string; challenge?: string; origin?: string } | null {
   try {
     const raw = base64UrlToBytes(base64Url);
     const text = new TextDecoder().decode(raw);

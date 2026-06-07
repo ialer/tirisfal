@@ -1,11 +1,12 @@
-import { DEFAULT_DEV_SECRET, Env } from './types';
-import { AuthService } from './services/auth';
-import { RateLimitService, getClientIdentifier } from './services/ratelimit';
-import { handleCors, errorResponse } from './utils/response';
 import { LIMITS } from './config/limits';
 import { handleAuthenticatedRoute } from './router-authenticated';
 import { handlePublicRoute } from './router-public';
 import { handleSmRoute } from './router-sm';
+import { AuthService } from './services/auth';
+import { getClientIdentifier, RateLimitService } from './services/ratelimit';
+import type { Env } from './types';
+import { DEFAULT_DEV_SECRET } from './types';
+import { errorResponse, handleCors } from './utils/response';
 
 function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | null {
   const secret = (env.JWT_SECRET || '').trim();
@@ -86,7 +87,13 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       }
     }
 
-    const publicResponse = await handlePublicRoute(request, env, path, method, enforcePublicRateLimit);
+    const publicResponse = await handlePublicRoute(
+      request,
+      env,
+      path,
+      method,
+      enforcePublicRateLimit
+    );
     if (publicResponse) return publicResponse;
 
     const secretIssue = jwtSecretUnsafeReason(env);
@@ -116,7 +123,10 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     if (!isImportBypassRequest(request, path, method)) {
       const rateLimit = new RateLimitService(env.DB);
-      const rateLimitCheck = await rateLimit.consumeBudget(`${userId}:api`, LIMITS.rateLimit.apiRequestsPerMinute);
+      const rateLimitCheck = await rateLimit.consumeBudget(
+        `${userId}:api`,
+        LIMITS.rateLimit.apiRequestsPerMinute
+      );
       if (!rateLimitCheck.allowed) {
         return new Response(
           JSON.stringify({
@@ -139,7 +149,14 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     const smResponse = await handleSmRoute(request, env, path, method);
     if (smResponse) return smResponse;
 
-    const authenticatedResponse = await handleAuthenticatedRoute(request, env, userId, currentUser, path, method);
+    const authenticatedResponse = await handleAuthenticatedRoute(
+      request,
+      env,
+      userId,
+      currentUser,
+      path,
+      method
+    );
     if (authenticatedResponse) return authenticatedResponse;
 
     return errorResponse('Not found', 404);

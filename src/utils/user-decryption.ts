@@ -1,11 +1,13 @@
-import { User, UserDecryptionOptions } from '../types';
+import type { User, UserDecryptionOptions } from '../types';
 
 function normalizeOptionalPublicKey(value: unknown): string {
   if (value == null) return '';
   return String(value);
 }
 
-export function buildAccountKeys(user: Pick<User, 'privateKey' | 'publicKey'>): Record<string, unknown> | null {
+export function buildAccountKeys(
+  user: Pick<User, 'privateKey' | 'publicKey'>
+): Record<string, unknown> | null {
   if (!user.privateKey) {
     return null;
   }

@@ -20,22 +20,25 @@ const DEFAULT_CORS_HEADERS = [
 
 function isExtensionOrigin(origin: string): boolean {
   return (
-    origin.startsWith('chrome-extension://')
-    || origin.startsWith('moz-extension://')
-    || origin.startsWith('safari-web-extension://')
+    origin.startsWith('chrome-extension://') ||
+    origin.startsWith('moz-extension://') ||
+    origin.startsWith('safari-web-extension://')
   );
 }
 
 function isWildcardCorsPath(path: string): boolean {
   return (
-    path.startsWith('/icons/')
-    || path === '/config'
-    || path === '/api/config'
-    || path === '/api/version'
+    path.startsWith('/icons/') ||
+    path === '/config' ||
+    path === '/api/config' ||
+    path === '/api/version'
   );
 }
 
-function getCorsPolicy(request: Request): { allowOrigin: string | null; allowCredentials: boolean } {
+function getCorsPolicy(request: Request): {
+  allowOrigin: string | null;
+  allowCredentials: boolean;
+} {
   const url = new URL(request.url);
   const origin = request.headers.get('Origin');
   if (isWildcardCorsPath(url.pathname)) {
@@ -79,10 +82,7 @@ function buildCorsHeaders(request: Request): Record<string, string> {
   return headers;
 }
 
-export function applyCors(
-  request: Request,
-  response: Response
-): Response {
+export function applyCors(request: Request, response: Response): Response {
   // WebSocket upgrade responses must be returned untouched.
   const webSocket = (response as Response & { webSocket?: unknown }).webSocket;
   if (response.status === 101 || webSocket) {
@@ -107,7 +107,11 @@ export function applyCors(
 }
 
 // JSON response helper
-export function jsonResponse(data: any, status: number = 200, headers: Record<string, string> = {}): Response {
+export function jsonResponse(
+  data: any,
+  status: number = 200,
+  headers: Record<string, string> = {}
+): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
@@ -133,7 +137,11 @@ export function errorResponse(message: string, status: number = 400): Response {
 }
 
 // Identity endpoint error response (for /identity/connect/token)
-export function identityErrorResponse(message: string, error: string = 'invalid_grant', status: number = 400): Response {
+export function identityErrorResponse(
+  message: string,
+  error: string = 'invalid_grant',
+  status: number = 400
+): Response {
   return jsonResponse(
     {
       error: error,

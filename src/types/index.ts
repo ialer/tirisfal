@@ -24,10 +24,10 @@ export const DEFAULT_DEV_SECRET = 'Enter-your-JWT-key-here-at-least-32-character
 export interface Attachment {
   id: string;
   cipherId: string;
-  fileName: string;  // encrypted
+  fileName: string; // encrypted
   size: number;
   sizeName: string;
-  key: string | null;  // encrypted attachment key
+  key: string | null; // encrypted attachment key
 }
 
 // User model
@@ -338,14 +338,14 @@ export interface SendResponse {
 
 // JWT Payload
 export interface JWTPayload {
-  sub: string;      // user id
+  sub: string; // user id
   email: string;
   name: string | null;
   email_verified: boolean; // required by mobile client
-  amr: string[];    // authentication methods reference - required by mobile client
-  sstamp: string;   // security stamp - invalidates token when user changes password
-  did?: string;     // device identifier - invalidates per-device sessions
-  dstamp?: string;  // device session stamp
+  amr: string[]; // authentication methods reference - required by mobile client
+  sstamp: string; // security stamp - invalidates token when user changes password
+  did?: string; // device identifier - invalidates per-device sessions
+  dstamp?: string; // device session stamp
   iat: number;
   exp: number;
   iss: string;

@@ -1,4 +1,4 @@
-import { ArrowUpDown, Check, ChevronDown, Clock3, Cloud, Folder as FolderIcon, Globe2, KeyRound, Lock, LogOut, MonitorSmartphone, Send as SendIcon, Settings as SettingsIcon, ShieldUser, SlidersHorizontal, Users } from 'lucide-preact';
+import { ArrowUpDown, Check, ChevronDown, Clock3, Cloud, Folder as FolderIcon, Globe2, KeyRound, Lock, LogOut, MonitorSmartphone, Send as SendIcon, Settings as SettingsIcon, ShieldUser, SlidersHorizontal, Users, Zap } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Link } from 'wouter';
@@ -166,6 +166,7 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
   const flatNav = (
     <>
       {renderSideLink('/vault', props.location === '/vault', <KeyRound size={16} />, t('nav_vault_items'))}
+      {renderSideLink('/secrets', props.location === '/secrets', <Zap size={16} />, 'Secrets Manager')}
       {renderSideLink('/vault/totp', props.location === '/vault/totp', <Clock3 size={16} />, t('txt_verification_code'))}
       {renderSideLink('/sends', props.location === '/sends', <SendIcon size={16} />, t('nav_sends'))}
       {renderSideLink(props.settingsAccountRoute, props.location === props.settingsAccountRoute, <SettingsIcon size={16} />, t('nav_account_settings'))}

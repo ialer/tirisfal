@@ -26,7 +26,7 @@ export default function StandalonePageFrame(props: StandalonePageFrameProps) {
       <div className="standalone-footer">
         <a href="https://github.com/ialer/tirisfal" target="_blank" rel="noreferrer">Tirisfal Repository</a>
         <span> | </span>
-        <a href="https://github.com/shuaiplus" target="_blank" rel="noreferrer">SN Team</a>
+        <a href="https://github.com/ialer" target="_blank" rel="noreferrer">SN Team</a>
         <span> | </span>
         <a
           href="https://github.com/ialer/tirisfal/releases/latest"

@@ -3,7 +3,8 @@ import { useLocation } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import AppAuthenticatedShell from '@/components/AppAuthenticatedShell';
 import AppGlobalOverlays, { type AppConfirmState } from '@/components/AppGlobalOverlays';
-import AuthViews from '@/components/AuthViews';
+import TirisfalLogin from '@/components/TirisfalLogin';
+import SecretsManagerPage from '@/components/SecretsManagerPage';
 import NotFoundPage from '@/components/NotFoundPage';
 import PublicSendPage from '@/components/PublicSendPage';
 import RecoverTwoFactorPage from '@/components/RecoverTwoFactorPage';
@@ -102,6 +103,7 @@ const APP_ROUTE_PATHS = [
   SETTINGS_ACCOUNT_ROUTE,
   SETTINGS_DOMAIN_RULES_ROUTE,
   '/help',
+  '/secrets',
   ...IMPORT_ROUTE_PATHS,
 ] as const;
 const AUTH_ROUTES: ReadonlySet<string> = new Set(AUTH_ROUTE_PATHS);
@@ -1595,19 +1597,13 @@ export default function App() {
   if (phase === 'register' || phase === 'login' || phase === 'locked') {
     return (
       <>
-        <AuthViews
+        <TirisfalLogin
           mode={phase}
           pendingAction={pendingAuthAction}
-          relaxedLoginInput={IS_DEMO_MODE}
-          authPlaceholder={IS_DEMO_MODE ? t('txt_demo_auth_placeholder') : undefined}
-          unlockPlaceholder={IS_DEMO_MODE ? t('txt_demo_unlock_placeholder') : undefined}
-          unlockReady={!!session?.email}
-          unlockPreparing={unlockPreparing}
           loginValues={loginValues}
           registerValues={registerValues}
           unlockPassword={unlockPassword}
           emailForLock={profile?.email || session?.email || ''}
-          loginHintLoading={loginHintState.loading}
           onChangeLogin={setLoginValues}
           onChangeRegister={setRegisterValues}
           onChangeUnlock={setUnlockPassword}
@@ -1630,8 +1626,6 @@ export default function App() {
             navigate('/register');
           }}
           onLogout={logoutNow}
-          onTogglePasswordHint={() => void handleTogglePasswordHint()}
-          onShowLockedPasswordHint={handleShowLockedPasswordHint}
         />
         <AppGlobalOverlays
           toasts={toasts}
@@ -1673,6 +1667,10 @@ export default function App() {
 
   return (
     <>
+      {location === '/secrets' ? (
+        <SecretsManagerPage authedFetch={authedFetch} />
+      ) : (
+      <>
       <AppAuthenticatedShell
         profile={profile}
         location={location}
@@ -1727,6 +1725,8 @@ export default function App() {
         }}
         disableTotpSubmitting={disableTotpSubmitting}
       />
+      </>
+      )}
     </>
   );
 }

@@ -1,11 +1,11 @@
 // Secrets Manager Router
 
-import { Env } from './types';
-import { AuthService } from './services/auth';
-import { SecretsManagerService } from './services/sm-service';
 import { handleMachineAccounts } from './handlers/sm-machine-accounts';
 import { handleProjects } from './handlers/sm-projects';
 import { handleSecrets } from './handlers/sm-secrets';
+import { AuthService } from './services/auth';
+import { SecretsManagerService } from './services/sm-service';
+import type { Env } from './types';
 import { errorResponse } from './utils/response';
 
 export async function handleSmRoute(
@@ -15,7 +15,12 @@ export async function handleSmRoute(
   method: string
 ): Promise<Response | null> {
   // 检查是否是 Secrets Manager 路由
-  if (!path.startsWith('/api/sm/') && !path.startsWith('/api/machine-accounts') && !path.startsWith('/api/projects') && !path.startsWith('/api/secrets')) {
+  if (
+    !path.startsWith('/api/sm/') &&
+    !path.startsWith('/api/machine-accounts') &&
+    !path.startsWith('/api/projects') &&
+    !path.startsWith('/api/secrets')
+  ) {
     return null;
   }
 

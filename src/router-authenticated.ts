@@ -1,71 +1,71 @@
-import type { Env, User } from './types';
-import { errorResponse, jsonResponse } from './utils/response';
 import {
-  handleGetProfile,
-  handleUpdateProfile,
-  handleSetKeys,
-  handleGetRevisionDate,
-  handleVerifyPassword,
   handleChangePassword,
-  handleSetVerifyDevices,
-  handleGetTotpStatus,
-  handleSetTotpStatus,
-  handleGetTotpRecoveryCode,
   handleGetApiKey,
+  handleGetProfile,
+  handleGetRevisionDate,
+  handleGetTotpRecoveryCode,
+  handleGetTotpStatus,
   handleRotateApiKey,
+  handleSetKeys,
+  handleSetTotpStatus,
+  handleSetVerifyDevices,
+  handleUpdateProfile,
+  handleVerifyPassword,
 } from './handlers/accounts';
 import {
-  handleGetCiphers,
-  handleGetCipher,
-  handleCreateCipher,
-  handleUpdateCipher,
-  handleDeleteCipher,
-  handleDeleteCipherCompat,
-  handlePermanentDeleteCipher,
-  handleRestoreCipher,
-  handleBulkArchiveCiphers,
-  handlePartialUpdateCipher,
-  handleBulkUnarchiveCiphers,
-  handleBulkMoveCiphers,
-  handleBulkDeleteCiphers,
-  handleBulkPermanentDeleteCiphers,
-  handleBulkRestoreCiphers,
-  handleArchiveCipher,
-  handleUnarchiveCipher,
-} from './handlers/ciphers';
-import {
-  handleGetFolders,
-  handleGetFolder,
-  handleCreateFolder,
-  handleUpdateFolder,
-  handleDeleteFolder,
-  handleBulkDeleteFolders,
-} from './handlers/folders';
-import {
-  handleGetSends,
-  handleGetSend,
-  handleCreateSend,
-  handleCreateFileSendV2,
-  handleGetSendFileUpload,
-  handleUploadSendFile,
-  handleUpdateSend,
-  handleDeleteSend,
-  handleBulkDeleteSends,
-  handleRemoveSendPassword,
-  handleRemoveSendAuth,
-} from './handlers/sends';
-import { handleSync } from './handlers/sync';
-import { handleCiphersImport } from './handlers/import';
-import {
   handleCreateAttachment,
-  handleUploadAttachment,
+  handleDeleteAttachment,
   handleGetAttachment,
   handleUpdateAttachmentMetadata,
-  handleDeleteAttachment,
+  handleUploadAttachment,
 } from './handlers/attachments';
-import { handleAuthenticatedDeviceRoute } from './router-devices';
-import { handleAdminRoute } from './router-admin';
+import {
+  handleArchiveCipher,
+  handleBulkArchiveCiphers,
+  handleBulkDeleteCiphers,
+  handleBulkMoveCiphers,
+  handleBulkPermanentDeleteCiphers,
+  handleBulkRestoreCiphers,
+  handleBulkUnarchiveCiphers,
+  handleCreateCipher,
+  handleDeleteCipher,
+  handleDeleteCipherCompat,
+  handleGetCipher,
+  handleGetCiphers,
+  handlePartialUpdateCipher,
+  handlePermanentDeleteCipher,
+  handleRestoreCipher,
+  handleUnarchiveCipher,
+  handleUpdateCipher,
+} from './handlers/ciphers';
 import { handleGetDomains, handleUpdateDomains } from './handlers/domains';
+import {
+  handleBulkDeleteFolders,
+  handleCreateFolder,
+  handleDeleteFolder,
+  handleGetFolder,
+  handleGetFolders,
+  handleUpdateFolder,
+} from './handlers/folders';
+import { handleCiphersImport } from './handlers/import';
+import {
+  handleBulkDeleteSends,
+  handleCreateFileSendV2,
+  handleCreateSend,
+  handleDeleteSend,
+  handleGetSend,
+  handleGetSendFileUpload,
+  handleGetSends,
+  handleRemoveSendAuth,
+  handleRemoveSendPassword,
+  handleUpdateSend,
+  handleUploadSendFile,
+} from './handlers/sends';
+import { handleSync } from './handlers/sync';
+import { handleAdminRoute } from './router-admin';
+import { handleAuthenticatedDeviceRoute } from './router-devices';
+import type { Env, User } from './types';
+import { errorResponse, jsonResponse } from './utils/response';
 
 export async function handleAuthenticatedRoute(
   request: Request,
@@ -93,7 +93,10 @@ export async function handleAuthenticatedRoute(
     return errorResponse('Method not allowed', 405);
   }
 
-  if ((path === '/api/accounts/password' || path === '/api/accounts/change-password') && (method === 'POST' || method === 'PUT')) {
+  if (
+    (path === '/api/accounts/password' || path === '/api/accounts/change-password') &&
+    (method === 'POST' || method === 'PUT')
+  ) {
     return handleChangePassword(request, env, userId);
   }
 
@@ -107,7 +110,10 @@ export async function handleAuthenticatedRoute(
     return null;
   }
 
-  if ((path === '/api/accounts/totp/recovery-code' || path === '/api/two-factor/get-recover') && method === 'POST') {
+  if (
+    (path === '/api/accounts/totp/recovery-code' || path === '/api/two-factor/get-recover') &&
+    method === 'POST'
+  ) {
     return handleGetTotpRecoveryCode(request, env, userId);
   }
 
@@ -127,7 +133,10 @@ export async function handleAuthenticatedRoute(
     return handleGetApiKey(request, env, userId);
   }
 
-  if ((path === '/api/accounts/rotate-api-key' || path === '/api/accounts/rotate_api_key') && method === 'POST') {
+  if (
+    (path === '/api/accounts/rotate-api-key' || path === '/api/accounts/rotate_api_key') &&
+    method === 'POST'
+  ) {
     return handleRotateApiKey(request, env, userId);
   }
 
@@ -180,32 +189,52 @@ export async function handleAuthenticatedRoute(
 
     if (subPath === '' || subPath === '/') {
       if (method === 'GET') return handleGetCipher(request, env, userId, cipherId);
-      if (method === 'PUT' || method === 'POST') return handleUpdateCipher(request, env, userId, cipherId);
+      if (method === 'PUT' || method === 'POST')
+        return handleUpdateCipher(request, env, userId, cipherId);
       if (method === 'DELETE') return handleDeleteCipherCompat(request, env, userId, cipherId);
     }
 
-    if (subPath === '/delete' && method === 'PUT') return handleDeleteCipher(request, env, userId, cipherId);
-    if (subPath === '/delete' && method === 'DELETE') return handlePermanentDeleteCipher(request, env, userId, cipherId);
-    if (subPath === '/restore' && method === 'PUT') return handleRestoreCipher(request, env, userId, cipherId);
-    if (subPath === '/archive' && (method === 'PUT' || method === 'POST')) return handleArchiveCipher(request, env, userId, cipherId);
-    if (subPath === '/unarchive' && (method === 'PUT' || method === 'POST')) return handleUnarchiveCipher(request, env, userId, cipherId);
-    if (subPath === '/partial' && (method === 'PUT' || method === 'POST')) return handlePartialUpdateCipher(request, env, userId, cipherId);
-    if (subPath === '/share' && method === 'POST') return handleGetCipher(request, env, userId, cipherId);
-    if (subPath === '/details' && method === 'GET') return handleGetCipher(request, env, userId, cipherId);
-    if (subPath === '/attachment/v2' && method === 'POST') return handleCreateAttachment(request, env, userId, cipherId);
-    if (subPath === '/attachment' && method === 'POST') return handleCreateAttachment(request, env, userId, cipherId);
+    if (subPath === '/delete' && method === 'PUT')
+      return handleDeleteCipher(request, env, userId, cipherId);
+    if (subPath === '/delete' && method === 'DELETE')
+      return handlePermanentDeleteCipher(request, env, userId, cipherId);
+    if (subPath === '/restore' && method === 'PUT')
+      return handleRestoreCipher(request, env, userId, cipherId);
+    if (subPath === '/archive' && (method === 'PUT' || method === 'POST'))
+      return handleArchiveCipher(request, env, userId, cipherId);
+    if (subPath === '/unarchive' && (method === 'PUT' || method === 'POST'))
+      return handleUnarchiveCipher(request, env, userId, cipherId);
+    if (subPath === '/partial' && (method === 'PUT' || method === 'POST'))
+      return handlePartialUpdateCipher(request, env, userId, cipherId);
+    if (subPath === '/share' && method === 'POST')
+      return handleGetCipher(request, env, userId, cipherId);
+    if (subPath === '/details' && method === 'GET')
+      return handleGetCipher(request, env, userId, cipherId);
+    if (subPath === '/attachment/v2' && method === 'POST')
+      return handleCreateAttachment(request, env, userId, cipherId);
+    if (subPath === '/attachment' && method === 'POST')
+      return handleCreateAttachment(request, env, userId, cipherId);
 
     const attachmentMatch = subPath.match(/^\/attachment\/([a-f0-9-]+)$/i);
     if (attachmentMatch) {
       const attachmentId = attachmentMatch[1];
-      if (method === 'POST' || method === 'PUT') return handleUploadAttachment(request, env, userId, cipherId, attachmentId);
-      if (method === 'GET') return handleGetAttachment(request, env, userId, cipherId, attachmentId);
-      if (method === 'DELETE') return handleDeleteAttachment(request, env, userId, cipherId, attachmentId);
+      if (method === 'POST' || method === 'PUT')
+        return handleUploadAttachment(request, env, userId, cipherId, attachmentId);
+      if (method === 'GET')
+        return handleGetAttachment(request, env, userId, cipherId, attachmentId);
+      if (method === 'DELETE')
+        return handleDeleteAttachment(request, env, userId, cipherId, attachmentId);
     }
 
     const attachmentMetadataMatch = subPath.match(/^\/attachment\/([a-f0-9-]+)\/metadata$/i);
     if (attachmentMetadataMatch && (method === 'POST' || method === 'PUT')) {
-      return handleUpdateAttachmentMetadata(request, env, userId, cipherId, attachmentMetadataMatch[1]);
+      return handleUpdateAttachmentMetadata(
+        request,
+        env,
+        userId,
+        cipherId,
+        attachmentMetadataMatch[1]
+      );
     }
 
     const attachmentDeleteMatch = subPath.match(/^\/attachment\/([a-f0-9-]+)\/delete$/i);
@@ -287,7 +316,8 @@ export async function handleAuthenticatedRoute(
     if (sendFileUploadMatch) {
       const fileId = sendFileUploadMatch[1];
       if (method === 'GET') return handleGetSendFileUpload(request, env, userId, sendId, fileId);
-      if (method === 'POST' || method === 'PUT') return handleUploadSendFile(request, env, userId, sendId, fileId);
+      if (method === 'POST' || method === 'PUT')
+        return handleUploadSendFile(request, env, userId, sendId, fileId);
     }
   }
 
@@ -304,7 +334,13 @@ export async function handleAuthenticatedRoute(
     return null;
   }
 
-  const authenticatedDeviceResponse = await handleAuthenticatedDeviceRoute(request, env, userId, path, method);
+  const authenticatedDeviceResponse = await handleAuthenticatedDeviceRoute(
+    request,
+    env,
+    userId,
+    path,
+    method
+  );
   if (authenticatedDeviceResponse) return authenticatedDeviceResponse;
 
   const adminResponse = await handleAdminRoute(request, env, currentUser, path, method);
