@@ -311,15 +311,79 @@ export class SecretsManagerService {
   async grantProjectAccess(
     machineAccountId: string,
     projectId: string,
-    permission: string = 'read'
+    permission: string = 'read',
+    options?: {
+      allowed_ip?: string[];
+      allowed_hours?: { start: number; end: number };
+      max_requests_per_minute?: number;
+      expires_at?: string;
+    }
   ): Promise<void> {
     const now = new Date().toISOString();
     await this.db
       .prepare(
-        'INSERT OR REPLACE INTO machine_account_projects (machine_account_id, project_id, permission, created_at) VALUES (?, ?, ?, ?)'
+        `INSERT OR REPLACE INTO machine_account_projects
+         (machine_account_id, project_id, permission, allowed_ip, allowed_hours, max_requests_per_minute, expires_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(machineAccountId, projectId, permission, now)
+      .bind(
+        machineAccountId,
+        projectId,
+        permission,
+        options?.allowed_ip ? JSON.stringify(options.allowed_ip) : null,
+        options?.allowed_hours ? JSON.stringify(options.allowed_hours) : null,
+        options?.max_requests_per_minute || null,
+        options?.expires_at || null,
+        now
+      )
       .run();
+  }
+
+  async validateProjectAccess(
+    machineAccountId: string,
+    projectId: string,
+    clientIp?: string
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    const result = await this.db
+      .prepare(
+        `SELECT * FROM machine_account_projects
+         WHERE machine_account_id = ? AND project_id = ?`
+      )
+      .bind(machineAccountId, projectId)
+      .first<{
+        permission: string;
+        allowed_ip: string | null;
+        allowed_hours: string | null;
+        expires_at: string | null;
+      }>();
+
+    if (!result) {
+      return { allowed: false, reason: 'No access granted' };
+    }
+
+    // 检查过期
+    if (result.expires_at && new Date(result.expires_at) < new Date()) {
+      return { allowed: false, reason: 'Access expired' };
+    }
+
+    // 检查 IP 白名单
+    if (result.allowed_ip && clientIp) {
+      const allowedIps = JSON.parse(result.allowed_ip) as string[];
+      if (!allowedIps.includes(clientIp)) {
+        return { allowed: false, reason: 'IP not whitelisted' };
+      }
+    }
+
+    // 检查时间窗口
+    if (result.allowed_hours) {
+      const hours = JSON.parse(result.allowed_hours) as { start: number; end: number };
+      const currentHour = new Date().getHours();
+      if (currentHour < hours.start || currentHour > hours.end) {
+        return { allowed: false, reason: 'Outside allowed hours' };
+      }
+    }
+
+    return { allowed: true };
   }
 
   async revokeProjectAccess(machineAccountId: string, projectId: string): Promise<boolean> {
