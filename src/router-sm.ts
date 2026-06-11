@@ -50,13 +50,13 @@ export async function handleSmRoute(
 
   // 处理凭证路由
   if (path.startsWith('/api/secrets')) {
-    return handleSecrets(request, env, path, method, userId);
+    return handleSecrets(request, env, path, method, userId, env.ENCRYPTION_KEY);
   }
 
   return null;
 }
 
-// 机器账号 Token 验证路由
+  // 机器账号 Token 验证路由
 export async function verifyMachineToken(
   request: Request,
   env: Env
@@ -67,7 +67,7 @@ export async function verifyMachineToken(
   }
 
   const token = authHeader.substring(7);
-  const smService = new SecretsManagerService(env.DB);
+  const smService = new SecretsManagerService(env.DB, env.ENCRYPTION_KEY);
   const machineAccount = await smService.verifyAccessToken(token);
 
   if (!machineAccount) {

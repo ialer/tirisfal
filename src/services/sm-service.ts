@@ -1,6 +1,7 @@
 // Secrets Manager Service
 // 核心业务逻辑
 
+import { encrypt, decrypt } from '../utils/crypto';
 import type {
   CreateMachineAccountRequest,
   CreateProjectRequest,
@@ -14,9 +15,11 @@ import type {
 
 export class SecretsManagerService {
   private db: D1Database;
+  private encryptionKey: string;
 
-  constructor(db: D1Database) {
+  constructor(db: D1Database, encryptionKey?: string) {
     this.db = db;
+    this.encryptionKey = encryptionKey || '';
   }
 
   // ==================== Machine Accounts ====================
@@ -190,8 +193,8 @@ export class SecretsManagerService {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    // 加密值 (使用简单的 base64 编码，实际应用中应使用 AES-GCM)
-    const encryptedValue = btoa(request.value);
+    // 使用 AES-256-GCM 加密凭证
+    const encryptedValue = await encrypt(request.value, this.encryptionKey);
 
     await this.db
       .prepare(
@@ -260,7 +263,7 @@ export class SecretsManagerService {
 
     if (updates.value !== undefined) {
       setClauses.push('value = ?');
-      values.push(btoa(updates.value));
+      values.push(await encrypt(updates.value, this.encryptionKey));
     }
     if (updates.note !== undefined) {
       setClauses.push('note = ?');
@@ -283,8 +286,8 @@ export class SecretsManagerService {
   }
 
   // 解密 Secret 值
-  decryptSecretValue(encryptedValue: string): string {
-    return atob(encryptedValue);
+  async decryptSecretValue(encryptedValue: string): Promise<string> {
+    return decrypt(encryptedValue, this.encryptionKey);
   }
 
   // ==================== Permissions ====================

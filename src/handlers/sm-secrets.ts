@@ -9,9 +9,10 @@ export async function handleSecrets(
   env: Env,
   path: string,
   method: string,
-  userId: string
+  userId: string,
+  encryptionKey: string
 ): Promise<Response> {
-  const smService = new SecretsManagerService(env.DB);
+  const smService = new SecretsManagerService(env.DB, encryptionKey);
 
   // POST /api/secrets - 创建凭证
   if (method === 'POST' && path === '/api/secrets') {
@@ -102,7 +103,7 @@ export async function handleSecrets(
     }
 
     // 解密值
-    const decryptedValue = smService.decryptSecretValue(secret.value);
+    const decryptedValue = await smService.decryptSecretValue(secret.value);
 
     return jsonResponse({
       ...secret,
