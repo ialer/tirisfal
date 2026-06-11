@@ -1,4 +1,5 @@
 import { LIMITS } from './config/limits';
+import { handleHealthCheck } from './handlers/health';
 import { handleAuthenticatedRoute } from './router-authenticated';
 import { handlePublicRoute } from './router-public';
 import { handleSmRoute } from './router-sm';
@@ -73,6 +74,11 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
   if (method === 'OPTIONS') {
     return handleCors(request);
+  }
+
+  // 健康检查端点
+  if (path === '/health' || path === '/api/health') {
+    return handleHealthCheck(request, env);
   }
 
   try {
