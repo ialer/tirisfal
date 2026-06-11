@@ -1,0 +1,22 @@
+{
+  "name": "@tirisfal/sdk",
+  "version": "1.0.0",
+  "description": "Official Node.js SDK for Tirisfal Secrets Manager",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": [
+    "tirisfal",
+    "secrets",
+    "password-manager",
+    "cloudflare"
+  ],
+  "author": "SN Team",
+  "license": "MIT",
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ]
+}
