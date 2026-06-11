@@ -24,12 +24,24 @@ export async function handleSmRoute(
     return null;
   }
 
-  // 验证用户身份
+  // 验证用户身份 - 支持 User Token 和 Machine Account Token
   const authHeader = request.headers.get('Authorization');
   if (!authHeader) {
     return errorResponse('Unauthorized', 401);
   }
 
+  // 首先尝试 Machine Account Token
+  const machineAuth = await verifyMachineToken(request, env);
+  if (machineAuth) {
+    // Machine Account 只能访问被授权的 secrets
+    if (path.startsWith('/api/secrets')) {
+      return handleSecrets(request, env, path, method, machineAuth.userId, env.ENCRYPTION_KEY, machineAuth.machineAccountId);
+    }
+    // Machine Account 不能管理 machine-accounts 或 projects
+    return errorResponse('Forbidden: Machine accounts cannot manage resources', 403);
+  }
+
+  // 尝试 User Token
   const auth = new AuthService(env);
   const verified = await auth.verifyAccessTokenWithUser(authHeader);
   if (!verified) {

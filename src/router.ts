@@ -17,6 +17,14 @@ function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | 
   return null;
 }
 
+function encryptionKeyUnsafeReason(env: Env): 'missing' | 'too_weak' | null {
+  const key = (env.ENCRYPTION_KEY || '').trim();
+  if (!key) return 'missing';
+  // 加密密钥至少需要 32 字符（256 位）
+  if (key.length < 32) return 'too_weak';
+  return null;
+}
+
 function isImportBypassRequest(request: Request, path: string, method: string): boolean {
   if (request.headers.get('X-Tirisfal-Import') !== '1') return false;
 
@@ -105,6 +113,11 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     const secretIssue = jwtSecretUnsafeReason(env);
     if (secretIssue) {
       return errorResponse('Server configuration error: JWT_SECRET is not set or too weak', 500);
+    }
+
+    const encryptionIssue = encryptionKeyUnsafeReason(env);
+    if (encryptionIssue) {
+      return errorResponse('Server configuration error: ENCRYPTION_KEY is not set or too weak', 500);
     }
 
     const auth = new AuthService(env);

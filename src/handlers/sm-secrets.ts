@@ -10,7 +10,8 @@ export async function handleSecrets(
   path: string,
   method: string,
   userId: string,
-  encryptionKey: string
+  encryptionKey: string,
+  machineAccountId?: string
 ): Promise<Response> {
   const smService = new SecretsManagerService(env.DB, encryptionKey);
 
@@ -18,12 +19,31 @@ export async function handleSecrets(
   if (method === 'POST' && path === '/api/secrets') {
     const body = await request.json();
 
-    if (!body.name || !body.value || !body.project_id) {
-      return errorResponse('Name, value, and project_id are required', 400);
+    // 输入验证
+    if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
+      return errorResponse('Name is required and must be a non-empty string', 400);
+    }
+    if (body.name.length > 255) {
+      return errorResponse('Name must be less than 255 characters', 400);
+    }
+    if (!body.value || typeof body.value !== 'string') {
+      return errorResponse('Value is required and must be a string', 400);
+    }
+    if (body.value.length > 10000) {
+      return errorResponse('Value must be less than 10000 characters', 400);
+    }
+    if (!body.project_id || typeof body.project_id !== 'string') {
+      return errorResponse('project_id is required and must be a string', 400);
+    }
+    if (body.environment && typeof body.environment !== 'string') {
+      return errorResponse('environment must be a string', 400);
+    }
+    if (body.environment && !['prod', 'staging', 'dev', 'test'].includes(body.environment)) {
+      return errorResponse('environment must be one of: prod, staging, dev, test', 400);
     }
 
     const secret = await smService.createSecret(userId, {
-      name: body.name,
+      name: body.name.trim(),
       value: body.value,
       project_id: body.project_id,
       environment: body.environment,
@@ -93,8 +113,27 @@ export async function handleSecrets(
     const projectId = url.searchParams.get('project_id');
     const environment = url.searchParams.get('environment') || 'prod';
 
+    // 输入验证
+    if (!secretName || secretName.trim().length === 0) {
+      return errorResponse('Secret name is required', 400);
+    }
+    if (secretName.length > 255) {
+      return errorResponse('Secret name must be less than 255 characters', 400);
+    }
     if (!projectId) {
       return errorResponse('project_id is required', 400);
+    }
+    if (!['prod', 'staging', 'dev', 'test'].includes(environment)) {
+      return errorResponse('environment must be one of: prod, staging, dev, test', 400);
+    }
+
+    // Machine Account 权限验证
+    if (machineAccountId) {
+      const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Real-IP');
+      const accessCheck = await smService.validateProjectAccess(machineAccountId, projectId, clientIp || undefined);
+      if (!accessCheck.allowed) {
+        return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
+      }
     }
 
     const secret = await smService.getSecretByNameAndProject(secretName, projectId, environment);
@@ -104,6 +143,16 @@ export async function handleSecrets(
 
     // 解密值
     const decryptedValue = await smService.decryptSecretValue(secret.value);
+
+    // 记录访问日志
+    await smService.logSecretAccess(
+      machineAccountId || null,
+      userId,
+      secret.id,
+      'read',
+      request.headers.get('CF-Connecting-IP'),
+      request.headers.get('User-Agent')
+    );
 
     return jsonResponse({
       ...secret,

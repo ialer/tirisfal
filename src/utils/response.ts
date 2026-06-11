@@ -31,7 +31,9 @@ function isWildcardCorsPath(path: string): boolean {
     path.startsWith('/icons/') ||
     path === '/config' ||
     path === '/api/config' ||
-    path === '/api/version'
+    path === '/api/version' ||
+    path === '/health' ||
+    path === '/api/health'
   );
 }
 
@@ -122,13 +124,26 @@ export function jsonResponse(
 }
 
 // Error response helper
-export function errorResponse(message: string, status: number = 400): Response {
+// 生产环境不暴露内部错误详情
+export function errorResponse(message: string, status: number = 400, exposeInternals: boolean = false): Response {
+  // 生产环境只暴露安全的错误信息
+  const safeMessages: Record<number, string> = {
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not Found',
+    429: 'Too Many Requests',
+    500: 'Internal Server Error',
+  };
+
+  const responseMessage = exposeInternals ? message : (safeMessages[status] || message);
+
   return jsonResponse(
     {
-      error: message,
-      error_description: message,
+      error: responseMessage,
+      error_description: responseMessage,
       ErrorModel: {
-        Message: message,
+        Message: responseMessage,
         Object: 'error',
       },
     },
