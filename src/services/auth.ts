@@ -5,7 +5,7 @@ import { StorageService } from './storage';
 // Server-side iterations for second-layer hashing.
 // The client already does heavy PBKDF2 (600k iterations).
 // This second layer only needs to be non-trivial, not expensive.
-const SERVER_HASH_ITERATIONS = 100_000;
+const SERVER_HASH_ITERATIONS = 600_000;
 const AUTH_CONTEXT_CACHE_TTL_MS = 15 * 1000;
 
 interface CachedUserEntry {
