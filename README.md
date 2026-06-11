@@ -156,11 +156,43 @@ curl -X POST https://your-worker.workers.dev/api/machine-accounts/<id>/projects/
 
 ## 安全特性
 
-- **端到端加密** — 凭证加密存储
-- **最小权限** — Agent 只能访问被授权的凭证
-- **审计日志** — 所有访问行为可追溯
-- **Token 轮换** — 支持定期更换访问令牌
-- **过期机制** — Token 可设置过期时间
+### 加密
+
+- 所有凭证使用 AES-256-GCM 加密存储
+- 每条凭证使用独立随机密钥
+- 主密钥通过 Wrangler Secrets 安全存储
+- PBKDF2 600K 迭代（OWASP 推荐）
+
+### 认证
+
+- JWT 令牌支持可配置过期时间
+- Machine Account 令牌支持轮换和撤销
+- 恒定时间密码比较（防止时序攻击）
+
+### 权限
+
+- 细粒度项目级权限（read/write/admin）
+- IP 白名单支持
+- 基于时间的访问窗口
+- 请求频率限制
+- 权限过期机制
+
+### 审计
+
+- 所有凭证访问记录
+- IP 和 User-Agent 跟踪
+- 90 天日志保留
+- 可疑活动检测
+
+### 配置
+
+```bash
+# 生成加密密钥
+openssl rand -base64 32
+
+# 设置在 Wrangler Secrets
+wrangler secret put ENCRYPTION_KEY
+```
 
 ---
 
