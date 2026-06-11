@@ -1,4 +1,4 @@
-﻿export const LIMITS = {
+export const LIMITS = {
   auth: {
     // Access token lifetime in seconds.
     // 访问令牌有效期（秒）。
@@ -146,5 +146,15 @@
     // Single source of truth for /config.version and /api/version.
     // /config.version 与 /api/version 的统一版本号来源。
     bitwardenServerVersion: '2026.1.0',
+  },
+  machineAccountToken: {
+    // Default expiry in days
+    defaultExpiryDays: 30,
+    // Maximum allowed expiry in days
+    maxExpiryDays: 90,
+    // Enable automatic rotation reminder
+    enableRotationReminder: true,
+    // Rotation reminder interval in days
+    rotationReminderDays: 7,
   },
 } as const;

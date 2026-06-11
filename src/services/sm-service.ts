@@ -101,7 +101,14 @@ export class SecretsManagerService {
     return result.meta.changes > 0;
   }
 
-  async generateAccessToken(machineAccountId: string): Promise<MachineAccountTokenResponse> {
+  async generateAccessToken(
+    machineAccountId: string,
+    expiryDays?: number
+  ): Promise<MachineAccountTokenResponse> {
+    // 验证过期时间
+    const maxDays = 90;
+    const days = Math.min(Math.max(1, expiryDays || 30), maxDays);
+
     // 生成随机 token
     const tokenBytes = new Uint8Array(32);
     crypto.getRandomValues(tokenBytes);
@@ -114,8 +121,8 @@ export class SecretsManagerService {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 
-    // 设置过期时间 (30天)
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    // 设置过期时间
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
     await this.db
       .prepare(
@@ -128,6 +135,15 @@ export class SecretsManagerService {
       access_token: token,
       expires_at: expiresAt,
     };
+  }
+
+  async revokeAccessToken(machineAccountId: string): Promise<void> {
+    await this.db
+      .prepare(
+        'UPDATE machine_accounts SET access_token_hash = NULL, access_token_expires_at = NULL, updated_at = ? WHERE id = ?'
+      )
+      .bind(new Date().toISOString(), machineAccountId)
+      .run();
   }
 
   async verifyAccessToken(token: string): Promise<MachineAccount | null> {

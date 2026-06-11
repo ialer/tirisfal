@@ -89,8 +89,33 @@ export async function handleMachineAccounts(
       return errorResponse('Not found', 404);
     }
 
-    const tokenResponse = await smService.generateAccessToken(accountId);
+    // 支持自定义过期时间
+    let expiryDays: number | undefined;
+    try {
+      const body = await request.json();
+      if (body.expiry_days) {
+        expiryDays = body.expiry_days;
+      }
+    } catch {
+      // 使用默认值
+    }
+
+    const tokenResponse = await smService.generateAccessToken(accountId, expiryDays);
     return jsonResponse(tokenResponse);
+  }
+
+  // POST /api/machine-accounts/:id/revoke-token - 撤销访问令牌
+  const revokeTokenMatch = path.match(/^\/api\/machine-accounts\/([a-f0-9-]+)\/revoke-token$/);
+  if (revokeTokenMatch && method === 'POST') {
+    const accountId = revokeTokenMatch[1];
+    const account = await smService.getMachineAccount(accountId);
+
+    if (!account || account.user_id !== userId) {
+      return errorResponse('Not found', 404);
+    }
+
+    await smService.revokeAccessToken(accountId);
+    return jsonResponse({ success: true, message: 'Token revoked' });
   }
 
   return errorResponse('Not found', 404);
