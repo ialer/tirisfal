@@ -25,9 +25,12 @@ function encryptionKeyUnsafeReason(env: Env): 'missing' | 'too_weak' | null {
   return null;
 }
 
+// 导入绕过请求检查 - 需要额外验证防止滥用
 function isImportBypassRequest(request: Request, path: string, method: string): boolean {
+  // 必须有导入标记
   if (request.headers.get('X-Tirisfal-Import') !== '1') return false;
 
+  // 只允许特定的导入路径
   if (method === 'POST') {
     if (path === '/api/ciphers/import') return true;
     if (/^\/api\/ciphers\/[a-f0-9-]+\/attachment\/v2$/i.test(path)) return true;
@@ -35,6 +38,23 @@ function isImportBypassRequest(request: Request, path: string, method: string): 
   }
 
   return false;
+}
+
+// 验证导入请求的合法性（需要额外的验证）
+function validateImportRequest(request: Request): boolean {
+  // 检查 Content-Type
+  const contentType = request.headers.get('Content-Type');
+  if (!contentType || !contentType.includes('application/json')) {
+    return false;
+  }
+
+  // 检查请求大小（防止大文件攻击）
+  const contentLength = parseInt(request.headers.get('Content-Length') || '0', 10);
+  if (contentLength > 25 * 1024 * 1024) { // 25MB
+    return false;
+  }
+
+  return true;
 }
 
 export async function handleRequest(request: Request, env: Env): Promise<Response> {

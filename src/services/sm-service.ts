@@ -368,18 +368,29 @@ export class SecretsManagerService {
 
     // 检查 IP 白名单
     if (result.allowed_ip && clientIp) {
-      const allowedIps = JSON.parse(result.allowed_ip) as string[];
-      if (!allowedIps.includes(clientIp)) {
-        return { allowed: false, reason: 'IP not whitelisted' };
+      try {
+        const allowedIps = JSON.parse(result.allowed_ip) as string[];
+        if (!Array.isArray(allowedIps) || !allowedIps.includes(clientIp)) {
+          return { allowed: false, reason: 'IP not whitelisted' };
+        }
+      } catch {
+        return { allowed: false, reason: 'Invalid IP whitelist configuration' };
       }
     }
 
-    // 检查时间窗口
+    // 检查时间窗口（使用 UTC）
     if (result.allowed_hours) {
-      const hours = JSON.parse(result.allowed_hours) as { start: number; end: number };
-      const currentHour = new Date().getHours();
-      if (currentHour < hours.start || currentHour > hours.end) {
-        return { allowed: false, reason: 'Outside allowed hours' };
+      try {
+        const hours = JSON.parse(result.allowed_hours) as { start: number; end: number };
+        if (typeof hours.start !== 'number' || typeof hours.end !== 'number') {
+          return { allowed: false, reason: 'Invalid hours configuration' };
+        }
+        const currentHour = new Date().getUTCHours();
+        if (currentHour < hours.start || currentHour > hours.end) {
+          return { allowed: false, reason: 'Outside allowed hours' };
+        }
+      } catch {
+        return { allowed: false, reason: 'Invalid hours configuration' };
       }
     }
 

@@ -129,7 +129,10 @@ export async function handleSecrets(
 
     // Machine Account 权限验证
     if (machineAccountId) {
-      const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Real-IP');
+      // 使用与 ratelimit 相同的 IP 提取逻辑
+      const clientIp = request.headers.get('CF-Connecting-IP') ||
+                       request.headers.get('X-Real-IP') ||
+                       request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim();
       const accessCheck = await smService.validateProjectAccess(machineAccountId, projectId, clientIp || undefined);
       if (!accessCheck.allowed) {
         return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
@@ -150,7 +153,9 @@ export async function handleSecrets(
       userId,
       secret.id,
       'read',
-      request.headers.get('CF-Connecting-IP'),
+      request.headers.get('CF-Connecting-IP') ||
+        request.headers.get('X-Real-IP') ||
+        request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim(),
       request.headers.get('User-Agent')
     );
 

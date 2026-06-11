@@ -23,7 +23,7 @@ export async function handleHealthCheck(
   const status: HealthStatus = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '2026.1.0',
+    version: '1.0',
     services: {
       database: 'ok',
       storage: env.ATTACHMENTS ? 'ok' : 'disabled',
