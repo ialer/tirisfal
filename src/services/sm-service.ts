@@ -426,16 +426,35 @@ export class SecretsManagerService {
     secretId: string,
     action: string,
     ipAddress: string | null,
-    userAgent: string | null
+    userAgent: string | null,
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    // 清理 IP（移除端口）
+    const sanitizedIp = ipAddress?.split(':')[0] || null;
+
+    // 截断 User-Agent 防止滥用
+    const sanitizedUserAgent = userAgent?.substring(0, 255) || null;
+
     await this.db
       .prepare(
-        'INSERT INTO secret_access_logs (id, machine_account_id, user_id, secret_id, action, ip_address, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        `INSERT INTO secret_access_logs
+         (id, machine_account_id, user_id, secret_id, action, ip_address, user_agent, metadata, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(id, machineAccountId, userId, secretId, action, ipAddress, userAgent, now)
+      .bind(
+        id,
+        machineAccountId,
+        userId,
+        secretId,
+        action,
+        sanitizedIp,
+        sanitizedUserAgent,
+        metadata ? JSON.stringify(metadata) : null,
+        now
+      )
       .run();
   }
 
@@ -447,5 +466,17 @@ export class SecretsManagerService {
       .bind(secretId, limit)
       .all<SecretAccessLog>();
     return result.results || [];
+  }
+
+  async cleanupOldAuditLogs(): Promise<number> {
+    const retentionDays = 90;
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+
+    const result = await this.db
+      .prepare('DELETE FROM secret_access_logs WHERE created_at < ?')
+      .bind(cutoff)
+      .run();
+
+    return result.meta.changes;
   }
 }
