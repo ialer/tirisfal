@@ -56,9 +56,8 @@ curl -X POST https://your-worker.workers.dev/api/secrets \
 
 ```bash
 # 通过 Access Token 获取凭证
-curl https://your-worker.workers.dev/api/secrets/by-name/XIAOMI_API_KEY \
-  -H "Authorization: Bearer <machine-account-token>" \
-  -d '{"project_id": "<project-id>", "environment": "prod"}'
+curl "https://your-worker.workers.dev/api/secrets/by-name/XIAOMI_API_KEY?project_id=<project-id>&environment=prod" \
+  -H "Authorization: Bearer $NW_TOKEN" | jq -r .value
 ```
 
 ---
@@ -166,28 +165,30 @@ curl -X POST https://your-worker.workers.dev/api/machine-accounts/<id>/projects/
 ### 认证
 
 - JWT 令牌支持可配置过期时间
-- Machine Account 令牌支持轮换和撤销
+- Machine Account 令牌支持轮换和撤销（生成新 token 时自动撤销旧 token）
 - 恒定时间密码比较（防止时序攻击）
+- Token 使用 URL-safe base64 编码
 
 ### 权限
 
 - 细粒度项目级权限（read/write/admin）
-- IP 白名单支持
-- 基于时间的访问窗口
-- 请求频率限制
+- IP 白名单支持（精确匹配）
+- 基于时间的访问窗口（UTC 小时）
+- 请求频率限制（max_requests_per_minute）
 - 权限过期机制
+- 权限隔离（用户只能访问自己的项目）
 
 ### 审计
 
 - 所有凭证访问记录
 - IP 和 User-Agent 跟踪
-- 90 天日志保留
-- 可疑活动检测
+- 项目 ID 和环境信息记录
+- 90 天日志保留（自动清理）
 
 ### 配置
 
 ```bash
-# 生成加密密钥
+# 生成加密密钥（至少 32 字符）
 openssl rand -base64 32
 
 # 设置在 Wrangler Secrets
