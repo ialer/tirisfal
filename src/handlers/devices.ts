@@ -128,7 +128,7 @@ function parseDeviceName(value: unknown): string {
 }
 
 // GET /api/devices/knowndevice
-// Compatible with Bitwarden/Vaultwarden behavior:
+// Bitwarden-compatible endpoint:
 // - X-Request-Email: base64url(email) without padding
 // - X-Device-Identifier: client device identifier
 export async function handleKnownDevice(request: Request, env: Env): Promise<Response> {

@@ -42,7 +42,7 @@ interface DemoRouteState {
   setBackupSettings: BackupSettingsSetter;
 }
 
-export const IS_DEMO_MODE = __NODEWARDEN_DEMO__;
+export const IS_DEMO_MODE = __TIRISFAL_DEMO__;
 
 const DEMO_USER_ID = 'demo-user-001';
 const DEMO_NOW = '2026-05-04T08:00:00.000Z';

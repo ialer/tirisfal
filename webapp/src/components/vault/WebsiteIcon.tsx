@@ -12,7 +12,7 @@ import { demoBrandIconUrl } from '@/lib/demo-brand-icons';
 import { firstCipherUri, hostFromUri, websiteIconUrl } from '@/lib/website-utils';
 
 const ICON_LOAD_ROOT_MARGIN = '180px 0px';
-const SHOULD_LOAD_DEMO_BRAND_ICONS = __NODEWARDEN_DEMO__;
+const SHOULD_LOAD_DEMO_BRAND_ICONS = __TIRISFAL_DEMO__;
 
 interface WebsiteIconProps {
   cipher: Cipher;

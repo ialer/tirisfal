@@ -61,7 +61,7 @@ export default defineConfig(({ mode }) => {
     root: rootDir,
     plugins: [preact(), searchIndexPolicyPlugin(isDemo), resourcePriorityPlugin(isDemo)],
     define: {
-      __NODEWARDEN_DEMO__: JSON.stringify(isDemo),
+      __TIRISFAL_DEMO__: JSON.stringify(isDemo),
     },
     resolve: {
       alias: {

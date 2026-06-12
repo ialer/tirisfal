@@ -29,10 +29,11 @@
   },
   "keywords": [
     "bitwarden",
-    "vaultwarden",
     "cloudflare",
     "workers",
-    "password-manager"
+    "password-manager",
+    "secrets-manager",
+    "ai-agents"
   ],
   "cloudflare": {
     "bindings": {
