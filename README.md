@@ -124,8 +124,33 @@ curl "https://your-worker.workers.dev/api/secrets/by-name/API_KEY?project_id=<id
 | 🛡️ | **IP Whitelist** - 限制访问来源 |
 | 🕐 | **Time Window** - 基于时间的访问控制 |
 | 📝 | **Audit Trail** - 完整的访问日志 |
+| 🚦 | **D1 Atomic Rate Limiting** - 防竞态条件速率限制 |
+| 🔒 | **Constant-Time Comparison** - 防时序攻击 |
+| 🛡️ | **Project Ownership Verification** - 防跨用户访问 |
 
 </div>
+
+### 安全审计
+
+本项目经过全面安全审计，已修复以下问题：
+
+#### 严重漏洞 (已修复)
+
+- ✅ **速率限制绕过** - 移除不安全的导入绕过逻辑
+- ✅ **Cache API 竞态条件** - 改用 D1 原子操作防止并发绕过
+- ✅ **项目所有权验证缺失** - 添加跨用户访问防护
+
+#### 高危漏洞 (已修复)
+
+- ✅ **常量时间比较时序泄漏** - 修复 API Key 比较实现
+- ✅ **SM 端点缺少速率限制** - 为 Machine Account Token 添加限流
+- ✅ **凭证访问审计盲区** - 补全 GET /api/secrets/:id 审计日志
+
+#### 隐性问题 (已修复)
+
+- ✅ **内存溢出风险** - 同步响应添加 50MB 大小限制
+- ✅ **缓存无界增长** - AuthService 添加 LRU 淘汰策略
+- ✅ **登录锁定过于宽松** - 优化为 5次/15分钟策略
 
 ---
 
@@ -260,6 +285,28 @@ openssl rand -hex 32
 # 生成加密密钥
 openssl rand -base64 32
 ```
+
+### 数据库表
+
+项目使用以下 D1 数据表：
+
+| 表名 | 用途 |
+|:---|:---|
+| `users` | 用户账户 |
+| `ciphers` | 密码项 |
+| `folders` | 文件夹 |
+| `attachments` | 附件 |
+| `sends` | Send 分享 |
+| `refresh_tokens` | 刷新令牌 |
+| `devices` | 设备绑定 |
+| `audit_logs` | 审计日志 |
+| `login_attempts_ip` | 登录失败记录 |
+| `rate_limits` | API 速率限制 |
+| `machine_accounts` | 机器账号 |
+| `sm_projects` | 项目 |
+| `secrets` | 凭证 |
+| `machine_account_projects` | 机器账号项目权限 |
+| `secret_access_logs` | 凭证访问日志 |
 
 ---
 
