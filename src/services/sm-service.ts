@@ -31,12 +31,27 @@ export class SecretsManagerService {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    await this.db
-      .prepare(
-        'INSERT INTO machine_accounts (id, name, user_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
-      )
-      .bind(id, request.name, userId, 'active', now, now)
-      .run();
+    try {
+      await this.db
+        .prepare(
+          'INSERT INTO machine_accounts (id, name, user_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+        )
+        .bind(id, request.name, userId, 'active', now, now)
+        .run();
+    } catch (error) {
+      // 处理唯一性约束冲突（并发创建同名账号）
+      if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
+        // 查找已存在的账号
+        const existing = await this.db
+          .prepare('SELECT * FROM machine_accounts WHERE name = ? AND user_id = ?')
+          .bind(request.name, userId)
+          .first<MachineAccount>();
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
 
     const account = await this.getMachineAccount(id);
     if (!account) throw new Error('Failed to create machine account');
@@ -212,22 +227,36 @@ export class SecretsManagerService {
     // 使用 AES-256-GCM 加密凭证
     const encryptedValue = await encrypt(request.value, this.encryptionKey);
 
-    await this.db
-      .prepare(
-        'INSERT INTO secrets (id, name, value, project_id, environment, note, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-      .bind(
-        id,
-        request.name,
-        encryptedValue,
-        request.project_id,
-        request.environment || 'prod',
-        request.note || null,
-        userId,
-        now,
-        now
-      )
-      .run();
+    try {
+      await this.db
+        .prepare(
+          'INSERT INTO secrets (id, name, value, project_id, environment, note, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        )
+        .bind(
+          id,
+          request.name,
+          encryptedValue,
+          request.project_id,
+          request.environment || 'prod',
+          request.note || null,
+          userId,
+          now,
+          now
+        )
+        .run();
+    } catch (error) {
+      // 处理唯一性约束冲突（并发创建同名凭证）
+      if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
+        const existing = await this.db
+          .prepare('SELECT * FROM secrets WHERE name = ? AND project_id = ? AND environment = ?')
+          .bind(request.name, request.project_id, request.environment || 'prod')
+          .first<Secret>();
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
 
     const secret = await this.getSecret(id);
     if (!secret) throw new Error('Failed to create secret');

@@ -5,6 +5,7 @@
 import { NotificationsHub } from './durable/notifications-hub';
 import { runScheduledBackupIfDue } from './handlers/backup';
 import { handleRequest } from './router';
+import { SecretsManagerService } from './services/sm-service';
 import { StorageService } from './services/storage';
 import type { Env } from './types';
 import { applyCors, jsonResponse } from './utils/response';
@@ -121,13 +122,30 @@ export default {
     void controller;
     await ensureDatabaseInitialized(env);
     if (dbInitError) {
-      console.error('Skipping scheduled backup because DB init failed:', dbInitError);
+      console.error('Skipping scheduled tasks because DB init failed:', dbInitError);
       return;
     }
+
+    // 定时备份
     ctx.waitUntil(
       runScheduledBackupIfDue(env).catch((error) => {
         console.error('Scheduled backup failed:', error);
       })
+    );
+
+    // 定时清理审计日志（每天一次）
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const smService = new SecretsManagerService(env.DB, env.ENCRYPTION_KEY);
+          const deleted = await smService.cleanupOldAuditLogs();
+          if (deleted > 0) {
+            console.log(`Cleaned up ${deleted} old audit log entries`);
+          }
+        } catch (error) {
+          console.error('Audit log cleanup failed:', error);
+        }
+      })()
     );
   },
 };

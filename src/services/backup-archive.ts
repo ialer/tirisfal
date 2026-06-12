@@ -126,6 +126,27 @@ function sanitizeConfigRowsForExport(rows: SqlRow[]): SqlRow[] {
   return sanitized;
 }
 
+// 敏感字段列表 - 备份时应排除
+const SENSITIVE_USER_FIELDS = [
+  'master_password_hash',
+  'totp_secret',
+  'totp_recovery_code',
+  'api_key',
+  'private_key',
+];
+
+function sanitizeUserRowsForExport(rows: SqlRow[]): SqlRow[] {
+  return rows.map(row => {
+    const sanitized = { ...row };
+    for (const field of SENSITIVE_USER_FIELDS) {
+      if (field in sanitized) {
+        delete sanitized[field];
+      }
+    }
+    return sanitized;
+  });
+}
+
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest))
@@ -488,13 +509,16 @@ export async function buildBackupArchive(
     attachmentBlobs: includeAttachments ? attachmentBlobs : [],
   } satisfies BackupManifest;
 
+  // 清理敏感字段后再导出
+  const exportedUserRows = sanitizeUserRowsForExport(userRows);
+
   const files: Record<string, Uint8Array> = {
     'manifest.json': encoder.encode(JSON.stringify(manifestBase, null, BACKUP_JSON_INDENT)),
     'db.json': encoder.encode(
       JSON.stringify(
         {
           config: exportedConfigRows,
-          users: userRows,
+          users: exportedUserRows,
           domain_settings: domainSettingsRows,
           user_revisions: revisionRows,
           folders: folderRows,
