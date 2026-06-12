@@ -178,12 +178,20 @@ export function handleCors(request: Request): Response {
   });
 }
 
+// Rate limit response helper
+export function rateLimitResponse(retryAfterSeconds?: number): Response {
+  const retryAfter = String(retryAfterSeconds || 60);
+  return jsonResponse(
+    { error: 'Too many requests', error_description: `Rate limit exceeded. Try again in ${retryAfter} seconds.` },
+    429,
+    { 'Retry-After': retryAfter, 'X-RateLimit-Remaining': '0' }
+  );
+}
+
 // HTML response helper
 export function htmlResponse(html: string, status: number = 200): Response {
   return new Response(html, {
     status,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-    },
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }

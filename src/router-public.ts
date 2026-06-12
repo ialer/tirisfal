@@ -1,18 +1,14 @@
 import { LIMITS } from './config/limits';
 import { handleGetPasswordHint, handleRecoverTwoFactor, handleRegister } from './handlers/accounts';
-import { handlePublicDownloadAttachment } from './handlers/attachments';
-import { handlePublicUploadAttachment } from './handlers/attachments';
+import { handlePublicDownloadAttachment, handlePublicUploadAttachment } from './handlers/attachments';
 import { handleKnownDevice } from './handlers/devices';
 import { handlePrelogin, handleRevocation, handleToken } from './handlers/identity';
 import { handleNotificationsHub, handleNotificationsNegotiate } from './handlers/notifications';
 import {
-  handleAccessSend,
-  handleAccessSendFile,
-  handleAccessSendFileV2,
-  handleAccessSendV2,
-  handleDownloadSendFile,
+  handleAccessSend, handleAccessSendFile, handleAccessSendFileV2, handleAccessSendV2,
+  handleDownloadSendFile, handlePublicUploadSendFile,
 } from './handlers/sends';
-import { handlePublicUploadSendFile } from './handlers/sends';
+import { handleWebsiteIcon } from './services/icon-proxy';
 import type { Env } from './types';
 import { DEFAULT_DEV_SECRET } from './types';
 import { jsonResponse } from './utils/response';
@@ -29,55 +25,12 @@ export interface WebBootstrapResponse {
 function isSameOriginWriteRequest(request: Request): boolean {
   const targetOrigin = new URL(request.url).origin;
   const origin = request.headers.get('Origin');
-  if (origin) {
-    return origin === targetOrigin;
-  }
-
+  if (origin) return origin === targetOrigin;
   const referer = request.headers.get('Referer');
   if (referer) {
-    try {
-      return new URL(referer).origin === targetOrigin;
-    } catch {
-      return false;
-    }
+    try { return new URL(referer).origin === targetOrigin; } catch { return false; }
   }
-
   return false;
-}
-
-function getDefaultWebsiteIconSvg(): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="Globe icon"><circle cx="48" cy="48" r="34" fill="none" stroke="#8ea9c7" stroke-width="6"/><path d="M14 48h68M48 14c10 10 16 21.5 16 34s-6 24-16 34c-10-10-16-21.5-16-34s6-24 16-34zm-24 10c8 5 17 8 24 8s16-3 24-8m-48 48c8-5 17-8 24-8s16 3 24 8" fill="none" stroke="#8ea9c7" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-}
-
-function handleNwFavicon(): Response {
-  return new Response(getDefaultWebsiteIconSvg(), {
-    status: 200,
-    headers: {
-      'Content-Type': 'image/svg+xml; charset=utf-8',
-      'Cache-Control': `public, max-age=${LIMITS.cache.iconTtlSeconds}, immutable`,
-    },
-  });
-}
-
-function handleMissingWebsiteIcon(): Response {
-  return new Response(null, {
-    status: 404,
-    headers: {
-      'Cache-Control': 'public, max-age=300',
-    },
-  });
-}
-
-function buildIconServiceBase(origin: string): string {
-  return `${origin}/icons`;
-}
-
-function buildIconServiceTemplate(origin: string): string {
-  return `${buildIconServiceBase(origin)}/{}/icon.png`;
-}
-
-function buildIconServiceCsp(origin: string): string {
-  return `img-src 'self' data: ${origin}`;
 }
 
 function buildConfigResponse(origin: string) {
@@ -86,164 +39,22 @@ function buildConfigResponse(origin: string) {
     gitHash: 'tirisfal',
     server: null,
     environment: {
-      cloudRegion: 'self-hosted',
-      vault: origin,
-      api: `${origin}/api`,
-      identity: `${origin}/identity`,
-      notifications: `${origin}/notifications`,
-      icons: origin,
-      sso: '',
-      fillAssistRules: null,
+      cloudRegion: 'self-hosted', vault: origin, api: `${origin}/api`,
+      identity: `${origin}/identity`, notifications: `${origin}/notifications`,
+      icons: origin, sso: '', fillAssistRules: null,
     },
-    push: {
-      pushTechnology: 0,
-      vapidPublicKey: null,
-    },
+    push: { pushTechnology: 0, vapidPublicKey: null },
     communication: null,
-    settings: {
-      disableUserRegistration: false,
-    },
-    _icon_service_url: buildIconServiceTemplate(origin),
-    _icon_service_csp: buildIconServiceCsp(origin),
+    settings: { disableUserRegistration: false },
+    _icon_service_url: `${origin}/icons/{}/icon.png`,
+    _icon_service_csp: `img-src 'self' data: ${origin}`,
     featureStates: {
-      'cipher-key-encryption': true,
-      'duo-redirect': true,
-      'email-verification': true,
-      'pm-19051-send-email-verification': false,
-      'pm-19148-innovation-archive': true,
-      'unauth-ui-refresh': true,
-      'web-push': false,
+      'cipher-key-encryption': true, 'duo-redirect': true, 'email-verification': true,
+      'pm-19051-send-email-verification': false, 'pm-19148-innovation-archive': true,
+      'unauth-ui-refresh': true, 'web-push': false,
     },
     object: 'config',
   };
-}
-
-function normalizeIconHost(rawHost: string): string | null {
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(String(rawHost || '').trim())
-      .toLowerCase()
-      .replace(/\.+$/, '');
-  } catch {
-    return null;
-  }
-  if (!decoded || decoded.includes('/') || decoded.includes('\\')) return null;
-  try {
-    const parsed = new URL(`https://${decoded}`);
-    return parsed.hostname === decoded ? decoded : null;
-  } catch {
-    return null;
-  }
-}
-
-const ICON_UPSTREAM_TIMEOUT_MS = 2500;
-const BITWARDEN_DEFAULT_GLOBE_ICON_BYTES = 500;
-const BITWARDEN_DEFAULT_GLOBE_ICON_SHA256 =
-  'aaa64871332ad5b7d28fe8874efb19c2d9cc2f1e6de75d52b080b438225a0783';
-
-type IconSource = {
-  url: string;
-  rejectImage?: {
-    byteLength: number;
-    sha256: string;
-  };
-  headers?: HeadersInit;
-};
-
-async function fetchIconSource(source: { url: string; headers?: HeadersInit }): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ICON_UPSTREAM_TIMEOUT_MS);
-  try {
-    return await fetch(source.url, {
-      headers: source.headers,
-      redirect: 'follow',
-      signal: controller.signal,
-      cf: {
-        cacheEverything: true,
-        cacheTtl: LIMITS.cache.iconTtlSeconds,
-      },
-    } as RequestInit & { cf: { cacheEverything: boolean; cacheTtl: number } });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function iconResponse(body: BodyInit | null, contentType: string | null): Response {
-  return new Response(body, {
-    status: 200,
-    headers: {
-      'Content-Type': contentType || 'image/png',
-      'Cache-Control': `public, max-age=${LIMITS.cache.iconTtlSeconds}, immutable`,
-    },
-  });
-}
-
-async function handleWebsiteIcon(
-  host: string,
-  fallbackMode: 'default' | 'not-found' = 'default'
-): Promise<Response> {
-  const normalizedHost = normalizeIconHost(host);
-  if (!normalizedHost)
-    return fallbackMode === 'not-found' ? handleMissingWebsiteIcon() : handleNwFavicon();
-
-  const encodedHost = encodeURIComponent(normalizedHost);
-  const requestHeaders = { 'User-Agent': 'Tirisfal/1.0' };
-  const upstreamSources: IconSource[] = [
-    {
-      url: `https://favicon.im/zh/${encodedHost}?larger=true&throw-error-on-404=true`,
-      headers: requestHeaders,
-    },
-    {
-      url: `https://icons.bitwarden.net/${encodedHost}/icon.png`,
-      rejectImage: {
-        byteLength: BITWARDEN_DEFAULT_GLOBE_ICON_BYTES,
-        sha256: BITWARDEN_DEFAULT_GLOBE_ICON_SHA256,
-      },
-      headers: requestHeaders,
-    },
-  ];
-
-  for (const source of upstreamSources) {
-    try {
-      const resp = await fetchIconSource(source);
-
-      if (!resp.ok) continue;
-      const contentType = String(resp.headers.get('Content-Type') || '').toLowerCase();
-      if (!contentType.startsWith('image/')) continue;
-
-      if (!source.rejectImage) {
-        return iconResponse(resp.body, resp.headers.get('Content-Type'));
-      }
-
-      const contentLength = Number(resp.headers.get('Content-Length') || '');
-      if (
-        Number.isFinite(contentLength) &&
-        contentLength > 0 &&
-        contentLength !== source.rejectImage.byteLength
-      ) {
-        return iconResponse(resp.body, resp.headers.get('Content-Type'));
-      }
-
-      const bytes = await resp.arrayBuffer();
-      if (bytes.byteLength === 0) continue;
-      if (
-        bytes.byteLength === source.rejectImage.byteLength &&
-        (await sha256Hex(bytes)) === source.rejectImage.sha256
-      )
-        continue;
-
-      return iconResponse(bytes, resp.headers.get('Content-Type'));
-    } catch {
-      continue;
-    }
-  }
-
-  return fallbackMode === 'not-found' ? handleMissingWebsiteIcon() : handleNwFavicon();
 }
 
 export function buildWebBootstrapResponse(env: Env): WebBootstrapResponse {
