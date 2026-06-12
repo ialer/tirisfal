@@ -91,10 +91,21 @@ export async function handleSecrets(
       if (!secret) {
         return errorResponse('Not found', 404);
       }
-      // 权限隔离：验证用户是否拥有该项目
-      if (secret.user_id !== userId && !machineAccountId) {
+
+      // Machine Account 权限验证
+      if (machineAccountId) {
+        const clientIp = request.headers.get('CF-Connecting-IP') ||
+                         request.headers.get('X-Real-IP') ||
+                         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim();
+        const accessCheck = await smService.validateProjectAccess(machineAccountId, secret.project_id, clientIp || undefined);
+        if (!accessCheck.allowed) {
+          return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
+        }
+      } else if (secret.user_id !== userId) {
+        // User 权限验证
         return errorResponse('Not found', 404);
       }
+
       // 解密值
       const decryptedValue = await smService.decryptSecretValue(secret.value);
 
@@ -126,8 +137,17 @@ export async function handleSecrets(
       if (!secret) {
         return errorResponse('Not found', 404);
       }
-      // 权限隔离：验证用户是否拥有该项目
-      if (secret.user_id !== userId && !machineAccountId) {
+
+      // Machine Account 权限验证
+      if (machineAccountId) {
+        const clientIp = request.headers.get('CF-Connecting-IP') ||
+                         request.headers.get('X-Real-IP') ||
+                         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim();
+        const accessCheck = await smService.validateProjectAccess(machineAccountId, secret.project_id, clientIp || undefined);
+        if (!accessCheck.allowed) {
+          return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
+        }
+      } else if (secret.user_id !== userId) {
         return errorResponse('Not found', 404);
       }
 
@@ -150,8 +170,17 @@ export async function handleSecrets(
       if (!secret) {
         return errorResponse('Not found', 404);
       }
-      // 权限隔离：验证用户是否拥有该项目
-      if (secret.user_id !== userId && !machineAccountId) {
+
+      // Machine Account 权限验证
+      if (machineAccountId) {
+        const clientIp = request.headers.get('CF-Connecting-IP') ||
+                         request.headers.get('X-Real-IP') ||
+                         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim();
+        const accessCheck = await smService.validateProjectAccess(machineAccountId, secret.project_id, clientIp || undefined);
+        if (!accessCheck.allowed) {
+          return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
+        }
+      } else if (secret.user_id !== userId) {
         return errorResponse('Not found', 404);
       }
 

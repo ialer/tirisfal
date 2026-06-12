@@ -72,6 +72,11 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     return cachedResponse;
   }
 
+  // NOTE: D1 is single-threaded per database, so Promise.all doesn't provide true parallelism.
+  // Queries will execute sequentially. For better performance, consider:
+  // 1. Using D1 batch queries for related data
+  // 2. Implementing pagination for large vaults
+  // 3. Using read replicas for high-traffic scenarios
   const [ciphers, folders, sends, attachmentsByCipher, domainSettings] = await Promise.all([
     storage.getAllCiphers(userId),
     storage.getAllFolders(userId),

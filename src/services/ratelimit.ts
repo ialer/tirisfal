@@ -12,11 +12,14 @@ const CONFIG = {
 
 export class RateLimitService {
   private static loginIpTableReady = false;
+  private static rateLimitTableReady = false;
   private static lastLoginIpCleanupAt = 0;
+  private static lastRateLimitCleanupAt = 0;
 
   private static readonly PERIODIC_CLEANUP_PROBABILITY = LIMITS.rateLimit.cleanupProbability;
   private static readonly LOGIN_IP_CLEANUP_INTERVAL_MS = LIMITS.rateLimit.loginIpCleanupIntervalMs;
   private static readonly LOGIN_IP_RETENTION_MS = LIMITS.rateLimit.loginIpRetentionMs;
+  private static readonly RATE_LIMIT_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
   constructor(private db: D1Database) {}
 
@@ -143,6 +146,7 @@ export class RateLimitService {
   }
 
   private async ensureRateLimitTable(): Promise<void> {
+    if (RateLimitService.rateLimitTableReady) return;
     await this.db
       .prepare(
         'CREATE TABLE IF NOT EXISTS rate_limits (' +
@@ -153,6 +157,18 @@ export class RateLimitService {
           ')'
       )
       .run();
+    RateLimitService.rateLimitTableReady = true;
+  }
+
+  private async maybeCleanupRateLimits(nowSec: number): Promise<void> {
+    if (nowSec - RateLimitService.lastRateLimitCleanupAt < RateLimitService.RATE_LIMIT_CLEANUP_INTERVAL_MS / 1000) {
+      return;
+    }
+    await this.db
+      .prepare('DELETE FROM rate_limits WHERE expires_at < ?')
+      .bind(nowSec)
+      .run();
+    RateLimitService.lastRateLimitCleanupAt = nowSec;
   }
 
   // D1-backed fixed-window rate limiter with atomic operations.
@@ -192,12 +208,7 @@ export class RateLimitService {
     }
 
     // Periodic cleanup of expired entries
-    if (Math.random() < 0.01) {
-      await this.db
-        .prepare('DELETE FROM rate_limits WHERE expires_at < ?')
-        .bind(nowSec)
-        .run();
-    }
+    await this.maybeCleanupRateLimits(nowSec);
 
     return { allowed: true, remaining: Math.max(0, maxRequests - count) };
   }
