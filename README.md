@@ -1,203 +1,42 @@
-# Tirisfal Secrets Manager
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.5.1-blue" alt="version">
+  <img src="https://img.shields.io/badge/license-LGPL--3.0-green" alt="license">
+  <img src="https://img.shields.io/badge/cloudflare-workers-orange" alt="cloudflare">
+  <img src="https://img.shields.io/badge/encryption-AES--256--GCM-red" alt="encryption">
+</p>
 
-**为 AI Agent 设计的凭证管理服务，运行在 Cloudflare Workers 上。**
+<h1 align="center">🔐 Tirisfal</h1>
 
----
+<p align="center">
+  <strong>为 AI Agent 设计的自托管凭证管理服务</strong>
+</p>
 
-## 核心功能
-
-| 功能 | 说明 |
-|------|------|
-| **Machine Accounts** | 为每个 Agent 创建独立的机器账号 |
-| **Projects** | 按项目分组管理凭证 |
-| **Secrets** | 安全存储 API Key、Token、密码等凭证 |
-| **Access Tokens** | Agent 通过 Token 访问凭证 |
-| **Audit Logs** | 记录所有凭证访问行为 |
-
----
-
-## Agent 接入方式
-
-### 1. 创建 Machine Account
-
-```bash
-# 通过 API 创建机器账号
-curl -X POST https://your-worker.workers.dev/api/machine-accounts \
-  -H "Authorization: Bearer <user-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "ningzhi", "description": "宁织 Agent"}'
-```
-
-### 2. 获取 Access Token
-
-```bash
-# 为 Machine Account 生成访问令牌
-curl -X POST https://your-worker.workers.dev/api/machine-accounts/<id>/token \
-  -H "Authorization: Bearer <user-token>"
-```
-
-### 3. 创建项目和凭证
-
-```bash
-# 创建项目
-curl -X POST https://your-worker.workers.dev/api/projects \
-  -H "Authorization: Bearer <user-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "SN-Team", "description": "SN团队凭证"}'
-
-# 创建凭证
-curl -X POST https://your-worker.workers.dev/api/secrets \
-  -H "Authorization: Bearer <user-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "XIAOMI_API_KEY", "value": "sk-***", "project_id": "<project-id>"}'
-```
-
-### 4. Agent 获取凭证
-
-```bash
-# 通过 Access Token 获取凭证
-curl "https://your-worker.workers.dev/api/secrets/by-name/XIAOMI_API_KEY?project_id=<project-id>&environment=prod" \
-  -H "Authorization: Bearer $NW_TOKEN" | jq -r .value
-```
+<p align="center">
+  运行在 Cloudflare Workers 上，支持 Bitwarden 兼容协议
+</p>
 
 ---
 
-## API 端点
+## ✨ 特性
 
-### Machine Accounts
+<div align="center">
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/machine-accounts` | 创建机器账号 |
-| GET | `/api/machine-accounts` | 列出所有机器账号 |
-| GET | `/api/machine-accounts/:id` | 获取机器账号详情 |
-| PUT | `/api/machine-accounts/:id` | 更新机器账号 |
-| DELETE | `/api/machine-accounts/:id` | 删除机器账号 |
-| POST | `/api/machine-accounts/:id/token` | 生成访问令牌 |
+| 功能 | 描述 |
+|:---:|:---|
+| 🤖 | **Machine Accounts** - 为每个 Agent 创建独立的机器账号 |
+| 📁 | **Projects** - 按项目分组管理凭证 |
+| 🔑 | **Secrets** - 安全存储 API Key、Token、密码等凭证 |
+| 🎫 | **Access Tokens** - Agent 通过 Token 访问凭证 |
+| 📊 | **Audit Logs** - 记录所有凭证访问行为 |
+| 🔒 | **End-to-End Encryption** - AES-256-GCM 加密存储 |
 
-### Projects
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/projects` | 创建项目 |
-| GET | `/api/projects` | 列出所有项目 |
-| GET | `/api/projects/:id` | 获取项目详情 |
-| PUT | `/api/projects/:id` | 更新项目 |
-| DELETE | `/api/projects/:id` | 删除项目 |
-
-### Secrets
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/secrets` | 创建凭证 |
-| GET | `/api/secrets?project_id=<id>` | 列出项目下的凭证 |
-| GET | `/api/secrets/:id` | 获取凭证详情 |
-| PUT | `/api/secrets/:id` | 更新凭证 |
-| DELETE | `/api/secrets/:id` | 删除凭证 |
-| GET | `/api/secrets/by-name/:name` | 通过名称获取凭证 |
+</div>
 
 ---
 
-## Agent 集成示例
+## 🚀 快速开始
 
-### OpenClaw Agent
-
-在 Agent 的 TOOLS.md 中添加：
-
-```markdown
-## 凭证管理
-
-### 获取凭证
-```bash
-VALUE=$(curl -s https://your-worker.workers.dev/api/secrets/by-name/<SECRET_NAME> \
-  -H "Authorization: Bearer $NW_TOKEN" | jq -r .value)
-```
-
-### 环境变量
-- NW_TOKEN: Access Token
-- NW_SERVER: 服务地址
-```
-
-### Hermes Agent
-
-在 Agent 的 TOOLS.md 中添加：
-
-```markdown
-## 凭证管理
-
-### 获取凭证
-```bash
-curl -s https://your-worker.workers.dev/api/secrets/by-name/<SECRET_NAME> \
-  -H "Authorization: Bearer $NW_TOKEN" | jq -r .value
-```
-```
-
----
-
-## 权限控制
-
-| 角色 | 权限 |
-|------|------|
-| **User** | 创建/管理 Machine Account、Project、Secret |
-| **Machine Account** | 只能读取被授权的 Project 下的 Secret |
-
-### 授权示例
-
-```bash
-# 授予 Machine Account 对项目的读取权限
-curl -X POST https://your-worker.workers.dev/api/machine-accounts/<id>/projects/<project-id> \
-  -H "Authorization: Bearer <user-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"permission": "read"}'
-```
-
----
-
-## 安全特性
-
-### 加密
-
-- 所有凭证使用 AES-256-GCM 加密存储
-- 每条凭证使用独立随机密钥
-- 主密钥通过 Wrangler Secrets 安全存储
-- PBKDF2 600K 迭代（OWASP 推荐）
-
-### 认证
-
-- JWT 令牌支持可配置过期时间
-- Machine Account 令牌支持轮换和撤销（生成新 token 时自动撤销旧 token）
-- 恒定时间密码比较（防止时序攻击）
-- Token 使用 URL-safe base64 编码
-
-### 权限
-
-- 细粒度项目级权限（read/write/admin）
-- IP 白名单支持（精确匹配）
-- 基于时间的访问窗口（UTC 小时）
-- 请求频率限制（max_requests_per_minute）
-- 权限过期机制
-- 权限隔离（用户只能访问自己的项目）
-
-### 审计
-
-- 所有凭证访问记录
-- IP 和 User-Agent 跟踪
-- 项目 ID 和环境信息记录
-- 90 天日志保留（自动清理）
-
-### 配置
-
-```bash
-# 生成加密密钥（至少 32 字符）
-openssl rand -base64 32
-
-# 设置在 Wrangler Secrets
-wrangler secret put ENCRYPTION_KEY
-```
-
----
-
-## 部署
+### 部署
 
 ```bash
 # 克隆仓库
@@ -209,30 +48,240 @@ npm install
 
 # 配置环境变量
 cp .dev.vars.example .dev.vars
-# 编辑 .dev.vars 设置 JWT_SECRET
 
-# 本地开发
-npm run dev
+# 设置密钥
+wrangler secret put JWT_SECRET
+wrangler secret put ENCRYPTION_KEY
 
-# 部署到 Cloudflare Workers
+# 初始化数据库
+wrangler d1 execute tirisfal-db --file=./migrations/0001_init.sql
+wrangler d1 execute tirisfal-db --file=./migrations/0002_sm_tables.sql
+
+# 部署
 npm run deploy
+```
+
+### 本地开发
+
+```bash
+npm run dev
 ```
 
 ---
 
-## 环境变量
+## 📖 使用指南
 
-| 变量 | 必填 | 说明 |
-|------|------|------|
-| `JWT_SECRET` | ✅ | JWT 签名密钥（32+ 字符） |
-| `DB` | ✅ | D1 数据库绑定 |
-| `ATTACHMENTS` | ❌ | R2 存储桶（可选） |
+### 1️⃣ 创建 Machine Account
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/machine-accounts \
+  -H "Authorization: Bearer <user-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-agent", "description": "My AI Agent"}'
+```
+
+### 2️⃣ 获取 Access Token
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/machine-accounts/<id>/token \
+  -H "Authorization: Bearer <user-token>"
+```
+
+### 3️⃣ 创建项目和凭证
+
+```bash
+# 创建项目
+curl -X POST https://your-worker.workers.dev/api/projects \
+  -H "Authorization: Bearer <user-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-project"}'
+
+# 创建凭证
+curl -X POST https://your-worker.workers.dev/api/secrets \
+  -H "Authorization: Bearer <user-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "API_KEY", "value": "sk-***", "project_id": "<project-id>"}'
+```
+
+### 4️⃣ Agent 获取凭证
+
+```bash
+curl "https://your-worker.workers.dev/api/secrets/by-name/API_KEY?project_id=<id>&environment=prod" \
+  -H "Authorization: Bearer <machine-token>" | jq -r .value
+```
 
 ---
 
-## 文档
+## 🔐 安全特性
 
-- [部署指南](#部署)
-- [API 文档](#api-端点)
-- [Agent 集成](#agent-集成示例)
-- [安全特性](#安全特性)
+<div align="center">
+
+| 特性 | 实现 |
+|:---:|:---|
+| 🔑 | **AES-256-GCM** - 行业标准加密算法 |
+| 🧂 | **PBKDF2 600K** - OWASP 推荐迭代次数 |
+| ⏰ | **Token Rotation** - 支持自动轮换和撤销 |
+| 🛡️ | **IP Whitelist** - 限制访问来源 |
+| 🕐 | **Time Window** - 基于时间的访问控制 |
+| 📝 | **Audit Trail** - 完整的访问日志 |
+
+</div>
+
+---
+
+## 🛠️ API 参考
+
+### Machine Accounts
+
+| 方法 | 端点 | 描述 |
+|:---:|:---|:---|
+| `POST` | `/api/machine-accounts` | 创建机器账号 |
+| `GET` | `/api/machine-accounts` | 列出所有机器账号 |
+| `GET` | `/api/machine-accounts/:id` | 获取机器账号详情 |
+| `PUT` | `/api/machine-accounts/:id` | 更新机器账号 |
+| `DELETE` | `/api/machine-accounts/:id` | 删除机器账号 |
+| `POST` | `/api/machine-accounts/:id/token` | 生成访问令牌 |
+| `POST` | `/api/machine-accounts/:id/revoke-token` | 撤销访问令牌 |
+
+### Projects
+
+| 方法 | 端点 | 描述 |
+|:---:|:---|:---|
+| `POST` | `/api/projects` | 创建项目 |
+| `GET` | `/api/projects` | 列出所有项目 |
+| `GET` | `/api/projects/:id` | 获取项目详情 |
+| `DELETE` | `/api/projects/:id` | 删除项目 |
+
+### Secrets
+
+| 方法 | 端点 | 描述 |
+|:---:|:---|:---|
+| `POST` | `/api/secrets` | 创建凭证 |
+| `GET` | `/api/secrets?project_id=<id>` | 列出项目下的凭证 |
+| `GET` | `/api/secrets/:id` | 获取凭证详情 |
+| `PUT` | `/api/secrets/:id` | 更新凭证 |
+| `DELETE` | `/api/secrets/:id` | 删除凭证 |
+| `GET` | `/api/secrets/by-name/:name` | 通过名称获取凭证 |
+
+---
+
+## 📦 SDK
+
+我们提供多语言 SDK，简化 Agent 集成：
+
+### Python
+
+```python
+from tirisfal import TirisfalClient
+
+client = TirisfalClient(
+    server="https://your-worker.workers.dev",
+    token="your-machine-account-token"
+)
+
+secret = client.get_secret("API_KEY", project_id="xxx", environment="prod")
+print(secret.value)
+```
+
+### Node.js
+
+```javascript
+const { TirisfalClient } = require('@tirisfal/sdk');
+
+const client = new TirisfalClient({
+  server: 'https://your-worker.workers.dev',
+  token: 'your-machine-account-token'
+});
+
+const secret = await client.getSecret('API_KEY', { projectId: 'xxx' });
+console.log(secret.value);
+```
+
+### Go
+
+```go
+import "github.com/ialer/tirisfal/sdk/go"
+
+client := tirisfal.NewClient("https://your-worker.workers.dev", "your-token")
+secret, _ := client.GetSecret("API_KEY", "project-id", "prod")
+fmt.Println(secret.Value)
+```
+
+---
+
+## 🏗️ 架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Cloudflare Workers                       │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │    Auth      │  │    SM API   │  │   Backup    │        │
+│  │   Service    │  │   Service   │  │   Service   │        │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘        │
+│         │                │                │                  │
+│  ┌──────┴────────────────┴────────────────┴──────┐        │
+│  │              SecretsManagerService             │        │
+│  └──────────────────────┬────────────────────────┘        │
+│                         │                                  │
+│  ┌──────────────────────┴────────────────────────┐        │
+│  │           AES-256-GCM Encryption              │        │
+│  └──────────────────────┬────────────────────────┘        │
+│                         │                                  │
+├─────────────────────────┼──────────────────────────────────┤
+│  ┌──────────────────────┴────────────────────────┐        │
+│  │                    D1 Database                 │        │
+│  │  ┌─────────────┐  ┌─────────────┐            │        │
+│  │  │   secrets   │  │   projects  │            │        │
+│  │  └─────────────┘  └─────────────┘            │        │
+│  └───────────────────────────────────────────────┘        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔧 配置
+
+### 环境变量
+
+| 变量 | 必填 | 描述 |
+|:---:|:---:|:---|
+| `JWT_SECRET` | ✅ | JWT 签名密钥（32+ 字符） |
+| `ENCRYPTION_KEY` | ✅ | 加密密钥（32+ 字符） |
+| `DB` | ✅ | D1 数据库绑定 |
+| `ATTACHMENTS` | ❌ | R2 存储桶（可选） |
+
+### 生成密钥
+
+```bash
+# 生成 JWT 密钥
+openssl rand -hex 32
+
+# 生成加密密钥
+openssl rand -base64 32
+```
+
+---
+
+## 📚 文档
+
+- [API 文档](docs/API.md)
+- [优化报告](docs/OPTIMIZATION.md)
+
+---
+
+## 🤝 贡献
+
+欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
+
+---
+
+## 📄 许可证
+
+本项目使用 [LGPL-3.0](LICENSE) 许可证。
+
+---
+
+<p align="center">
+  <sub>Built with ❤️ by <a href="https://github.com/ialer">SN Team</a></sub>
+</p>
