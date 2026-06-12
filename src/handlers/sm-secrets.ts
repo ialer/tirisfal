@@ -43,16 +43,16 @@ export async function handleSecrets(
     if (body.environment && typeof body.environment !== 'string') {
       return errorResponse('environment must be a string', 400);
     }
-    if (body.environment && !['prod', 'staging', 'dev', 'test'].includes(body.environment)) {
+    if (body.environment && typeof body.environment === 'string' && !['prod', 'staging', 'dev', 'test'].includes(body.environment)) {
       return errorResponse('environment must be one of: prod, staging, dev, test', 400);
     }
 
     const secret = await smService.createSecret(userId, {
-      name: body.name.trim(),
-      value: body.value,
-      project_id: body.project_id,
-      environment: body.environment,
-      note: body.note,
+      name: (body.name as string).trim(),
+      value: body.value as string,
+      project_id: body.project_id as string,
+      environment: body.environment as string | undefined,
+      note: body.note as string | undefined,
     });
 
     return jsonResponse(secret, 201);
@@ -106,8 +106,16 @@ export async function handleSecrets(
         return errorResponse('Not found', 404);
       }
 
-      const body = await request.json();
-      const updated = await smService.updateSecret(secretId, body);
+      let body: Record<string, unknown>;
+      try {
+        body = await request.json();
+      } catch {
+        return errorResponse('Invalid JSON body', 400);
+      }
+      const updated = await smService.updateSecret(secretId, {
+        value: body.value as string | undefined,
+        note: body.note as string | undefined,
+      });
       return jsonResponse(updated);
     }
 
@@ -170,14 +178,15 @@ export async function handleSecrets(
     const decryptedValue = await smService.decryptSecretValue(secret.value);
 
     // 记录访问日志
+    const clientIp = request.headers.get('CF-Connecting-IP') ||
+                     request.headers.get('X-Real-IP') ||
+                     request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || null;
     await smService.logSecretAccess(
       machineAccountId || null,
       userId,
       secret.id,
       'read',
-      request.headers.get('CF-Connecting-IP') ||
-        request.headers.get('X-Real-IP') ||
-        request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim(),
+      clientIp,
       request.headers.get('User-Agent'),
       undefined,
       projectId,

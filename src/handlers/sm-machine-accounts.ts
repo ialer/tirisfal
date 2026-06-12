@@ -61,13 +61,19 @@ export async function handleMachineAccounts(
         return errorResponse('Not found', 404);
       }
 
-      const body = await request.json();
+      let body: Record<string, unknown>;
+      try {
+        body = await request.json();
+      } catch {
+        return errorResponse('Invalid JSON body', 400);
+      }
       // 确保 status 是有效的值
       const validStatus =
-        body.status === 'active' || body.status === 'disabled' ? body.status : undefined;
+        body.status === 'active' || body.status === 'disabled' ? body.status as string : undefined;
       const updated = await smService.updateMachineAccount(accountId, {
-        ...body,
-        status: validStatus,
+        name: body.name as string | undefined,
+        status: validStatus as 'active' | 'disabled' | undefined,
+        description: body.description as string | undefined,
       });
       return jsonResponse(updated);
     }
@@ -97,8 +103,8 @@ export async function handleMachineAccounts(
     // 支持自定义过期时间
     let expiryDays: number | undefined;
     try {
-      const body = await request.json();
-      if (body.expiry_days) {
+      const body = await request.json() as Record<string, unknown>;
+      if (body.expiry_days && typeof body.expiry_days === 'number') {
         expiryDays = body.expiry_days;
       }
     } catch {
