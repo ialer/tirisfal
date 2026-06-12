@@ -68,6 +68,14 @@ export async function handleSecrets(
       return errorResponse('project_id is required', 400);
     }
 
+    // 验证项目所有权（非 Machine Account 时）
+    if (!machineAccountId) {
+      const project = await smService.getProject(projectId);
+      if (!project || project.user_id !== userId) {
+        return errorResponse('Not found', 404);
+      }
+    }
+
     const secrets = await smService.getSecretsByProject(projectId, environment || undefined);
     return jsonResponse({ data: secrets });
   }
@@ -89,6 +97,23 @@ export async function handleSecrets(
       }
       // 解密值
       const decryptedValue = await smService.decryptSecretValue(secret.value);
+
+      // 记录访问日志
+      const clientIp = request.headers.get('CF-Connecting-IP') ||
+                       request.headers.get('X-Real-IP') ||
+                       request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || null;
+      await smService.logSecretAccess(
+        machineAccountId || null,
+        userId,
+        secret.id,
+        'read',
+        clientIp,
+        request.headers.get('User-Agent'),
+        undefined,
+        secret.project_id,
+        secret.environment
+      );
+
       return jsonResponse({
         ...secret,
         value: decryptedValue,

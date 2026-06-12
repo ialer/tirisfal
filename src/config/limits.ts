@@ -31,10 +31,10 @@ export const LIMITS = {
   rateLimit: {
     // Max failed login attempts before temporary lock.
     // 触发临时锁定前允许的最大登录失败次数。
-    loginMaxAttempts: 10,
+    loginMaxAttempts: 5,
     // Login lock duration in minutes.
     // 登录锁定时长（分钟）。
-    loginLockoutMinutes: 2,
+    loginLockoutMinutes: 15,
     // Authenticated API request budget per user per minute (all reads & writes combined).
     // 认证 API 每用户每分钟请求配额（读写合计）。
     apiRequestsPerMinute: 200,

@@ -48,12 +48,20 @@ function parseCookieValue(request: Request, name: string): string | null {
 function constantTimeEquals(a: string, b: string): boolean {
   const encA = new TextEncoder().encode(a);
   const encB = new TextEncoder().encode(b);
-  if (encA.length !== encB.length) return false;
 
+  // 使用较长的长度进行比较，避免时序泄漏
+  const maxLength = Math.max(encA.length, encB.length);
   let diff = 0;
-  for (let i = 0; i < encA.length; i++) {
-    diff |= encA[i] ^ encB[i];
+
+  for (let i = 0; i < maxLength; i++) {
+    const byteA = i < encA.length ? encA[i] : 0;
+    const byteB = i < encB.length ? encB[i] : 0;
+    diff |= byteA ^ byteB;
   }
+
+  // 额外检查长度是否相同
+  diff |= encA.length ^ encB.length;
+
   return diff === 0;
 }
 

@@ -25,21 +25,6 @@ function encryptionKeyUnsafeReason(env: Env): 'missing' | 'too_weak' | null {
   return null;
 }
 
-// 导入绕过请求检查 - 需要额外验证防止滥用
-function isImportBypassRequest(request: Request, path: string, method: string): boolean {
-  // 必须有导入标记
-  if (request.headers.get('X-Tirisfal-Import') !== '1') return false;
-
-  // 只允许特定的导入路径
-  if (method === 'POST') {
-    if (path === '/api/ciphers/import') return true;
-    if (/^\/api\/ciphers\/[a-f0-9-]+\/attachment\/v2$/i.test(path)) return true;
-    if (/^\/api\/ciphers\/[a-f0-9-]+\/attachment\/[a-f0-9-]+$/i.test(path)) return true;
-  }
-
-  return false;
-}
-
 // 验证导入请求的合法性（需要额外的验证）
 function validateImportRequest(request: Request): boolean {
   // 检查 Content-Type
@@ -160,28 +145,26 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return errorResponse('Account is disabled', 403);
     }
 
-    if (!isImportBypassRequest(request, path, method)) {
-      const rateLimit = new RateLimitService(env.DB);
-      const rateLimitCheck = await rateLimit.consumeBudget(
-        `${userId}:api`,
-        LIMITS.rateLimit.apiRequestsPerMinute
+    const rateLimit = new RateLimitService(env.DB);
+    const rateLimitCheck = await rateLimit.consumeBudget(
+      `${userId}:api`,
+      LIMITS.rateLimit.apiRequestsPerMinute
+    );
+    if (!rateLimitCheck.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: 'Too many requests',
+          error_description: `Rate limit exceeded. Try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': String(rateLimitCheck.retryAfterSeconds || 60),
+            'X-RateLimit-Remaining': '0',
+          },
+        }
       );
-      if (!rateLimitCheck.allowed) {
-        return new Response(
-          JSON.stringify({
-            error: 'Too many requests',
-            error_description: `Rate limit exceeded. Try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
-          }),
-          {
-            status: 429,
-            headers: {
-              'Content-Type': 'application/json',
-              'Retry-After': String(rateLimitCheck.retryAfterSeconds || 60),
-              'X-RateLimit-Remaining': '0',
-            },
-          }
-        );
-      }
     }
 
     // 处理 Secrets Manager 路由

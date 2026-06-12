@@ -1,9 +1,11 @@
 // Secrets Manager Router
 
+import { LIMITS } from './config/limits';
 import { handleMachineAccounts } from './handlers/sm-machine-accounts';
 import { handleProjects } from './handlers/sm-projects';
 import { handleSecrets } from './handlers/sm-secrets';
 import { AuthService } from './services/auth';
+import { getClientIdentifier, RateLimitService } from './services/ratelimit';
 import { SecretsManagerService } from './services/sm-service';
 import type { Env } from './types';
 import { errorResponse } from './utils/response';
@@ -30,9 +32,27 @@ export async function handleSmRoute(
     return errorResponse('Unauthorized', 401);
   }
 
+  const clientId = getClientIdentifier(request);
+  if (!clientId) {
+    return errorResponse('Client IP is required', 403);
+  }
+
   // 首先尝试 Machine Account Token
   const machineAuth = await verifyMachineToken(request, env);
   if (machineAuth) {
+    // Machine Account 速率限制
+    const rateLimit = new RateLimitService(env.DB);
+    const rateLimitCheck = await rateLimit.consumeBudget(
+      `${clientId}:sm-machine`,
+      LIMITS.rateLimit.sensitivePublicRequestsPerMinute
+    );
+    if (!rateLimitCheck.allowed) {
+      return errorResponse(
+        `Rate limit exceeded. Try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
+        429
+      );
+    }
+
     // Machine Account 只能访问被授权的 secrets
     if (path.startsWith('/api/secrets')) {
       return handleSecrets(request, env, path, method, machineAuth.userId, env.ENCRYPTION_KEY, machineAuth.machineAccountId);

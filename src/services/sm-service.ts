@@ -435,9 +435,33 @@ export class SecretsManagerService {
     }
 
     // 检查请求频率限制
-    if (result.max_requests_per_minute) {
-      // TODO: 实现请求频率检查（需要缓存或数据库计数器）
-      // 目前只记录限制值，实际检查需要集成到 RateLimitService
+    if (result.max_requests_per_minute && clientIp) {
+      const windowSeconds = 60;
+      const nowSec = Math.floor(Date.now() / 1000);
+      const windowStart = nowSec - (nowSec % windowSeconds);
+      const windowEnd = windowStart + windowSeconds;
+      const ttl = Math.max(1, windowEnd - nowSec);
+
+      const cache = await caches.open('rate-limit');
+      const cacheKey = new Request(`https://rl/sm:${machineAccountId}:${projectId}:${windowStart}`);
+
+      const cached = await cache.match(cacheKey);
+      let count = 0;
+      if (cached) {
+        count = parseInt(await cached.text(), 10) || 0;
+      }
+
+      if (count >= result.max_requests_per_minute) {
+        return { allowed: false, reason: 'Rate limit exceeded' };
+      }
+
+      count++;
+      await cache.put(
+        cacheKey,
+        new Response(String(count), {
+          headers: { 'Cache-Control': `public, max-age=${ttl}` },
+        })
+      );
     }
 
     return { allowed: true };

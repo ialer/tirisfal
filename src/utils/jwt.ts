@@ -2,6 +2,7 @@ import { LIMITS } from '../config/limits';
 import type { JWTPayload } from '../types';
 
 const hmacKeyCache = new Map<string, Promise<CryptoKey>>();
+const HMAC_KEY_CACHE_MAX_SIZE = 100;
 
 // Base64 URL encode
 function base64UrlEncode(data: Uint8Array): string {
@@ -25,6 +26,14 @@ function getHmacKey(secret: string): Promise<CryptoKey> {
   const cacheKey = secret;
   let cached = hmacKeyCache.get(cacheKey);
   if (cached) return cached;
+
+  // 清理旧条目防止缓存无限增长
+  if (hmacKeyCache.size >= HMAC_KEY_CACHE_MAX_SIZE) {
+    const firstKey = hmacKeyCache.keys().next().value;
+    if (firstKey) {
+      hmacKeyCache.delete(firstKey);
+    }
+  }
 
   const encoder = new TextEncoder();
   cached = crypto.subtle.importKey(
