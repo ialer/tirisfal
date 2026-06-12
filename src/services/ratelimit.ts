@@ -2,7 +2,7 @@ import { LIMITS } from '../config/limits';
 
 // Rate limiting service.
 // - Login attempts: D1-backed (low volume, security-critical, needs cross-colo persistence).
-// - API budgets: Cloudflare Cache API (high volume, auto-expires, zero D1 writes).
+// - API budgets: D1-backed (atomic operations prevent race conditions).
 
 const CONFIG = {
   LOGIN_MAX_ATTEMPTS: LIMITS.rateLimit.loginMaxAttempts,
@@ -142,39 +142,62 @@ export class RateLimitService {
     await this.db.prepare('DELETE FROM login_attempts_ip WHERE ip = ?').bind(key).run();
   }
 
-  // Cache API-backed fixed-window rate limiter.
-  // Uses Cloudflare edge cache instead of D1 — zero database writes, auto-expires via TTL.
-  // Per-colo isolation is acceptable (matches Cloudflare's own rate limiting behaviour).
+  private async ensureRateLimitTable(): Promise<void> {
+    await this.db
+      .prepare(
+        'CREATE TABLE IF NOT EXISTS rate_limits (' +
+          'key TEXT PRIMARY KEY, ' +
+          'count INTEGER NOT NULL, ' +
+          'window_start INTEGER NOT NULL, ' +
+          'expires_at INTEGER NOT NULL' +
+          ')'
+      )
+      .run();
+  }
+
+  // D1-backed fixed-window rate limiter with atomic operations.
+  // Uses UPSERT to prevent race conditions between concurrent requests.
   private async consumeFixedWindowBudget(
     identifier: string,
     maxRequests: number,
     windowSeconds: number
   ): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
+    await this.ensureRateLimitTable();
+
     const nowSec = Math.floor(Date.now() / 1000);
     const windowStart = nowSec - (nowSec % windowSeconds);
     const windowEnd = windowStart + windowSeconds;
     const ttl = Math.max(1, windowEnd - nowSec);
 
-    const cache = await caches.open('rate-limit');
-    const cacheKey = new Request(`https://rl/${identifier}/${windowStart}`);
+    // Atomic increment using UPSERT - prevents race conditions
+    await this.db
+      .prepare(
+        'INSERT INTO rate_limits(key, count, window_start, expires_at) VALUES(?, 1, ?, ?) ' +
+          'ON CONFLICT(key) DO UPDATE SET count = count + 1, expires_at = excluded.expires_at ' +
+          'WHERE window_start = excluded.window_start'
+      )
+      .bind(identifier, windowStart, windowEnd)
+      .run();
 
-    const cached = await cache.match(cacheKey);
-    let count = 0;
-    if (cached) {
-      count = parseInt(await cached.text(), 10) || 0;
-    }
+    const row = await this.db
+      .prepare('SELECT count FROM rate_limits WHERE key = ? AND window_start = ?')
+      .bind(identifier, windowStart)
+      .first<{ count: number }>();
 
-    if (count >= maxRequests) {
+    const count = row?.count || 1;
+
+    // Check if exceeded
+    if (count > maxRequests) {
       return { allowed: false, remaining: 0, retryAfterSeconds: ttl };
     }
 
-    count++;
-    await cache.put(
-      cacheKey,
-      new Response(String(count), {
-        headers: { 'Cache-Control': `public, max-age=${ttl}` },
-      })
-    );
+    // Periodic cleanup of expired entries
+    if (Math.random() < 0.01) {
+      await this.db
+        .prepare('DELETE FROM rate_limits WHERE expires_at < ?')
+        .bind(nowSec)
+        .run();
+    }
 
     return { allowed: true, remaining: Math.max(0, maxRequests - count) };
   }

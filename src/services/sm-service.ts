@@ -434,34 +434,32 @@ export class SecretsManagerService {
       }
     }
 
-    // 检查请求频率限制
+    // 检查请求频率限制（使用 D1 原子操作）
     if (result.max_requests_per_minute && clientIp) {
       const windowSeconds = 60;
       const nowSec = Math.floor(Date.now() / 1000);
       const windowStart = nowSec - (nowSec % windowSeconds);
       const windowEnd = windowStart + windowSeconds;
-      const ttl = Math.max(1, windowEnd - nowSec);
+      const rateLimitKey = `sm:${machineAccountId}:${projectId}`;
 
-      const cache = await caches.open('rate-limit');
-      const cacheKey = new Request(`https://rl/sm:${machineAccountId}:${projectId}:${windowStart}`);
+      // 原子递增
+      await this.db
+        .prepare(
+          'INSERT INTO rate_limits(key, count, window_start, expires_at) VALUES(?, 1, ?, ?) ' +
+            'ON CONFLICT(key) DO UPDATE SET count = count + 1, expires_at = excluded.expires_at ' +
+            'WHERE window_start = excluded.window_start'
+        )
+        .bind(rateLimitKey, windowStart, windowEnd)
+        .run();
 
-      const cached = await cache.match(cacheKey);
-      let count = 0;
-      if (cached) {
-        count = parseInt(await cached.text(), 10) || 0;
-      }
+      const row = await this.db
+        .prepare('SELECT count FROM rate_limits WHERE key = ? AND window_start = ?')
+        .bind(rateLimitKey, windowStart)
+        .first<{ count: number }>();
 
-      if (count >= result.max_requests_per_minute) {
+      if ((row?.count || 1) > result.max_requests_per_minute) {
         return { allowed: false, reason: 'Rate limit exceeded' };
       }
-
-      count++;
-      await cache.put(
-        cacheKey,
-        new Response(String(count), {
-          headers: { 'Cache-Control': `public, max-age=${ttl}` },
-        })
-      );
     }
 
     return { allowed: true };

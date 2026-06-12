@@ -7,6 +7,7 @@ import { StorageService } from './storage';
 // This second layer only needs to be non-trivial, not expensive.
 const SERVER_HASH_ITERATIONS = 600_000;
 const AUTH_CONTEXT_CACHE_TTL_MS = 15 * 1000;
+const CACHE_MAX_SIZE = 1000;
 
 interface CachedUserEntry {
   user: User | null;
@@ -32,6 +33,12 @@ export class AuthService {
     this.storage = new StorageService(env.DB);
   }
 
+  private evictCache<T>(cache: Map<string, T>): void {
+    if (cache.size < CACHE_MAX_SIZE) return;
+    const firstKey = cache.keys().next().value;
+    if (firstKey) cache.delete(firstKey);
+  }
+
   private readCachedUser(userId: string): User | null | undefined {
     const cached = AuthService.userCache.get(userId);
     if (!cached) return undefined;
@@ -43,6 +50,7 @@ export class AuthService {
   }
 
   private writeCachedUser(userId: string, user: User | null): void {
+    this.evictCache(AuthService.userCache);
     AuthService.userCache.set(userId, {
       user,
       expiresAt: Date.now() + AUTH_CONTEXT_CACHE_TTL_MS,
@@ -79,6 +87,7 @@ export class AuthService {
     deviceId: string,
     device: Awaited<ReturnType<StorageService['getDevice']>>
   ): void {
+    this.evictCache(AuthService.deviceCache);
     const cacheKey = `${userId}:${deviceId}`;
     AuthService.deviceCache.set(cacheKey, {
       device,

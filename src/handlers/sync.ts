@@ -2,7 +2,7 @@ import { LIMITS } from '../config/limits';
 import { buildDomainsResponse } from '../services/domain-rules';
 import { StorageService } from '../services/storage';
 import type { CipherResponse, Env, FolderResponse, ProfileResponse, SyncResponse } from '../types';
-import { errorResponse } from '../utils/response';
+import { errorResponse, jsonResponse } from '../utils/response';
 import {
   buildAccountKeys,
   buildUserDecryptionCompat,
@@ -10,6 +10,9 @@ import {
 } from '../utils/user-decryption';
 import { cipherToResponse, isCipherResponseSyncCompatible } from './ciphers';
 import { sendToResponse } from './sends';
+
+// Maximum response size to prevent memory overflow (50 MB)
+const MAX_SYNC_RESPONSE_BYTES = 50 * 1024 * 1024;
 
 // CONTRACT:
 // /api/sync reuses cipherToResponse() as the single cipher response shaper.
@@ -150,7 +153,16 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     object: 'sync',
   };
 
-  const response = new Response(JSON.stringify(syncResponse), {
+  // Check response size to prevent memory overflow
+  const responseJson = JSON.stringify(syncResponse);
+  if (responseJson.length > MAX_SYNC_RESPONSE_BYTES) {
+    return errorResponse(
+      'Sync response too large. Please reduce your vault size or contact support.',
+      413
+    );
+  }
+
+  const response = new Response(responseJson, {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
