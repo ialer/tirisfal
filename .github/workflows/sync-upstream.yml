@@ -28,7 +28,7 @@ jobs:
 
       - name: Add upstream
         run: |
-          git remote add upstream https://github.com/shuaiplus/NodeWarden.git || true
+          git remote add upstream https://github.com/ialer/tirisfal.git || true
           git fetch upstream --tags
 
       - name: Resolve target commit
@@ -39,7 +39,7 @@ jobs:
 
           if [ "$TRIGGER" = "schedule" ]; then
             # Auto mode: resolve latest upstream release tag
-            LATEST_TAG=$(curl -s https://api.github.com/repos/shuaiplus/NodeWarden/releases/latest | jq -r .tag_name)
+            LATEST_TAG=$(curl -s https://api.github.com/repos/ialer/tirisfal/releases/latest | jq -r .tag_name)
             if [ "$LATEST_TAG" = "null" ] || [ -z "$LATEST_TAG" ]; then
               echo "No release found in upstream."
               exit 1
