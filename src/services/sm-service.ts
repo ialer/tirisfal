@@ -20,6 +20,10 @@ export class SecretsManagerService {
   constructor(db: D1Database, encryptionKey?: string) {
     this.db = db;
     this.encryptionKey = encryptionKey || '';
+    // 验证加密密钥不为空
+    if (!this.encryptionKey) {
+      throw new Error('ENCRYPTION_KEY is required');
+    }
   }
 
   // ==================== Machine Accounts ====================
@@ -124,10 +128,16 @@ export class SecretsManagerService {
     const maxDays = 90;
     const days = Math.min(Math.max(1, expiryDays || 30), maxDays);
 
-    // 生成随机 token
+    // 撤销旧 token（如果有）
+    await this.revokeAccessToken(machineAccountId);
+
+    // 生成随机 token（使用 URL-safe base64）
     const tokenBytes = new Uint8Array(32);
     crypto.getRandomValues(tokenBytes);
-    const token = btoa(String.fromCharCode(...tokenBytes));
+    const token = btoa(String.fromCharCode(...tokenBytes))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
 
     // 计算 token 哈希
     const encoder = new TextEncoder();
@@ -383,6 +393,7 @@ export class SecretsManagerService {
         permission: string;
         allowed_ip: string | null;
         allowed_hours: string | null;
+        max_requests_per_minute: number | null;
         expires_at: string | null;
       }>();
 
@@ -423,6 +434,12 @@ export class SecretsManagerService {
       }
     }
 
+    // 检查请求频率限制
+    if (result.max_requests_per_minute) {
+      // TODO: 实现请求频率检查（需要缓存或数据库计数器）
+      // 目前只记录限制值，实际检查需要集成到 RateLimitService
+    }
+
     return { allowed: true };
   }
 
@@ -448,14 +465,44 @@ export class SecretsManagerService {
     return result.results || [];
   }
 
-  async hasProjectAccess(machineAccountId: string, projectId: string): Promise<boolean> {
+  async hasProjectAccess(
+    machineAccountId: string,
+    projectId: string,
+    clientIp?: string
+  ): Promise<boolean> {
     const result = await this.db
       .prepare(
-        'SELECT COUNT(*) as count FROM machine_account_projects WHERE machine_account_id = ? AND project_id = ?'
+        `SELECT * FROM machine_account_projects
+         WHERE machine_account_id = ? AND project_id = ?`
       )
       .bind(machineAccountId, projectId)
-      .first<{ count: number }>();
-    return (result?.count || 0) > 0;
+      .first<{
+        expires_at: string | null;
+        allowed_ip: string | null;
+      }>();
+
+    if (!result) {
+      return false;
+    }
+
+    // 检查过期
+    if (result.expires_at && new Date(result.expires_at) < new Date()) {
+      return false;
+    }
+
+    // 检查 IP 白名单
+    if (result.allowed_ip && clientIp) {
+      try {
+        const allowedIps = JSON.parse(result.allowed_ip) as string[];
+        if (!Array.isArray(allowedIps) || !allowedIps.includes(clientIp)) {
+          return false;
+        }
+      } catch {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   // ==================== Audit Logs ====================
@@ -467,7 +514,9 @@ export class SecretsManagerService {
     action: string,
     ipAddress: string | null,
     userAgent: string | null,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    projectId?: string,
+    environment?: string
   ): Promise<void> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -477,6 +526,13 @@ export class SecretsManagerService {
 
     // 截断 User-Agent 防止滥用
     const sanitizedUserAgent = userAgent?.substring(0, 255) || null;
+
+    // 构建元数据，包含 project_id 和 environment
+    const fullMetadata = {
+      ...metadata,
+      project_id: projectId,
+      environment: environment,
+    };
 
     await this.db
       .prepare(
@@ -492,7 +548,7 @@ export class SecretsManagerService {
         action,
         sanitizedIp,
         sanitizedUserAgent,
-        metadata ? JSON.stringify(metadata) : null,
+        JSON.stringify(fullMetadata),
         now
       )
       .run();

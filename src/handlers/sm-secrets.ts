@@ -17,10 +17,15 @@ export async function handleSecrets(
 
   // POST /api/secrets - 创建凭证
   if (method === 'POST' && path === '/api/secrets') {
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse('Invalid JSON body', 400);
+    }
 
     // 输入验证
-    if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
+    if (!body.name || typeof body.name !== 'string' || (body.name as string).trim().length === 0) {
       return errorResponse('Name is required and must be a non-empty string', 400);
     }
     if (body.name.length > 255) {
@@ -78,13 +83,26 @@ export async function handleSecrets(
       if (!secret) {
         return errorResponse('Not found', 404);
       }
-      return jsonResponse(secret);
+      // 权限隔离：验证用户是否拥有该项目
+      if (secret.user_id !== userId && !machineAccountId) {
+        return errorResponse('Not found', 404);
+      }
+      // 解密值
+      const decryptedValue = await smService.decryptSecretValue(secret.value);
+      return jsonResponse({
+        ...secret,
+        value: decryptedValue,
+      });
     }
 
     // PUT /api/secrets/:id
     if (method === 'PUT') {
       const secret = await smService.getSecret(secretId);
       if (!secret) {
+        return errorResponse('Not found', 404);
+      }
+      // 权限隔离：验证用户是否拥有该项目
+      if (secret.user_id !== userId && !machineAccountId) {
         return errorResponse('Not found', 404);
       }
 
@@ -97,6 +115,10 @@ export async function handleSecrets(
     if (method === 'DELETE') {
       const secret = await smService.getSecret(secretId);
       if (!secret) {
+        return errorResponse('Not found', 404);
+      }
+      // 权限隔离：验证用户是否拥有该项目
+      if (secret.user_id !== userId && !machineAccountId) {
         return errorResponse('Not found', 404);
       }
 
@@ -156,7 +178,10 @@ export async function handleSecrets(
       request.headers.get('CF-Connecting-IP') ||
         request.headers.get('X-Real-IP') ||
         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim(),
-      request.headers.get('User-Agent')
+      request.headers.get('User-Agent'),
+      undefined,
+      projectId,
+      environment
     );
 
     return jsonResponse({

@@ -15,15 +15,20 @@ export async function handleProjects(
 
   // POST /api/projects - 创建项目
   if (method === 'POST' && path === '/api/projects') {
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse('Invalid JSON body', 400);
+    }
 
-    if (!body.name) {
+    if (!body.name || typeof body.name !== 'string') {
       return errorResponse('Name is required', 400);
     }
 
     const project = await smService.createProject(userId, {
-      name: body.name,
-      description: body.description,
+      name: body.name as string,
+      description: body.description as string | undefined,
     });
 
     return jsonResponse(project, 201);
