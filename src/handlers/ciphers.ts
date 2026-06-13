@@ -4,6 +4,7 @@ import type {
   Attachment,
   Cipher,
   CipherCard,
+  CipherField,
   CipherIdentity,
   CipherLogin,
   CipherResponse,
@@ -134,8 +135,8 @@ function sanitizeEncryptedObject<T extends Record<string, unknown>>(
 }
 
 function normalizeCipherForStorage(cipher: Cipher): Cipher {
-  cipher.login = normalizeCipherLoginForStorage(cipher.login as Record<string, unknown>);
-  cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey as Record<string, unknown>);
+  cipher.login = normalizeCipherLoginForStorage(cipher.login as unknown as Record<string, unknown>) as CipherLogin | null;
+  cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey as unknown as Record<string, unknown>) as CipherSshKey | null;
   cipher.folderId = normalizeOptionalId(cipher.folderId);
   const hasArchivedAt = Object.prototype.hasOwnProperty.call(cipher as object, 'archivedAt');
   cipher.archivedAt = hasArchivedAt
@@ -307,8 +308,9 @@ export function isCipherResponseSyncCompatible(cipher: CipherResponse): boolean 
 export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = []): CipherResponse {
   // 移除不应出现在 API 响应中的纯内部字段
   const { userId, createdAt, updatedAt, archivedAt, deletedAt, ...passthrough } = cipher;
-  const normalizedLogin = normalizeCipherLoginForCompatibility((passthrough as Record<string, unknown>).login ?? null);
-  const normalizedCard = sanitizeEncryptedObject((passthrough as Record<string, unknown>).card ?? null, [
+  const p = passthrough as Record<string, unknown>;
+  const normalizedLogin = normalizeCipherLoginForCompatibility(p.login as Record<string, unknown> | null);
+  const normalizedCard = sanitizeEncryptedObject(p.card as Record<string, unknown> | null, [
     'cardholderName',
     'brand',
     'number',
@@ -316,7 +318,7 @@ export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = [])
     'expYear',
     'code',
   ]);
-  const normalizedIdentity = sanitizeEncryptedObject((passthrough as Record<string, unknown>).identity ?? null, [
+  const normalizedIdentity = sanitizeEncryptedObject(p.identity as Record<string, unknown> | null, [
     'title',
     'firstName',
     'middleName',
@@ -337,17 +339,17 @@ export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = [])
     'licenseNumber',
   ]);
   const normalizedSshKey = normalizeCipherSshKeyForCompatibility(
-    (passthrough as Record<string, unknown>).sshKey ?? null
+    p.sshKey as Record<string, unknown> | null
   );
 
   return {
     // 传递所有存储的 cipher 字段（已知 + 未知）
-    ...passthrough,
+    ...(passthrough as CipherResponse),
     // 服务端计算/强制的字段（始终覆盖）
     folderId: normalizeOptionalId(cipher.folderId),
     type: Number(cipher.type) || 1,
-    organizationId: normalizeOptionalId((passthrough as Record<string, unknown>).organizationId ?? null),
-    organizationUseTotp: !!((passthrough as Record<string, unknown>).organizationUseTotp ?? false),
+    organizationId: normalizeOptionalId(p.organizationId as string | null),
+    organizationUseTotp: !!(p.organizationUseTotp ?? false),
     creationDate: createdAt,
     revisionDate: updatedAt,
     deletedDate: deletedAt,
@@ -359,20 +361,20 @@ export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = [])
       restore: true,
     },
     object: 'cipherDetails',
-    collectionIds: Array.isArray((passthrough as Record<string, unknown>).collectionIds)
-      ? (passthrough as Record<string, unknown>).collectionIds
+    collectionIds: Array.isArray(p.collectionIds)
+      ? (p.collectionIds as string[])
       : [],
     attachments: formatAttachments(attachments),
     name: isValidEncString(cipher.name) ? cipher.name.trim() : cipher.name,
     notes: optionalEncString(cipher.notes),
-    login: normalizedLogin,
-    card: normalizedCard,
-    identity: normalizedIdentity,
-    fields: normalizeCipherFieldsForCompatibility((passthrough as Record<string, unknown>).fields),
-    passwordHistory: normalizePasswordHistoryForCompatibility((passthrough as Record<string, unknown>).passwordHistory),
-    sshKey: normalizedSshKey,
+    login: normalizedLogin as CipherLogin | null,
+    card: normalizedCard as CipherCard | null,
+    identity: normalizedIdentity as CipherIdentity | null,
+    fields: normalizeCipherFieldsForCompatibility(p.fields) as CipherField[] | null,
+    passwordHistory: normalizePasswordHistoryForCompatibility(p.passwordHistory),
+    sshKey: normalizedSshKey as CipherSshKey | null,
     key: optionalEncString(cipher.key),
-    encryptedFor: (passthrough as Record<string, unknown>).encryptedFor ?? null,
+    encryptedFor: (p.encryptedFor as string) ?? null,
   };
 }
 
@@ -492,13 +494,13 @@ export async function handleCreateCipher(
   // 不透明透传：展开所有客户端字段以保留未知/未来字段，
   // 然后仅覆盖服务端控制的字段。
   const cipher: Cipher = {
-    ...cipherData,
+    ...(cipherData as unknown as Cipher),
     // 服务端控制的字段（始终覆盖客户端值）
     id: generateUUID(),
     userId: userId,
     type: Number(cipherData.type) || 1,
-    favorite: !!cipherData.favorite,
-    reprompt: cipherData.reprompt || 0,
+    favorite: !!(cipherData.favorite as boolean),
+    reprompt: (cipherData.reprompt as number) || 0,
     createdAt: now,
     updatedAt: now,
     archivedAt: readCipherArchivedAt(cipherData, null),
@@ -521,7 +523,7 @@ export async function handleCreateCipher(
     ? (createPasswordHistory.value ?? null)
     : (cipher.passwordHistory ?? null);
   const createFields = getAliasedProp(cipherData, ['fields', 'Fields']);
-  cipher.fields = createFields.present ? (createFields.value ?? null) : (cipher.fields ?? null);
+  cipher.fields = createFields.present ? (createFields.value as CipherField[] ?? null) : (cipher.fields ?? null);
   normalizeCipherForStorage(cipher);
 
   // 防止引用其他用户拥有的文件夹。
@@ -598,8 +600,8 @@ export async function handleUpdateCipher(
     id: existingCipher.id,
     userId: existingCipher.userId,
     type: nextType,
-    favorite: cipherData.favorite ?? existingCipher.favorite,
-    reprompt: cipherData.reprompt ?? existingCipher.reprompt,
+    favorite: (cipherData.favorite as boolean) ?? existingCipher.favorite,
+    reprompt: (cipherData.reprompt as number) ?? existingCipher.reprompt,
     createdAt: existingCipher.createdAt,
     updatedAt: new Date().toISOString(),
     archivedAt: readCipherArchivedAt(cipherData, existingCipher.archivedAt ?? null),
@@ -651,7 +653,7 @@ export async function handleUpdateCipher(
   //   这防止了陈旧的自定义字段通过合并回退被恢复。
   const incomingFields = getAliasedProp(cipherData, ['fields', 'Fields']);
   if (incomingFields.present) {
-    cipher.fields = incomingFields.value ?? null;
+    cipher.fields = incomingFields.value as CipherField[] ?? null;
   } else if (request.method === 'PUT' || request.method === 'POST') {
     cipher.fields = null;
   }
