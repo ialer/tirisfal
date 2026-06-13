@@ -6,24 +6,24 @@ import { BACKUP_SETTINGS_CONFIG_KEY } from './backup-config';
 import { exportPortableBackupSettingsEnvelope } from './backup-settings-crypto';
 import { getAttachmentObjectKey, getBlobStorageKind } from './blob-store';
 
-// CONTRACT:
-// This file defines the exported instance-backup archive shape. Keep it in lock
-// step with src/services/backup-import.ts and webapp/src/lib/api/backup.ts.
+// 契约：
+// 本文件定义导出的实例备份归档结构。需与 src/services/backup-import.ts
+// 和 webapp/src/lib/api/backup.ts 保持同步。
 //
-// WHEN CHANGING THIS:
-// - Add persistent tables to BackupPayload, export SQL, manifest tableCounts,
-//   and validateBackupPayloadContents().
-// - Keep secrets and transient runtime rows sanitized before writing db.json.
-// - users.api_key is intentionally not exported.
-// - backup.settings.v1 is exported as portable-only; the current server runtime
-//   envelope must not leave the instance.
+// 修改时注意：
+// - 新增持久表时需同步更新 BackupPayload、导出 SQL、清单 tableCounts
+//   及 validateBackupPayloadContents()。
+// - 写入 db.json 前需清理敏感信息和临时运行时行。
+// - users.api_key 不会被导出。
+// - backup.settings.v1 仅以可移植格式导出；当前服务器运行时
+//   信封不得离开实例。
 type SqlRow = Record<string, string | number | null>;
 
 const BACKUP_FORMAT_VERSION = 1;
 const BACKUP_RUNNER_LOCK_CONFIG_KEY = 'backup.runner.lock.v1';
 const BACKUP_FILE_HASH_PREFIX_LENGTH = 5;
-// Worker-side backup export must stay well below Cloudflare CPU limits.
-// Prefer store-only ZIP entries over heavier compression to keep exports reliable.
+// Worker 端备份导出必须远低于 Cloudflare CPU 限制
+// 优先使用仅存储的 ZIP 条目而非压缩，以保证导出可靠性
 const BACKUP_TEXT_COMPRESSION_LEVEL = 0;
 const BACKUP_JSON_INDENT = 2;
 const MAX_BACKUP_ARCHIVE_BYTES = 64 * 1024 * 1024;

@@ -11,6 +11,7 @@ const SIGNALR_UPDATE_TYPE_BACKUP_RESTORE_PROGRESS = 13;
 
 type HubProtocol = 'json' | 'messagepack';
 
+/** WebSocket 附件信息 */
 interface WsAttachment {
   userId: string;
   handshakeComplete: boolean;
@@ -18,6 +19,7 @@ interface WsAttachment {
   deviceIdentifier: string | null;
 }
 
+/** 合并多个字节数组 */
 function concatBytes(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const out = new Uint8Array(total);
@@ -29,16 +31,19 @@ function concatBytes(chunks: Uint8Array[]): Uint8Array {
   return out;
 }
 
+/** 编码 UTF-8 字符串为字节数组 */
 function encodeUtf8(value: string): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
+/** 解码传入消息为字符串 */
 function decodeIncomingMessage(data: string | ArrayBuffer | ArrayBufferView): string {
   if (typeof data === 'string') return data;
   if (data instanceof ArrayBuffer) return new TextDecoder().decode(new Uint8Array(data));
   return new TextDecoder().decode(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
 }
 
+/** MessagePack 整数编码 */
 function encodeMsgPackInteger(value: number): Uint8Array {
   const normalized = Math.trunc(value);
   if (normalized >= 0 && normalized <= 0x7f) {
@@ -60,6 +65,7 @@ function encodeMsgPackInteger(value: number): Uint8Array {
   ]);
 }
 
+/** MessagePack 字符串编码 */
 function encodeMsgPackString(value: string): Uint8Array {
   const bytes = encodeUtf8(value);
   const len = bytes.length;
@@ -72,6 +78,7 @@ function encodeMsgPackString(value: string): Uint8Array {
   return concatBytes([new Uint8Array([0xda, (len >> 8) & 0xff, len & 0xff]), bytes]);
 }
 
+/** MessagePack 时间戳编码 */
 function encodeMsgPackTimestamp(date: Date): Uint8Array {
   const seconds = BigInt(Math.floor(date.getTime() / 1000));
   const nanos = BigInt(date.getMilliseconds()) * 1000000n;
@@ -83,6 +90,7 @@ function encodeMsgPackTimestamp(date: Date): Uint8Array {
   return concatBytes([new Uint8Array([0xc7, 0x08, 0xff]), payload]);
 }
 
+/** MessagePack 数组编码 */
 function encodeMsgPackArray(values: unknown[]): Uint8Array {
   const items = values.map(encodeMsgPack);
   const len = items.length;
@@ -91,6 +99,7 @@ function encodeMsgPackArray(values: unknown[]): Uint8Array {
   return concatBytes([header, ...items]);
 }
 
+/** MessagePack 映射编码 */
 function encodeMsgPackMap(value: Record<string, unknown>): Uint8Array {
   const entries = Object.entries(value);
   const len = entries.length;
@@ -103,6 +112,7 @@ function encodeMsgPackMap(value: Record<string, unknown>): Uint8Array {
   return concatBytes(chunks);
 }
 
+/** MessagePack 编码入口 */
 function encodeMsgPack(value: unknown): Uint8Array {
   if (value === null || value === undefined) return new Uint8Array([0xc0]);
   if (value instanceof Date) return encodeMsgPackTimestamp(value);
@@ -118,6 +128,7 @@ function encodeMsgPack(value: unknown): Uint8Array {
   return encodeMsgPackMap(value as Record<string, unknown>);
 }
 
+/** SignalR 二进制帧封装 */
 function frameSignalRBinary(payload: Uint8Array): Uint8Array {
   const len = payload.length;
   const prefix: number[] = [];
@@ -131,6 +142,7 @@ function frameSignalRBinary(payload: Uint8Array): Uint8Array {
   return concatBytes([new Uint8Array(prefix), payload]);
 }
 
+/** 构建 SignalR JSON 调用消息 */
 function buildSignalRJsonInvocation(
   updateType: number,
   payload: Record<string, unknown>,
@@ -151,12 +163,13 @@ function buildSignalRJsonInvocation(
   );
 }
 
+/** 构建 SignalR MessagePack 调用消息 */
 function buildSignalRMessagePackInvocation(
   updateType: number,
   messagePayload: Record<string, unknown>,
   contextId: string | null
 ): Uint8Array {
-  // SignalR MessagePack hub protocol uses an array-based invocation shape:
+  // SignalR MessagePack 协议使用数组格式的调用消息：
   // [type, headers, invocationId, target, arguments]
   const encodedPayload = encodeMsgPack([
     1,
@@ -174,9 +187,14 @@ function buildSignalRMessagePackInvocation(
   return frameSignalRBinary(encodedPayload);
 }
 
+/**
+ * 通知中心 Durable Object
+ * 管理 WebSocket 连接并广播实时通知
+ */
 export class NotificationsHub extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    // 设置 WebSocket 自动响应（用于心跳）
     this.ctx.setWebSocketAutoResponse(
       new WebSocketRequestResponsePair(
         JSON.stringify({ type: 6 }) + String.fromCharCode(SIGNALR_RECORD_SEPARATOR),
@@ -185,9 +203,16 @@ export class NotificationsHub extends DurableObject<Env> {
     );
   }
 
+  /**
+   * 处理 HTTP 请求
+   * - POST /internal/notify: 广播通知
+   * - GET /internal/online: 获取在线设备列表
+   * - GET /notifications/hub: WebSocket 升级
+   */
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
+    // 内部通知广播端点
     if (url.pathname === '/internal/notify' && request.method === 'POST') {
       const body = (await request.json().catch(() => null)) as {
         revisionDate?: string;
@@ -215,6 +240,7 @@ export class NotificationsHub extends DurableObject<Env> {
       return new Response(null, { status: 204 });
     }
 
+    // 获取在线设备列表
     if (url.pathname === '/internal/online' && request.method === 'GET') {
       return new Response(
         JSON.stringify({ deviceIdentifiers: this.getOnlineDeviceIdentifiers() }),
@@ -227,25 +253,27 @@ export class NotificationsHub extends DurableObject<Env> {
       );
     }
 
+    // WebSocket 升级端点
     if (url.pathname !== '/notifications/hub') {
-      return new Response('Not found', { status: 404 });
+      return new Response('未找到', { status: 404 });
     }
 
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
-      return new Response('Expected websocket', { status: 426 });
+      return new Response('期望 WebSocket', { status: 426 });
     }
 
     const requestUserId = String(url.searchParams.get('nw_uid') || '').trim();
     const requestDeviceIdentifier = String(url.searchParams.get('nw_did') || '').trim() || null;
 
     if (!requestUserId) {
-      return new Response('Unauthorized', { status: 401 });
+      return new Response('未授权', { status: 401 });
     }
 
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
 
+    // 为设备标识符添加标签，用于定向推送
     const tags: string[] = [];
     if (requestDeviceIdentifier) {
       tags.push(`device:${requestDeviceIdentifier}`);
@@ -265,6 +293,7 @@ export class NotificationsHub extends DurableObject<Env> {
     });
   }
 
+  /** 处理 WebSocket 消息 */
   async webSocketMessage(
     ws: WebSocket,
     message: string | ArrayBuffer | ArrayBufferView
@@ -272,6 +301,7 @@ export class NotificationsHub extends DurableObject<Env> {
     const attachment = ws.deserializeAttachment() as WsAttachment | null;
     if (!attachment) return;
 
+    // 握手阶段：解析客户端协议选择
     if (!attachment.handshakeComplete) {
       const text = decodeIncomingMessage(message);
       const frames = text.split(String.fromCharCode(SIGNALR_RECORD_SEPARATOR)).filter(Boolean);
@@ -285,21 +315,23 @@ export class NotificationsHub extends DurableObject<Env> {
           this.broadcastDeviceStatus(attachment.userId);
           return;
         } catch {
-          // Ignore malformed pre-handshake payloads.
+          // 忽略格式错误的握手消息
         }
       }
       return;
     }
 
+    // 握手完成后回显二进制消息
     if (typeof message !== 'string') {
       try {
         ws.send(message);
       } catch {
-        // ignore send errors on echo
+        // 忽略回显错误
       }
     }
   }
 
+  /** 处理 WebSocket 关闭 */
   async webSocketClose(
     ws: WebSocket,
     code: number,
@@ -313,6 +345,7 @@ export class NotificationsHub extends DurableObject<Env> {
     }
   }
 
+  /** 处理 WebSocket 错误 */
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     const attachment = ws.deserializeAttachment() as WsAttachment | null;
     const shouldBroadcast = !!attachment?.handshakeComplete;
@@ -321,6 +354,7 @@ export class NotificationsHub extends DurableObject<Env> {
     }
   }
 
+  /** 获取在线设备标识符列表 */
   private getOnlineDeviceIdentifiers(): string[] {
     const out = new Set<string>();
     for (const ws of this.ctx.getWebSockets()) {
@@ -331,6 +365,9 @@ export class NotificationsHub extends DurableObject<Env> {
     return Array.from(out);
   }
 
+  /**
+   * 广播消息到所有（或指定设备的）WebSocket 连接
+   */
   private broadcastMessage(
     updateType: number,
     payload: Record<string, unknown>,
@@ -354,14 +391,15 @@ export class NotificationsHub extends DurableObject<Env> {
         }
       } catch {
         try {
-          ws.close(1011, 'Notification send failed');
+          ws.close(1011, '通知发送失败');
         } catch {
-          // ignore close races
+          // 忽略关闭竞争
         }
       }
     }
   }
 
+  /** 广播设备状态更新 */
   private broadcastDeviceStatus(userId: string): void {
     this.broadcastMessage(
       SIGNALR_UPDATE_TYPE_DEVICE_STATUS,
@@ -375,6 +413,9 @@ export class NotificationsHub extends DurableObject<Env> {
   }
 }
 
+/**
+ * 通知用户保险库同步
+ */
 export function notifyUserVaultSync(
   env: Env,
   userId: string,
@@ -393,6 +434,9 @@ export function notifyUserVaultSync(
   );
 }
 
+/**
+ * 通知用户登出
+ */
 export function notifyUserLogout(
   env: Env,
   userId: string,
@@ -410,6 +454,9 @@ export function notifyUserLogout(
   );
 }
 
+/**
+ * 获取用户在线设备列表
+ */
 export async function getOnlineUserDevices(env: Env, userId: string): Promise<string[]> {
   try {
     const id = env.NOTIFICATIONS_HUB.idFromName(userId);
@@ -427,6 +474,7 @@ export async function getOnlineUserDevices(env: Env, userId: string): Promise<st
   }
 }
 
+/** 内部通知更新函数 */
 async function notifyUserUpdate(
   env: Env,
   userId: string,
@@ -456,10 +504,13 @@ async function notifyUserUpdate(
       }),
     });
   } catch (error) {
-    console.error('Failed to broadcast realtime notification:', error);
+    console.error('广播实时通知失败:', error);
   }
 }
 
+/**
+ * 通知用户备份进度
+ */
 export async function notifyUserBackupProgress(
   env: Env,
   userId: string,
@@ -501,10 +552,13 @@ export async function notifyUserBackupProgress(
       }),
     });
   } catch (error) {
-    console.error('Failed to broadcast backup progress:', error);
+    console.error('广播备份进度失败:', error);
   }
 }
 
+/**
+ * 通知用户备份恢复进度
+ */
 export async function notifyUserBackupRestoreProgress(
   env: Env,
   userId: string,

@@ -30,7 +30,7 @@ function hasKvStorage(env: Env): env is Env & { ATTACHMENTS_KV: KVNamespace } {
 }
 
 export function getBlobStorageKind(env: Env): 'r2' | 'kv' | null {
-  // Keep R2 as preferred backend when both are bound.
+  // 两者同时绑定时优先使用 R2 作为后端
   if (hasR2Storage(env)) return 'r2';
   if (hasKvStorage(env)) return 'kv';
   return null;

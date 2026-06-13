@@ -15,6 +15,10 @@ import {
 } from './handlers/backup';
 import type { Env, User } from './types';
 
+/**
+ * 管理员备份路由处理
+ * 处理备份导出、导入、远程备份管理等操作
+ */
 export async function handleAdminBackupRoute(
   request: Request,
   env: Env,

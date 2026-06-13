@@ -67,6 +67,10 @@ import { handleAuthenticatedDeviceRoute } from './router-devices';
 import type { Env, User } from './types';
 import { errorResponse, jsonResponse } from './utils/response';
 
+/**
+ * 已认证路由处理
+ * 处理密码项、文件夹、Send、同步等需要认证的 API 请求
+ */
 export async function handleAuthenticatedRoute(
   request: Request,
   env: Env,
@@ -75,6 +79,7 @@ export async function handleAuthenticatedRoute(
   path: string,
   method: string
 ): Promise<Response | null> {
+  // 已禁用的账户操作
   if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
     const blockedAccountPaths = new Set([
       '/api/accounts/set-password',
@@ -83,16 +88,18 @@ export async function handleAuthenticatedRoute(
       '/api/accounts/delete-vault',
     ]);
     if (blockedAccountPaths.has(path)) {
-      return errorResponse('Not implemented', 501);
+      return errorResponse('未实现', 501);
     }
   }
 
+  // 用户配置接口
   if (path === '/api/accounts/profile') {
     if (method === 'GET') return handleGetProfile(request, env, userId);
     if (method === 'PUT') return handleUpdateProfile(request, env, userId);
-    return errorResponse('Method not allowed', 405);
+    return errorResponse('方法不允许', 405);
   }
 
+  // 修改密码
   if (
     (path === '/api/accounts/password' || path === '/api/accounts/change-password') &&
     (method === 'POST' || method === 'PUT')
@@ -100,16 +107,19 @@ export async function handleAuthenticatedRoute(
     return handleChangePassword(request, env, userId);
   }
 
+  // 设置密钥
   if (path === '/api/accounts/keys' && method === 'POST') {
     return handleSetKeys(request, env, userId);
   }
 
+  // TOTP 两步验证
   if (path === '/api/accounts/totp') {
     if (method === 'GET') return handleGetTotpStatus(request, env, userId);
     if (method === 'PUT' || method === 'POST') return handleSetTotpStatus(request, env, userId);
     return null;
   }
 
+  // TOTP 恢复码
   if (
     (path === '/api/accounts/totp/recovery-code' || path === '/api/two-factor/get-recover') &&
     method === 'POST'
@@ -117,22 +127,27 @@ export async function handleAuthenticatedRoute(
     return handleGetTotpRecoveryCode(request, env, userId);
   }
 
+  // 获取修订日期
   if (path === '/api/accounts/revision-date' && method === 'GET') {
     return handleGetRevisionDate(request, env, userId);
   }
 
+  // 验证密码
   if (path === '/api/accounts/verify-password' && method === 'POST') {
     return handleVerifyPassword(request, env, userId);
   }
 
+  // 设备验证设置
   if (path === '/api/accounts/verify-devices' && (method === 'PUT' || method === 'POST')) {
     return handleSetVerifyDevices(request, env, userId);
   }
 
+  // API 密钥
   if ((path === '/api/accounts/api-key' || path === '/api/accounts/api_key') && method === 'POST') {
     return handleGetApiKey(request, env, userId);
   }
 
+  // 轮换 API 密钥
   if (
     (path === '/api/accounts/rotate-api-key' || path === '/api/accounts/rotate_api_key') &&
     method === 'POST'
@@ -140,48 +155,59 @@ export async function handleAuthenticatedRoute(
     return handleRotateApiKey(request, env, userId);
   }
 
+  // 数据同步
   if (path === '/api/sync' && method === 'GET') {
     return handleSync(request, env, userId);
   }
 
+  // 通知路径（不支持）
   if (path.startsWith('/notifications/')) {
-    return errorResponse('Not found', 404);
+    return errorResponse('未找到', 404);
   }
 
+  // 密码项管理
   if (path === '/api/ciphers' || path === '/api/ciphers/create') {
     if (method === 'GET') return handleGetCiphers(request, env, userId);
     if (method === 'POST') return handleCreateCipher(request, env, userId);
     return null;
   }
 
+  // 批量导入密码项
   if (path === '/api/ciphers/import' && method === 'POST') {
     return handleCiphersImport(request, env, userId);
   }
 
+  // 批量删除密码项
   if (path === '/api/ciphers/delete' && method === 'POST') {
     return handleBulkDeleteCiphers(request, env, userId);
   }
 
+  // 批量永久删除密码项
   if (path === '/api/ciphers/delete-permanent' && method === 'POST') {
     return handleBulkPermanentDeleteCiphers(request, env, userId);
   }
 
+  // 批量恢复密码项
   if (path === '/api/ciphers/restore' && method === 'POST') {
     return handleBulkRestoreCiphers(request, env, userId);
   }
 
+  // 批量归档密码项
   if (path === '/api/ciphers/archive' && (method === 'PUT' || method === 'POST')) {
     return handleBulkArchiveCiphers(request, env, userId);
   }
 
+  // 批量取消归档密码项
   if (path === '/api/ciphers/unarchive' && (method === 'PUT' || method === 'POST')) {
     return handleBulkUnarchiveCiphers(request, env, userId);
   }
 
+  // 批量移动密码项
   if (path === '/api/ciphers/move' && (method === 'POST' || method === 'PUT')) {
     return handleBulkMoveCiphers(request, env, userId);
   }
 
+  // 单个密码项操作
   const cipherMatch = path.match(/^\/api\/ciphers\/([a-f0-9-]+)(\/.*)?$/i);
   if (cipherMatch) {
     const cipherId = cipherMatch[1];
@@ -215,6 +241,7 @@ export async function handleAuthenticatedRoute(
     if (subPath === '/attachment' && method === 'POST')
       return handleCreateAttachment(request, env, userId, cipherId);
 
+    // 附件操作
     const attachmentMatch = subPath.match(/^\/attachment\/([a-f0-9-]+)$/i);
     if (attachmentMatch) {
       const attachmentId = attachmentMatch[1];
@@ -226,6 +253,7 @@ export async function handleAuthenticatedRoute(
         return handleDeleteAttachment(request, env, userId, cipherId, attachmentId);
     }
 
+    // 更新附件元数据
     const attachmentMetadataMatch = subPath.match(/^\/attachment\/([a-f0-9-]+)\/metadata$/i);
     if (attachmentMetadataMatch && (method === 'POST' || method === 'PUT')) {
       return handleUpdateAttachmentMetadata(
@@ -237,22 +265,26 @@ export async function handleAuthenticatedRoute(
       );
     }
 
+    // 删除附件
     const attachmentDeleteMatch = subPath.match(/^\/attachment\/([a-f0-9-]+)\/delete$/i);
     if (attachmentDeleteMatch && method === 'POST') {
       return handleDeleteAttachment(request, env, userId, cipherId, attachmentDeleteMatch[1]);
     }
   }
 
+  // 文件夹管理
   if (path === '/api/folders') {
     if (method === 'GET') return handleGetFolders(request, env, userId);
     if (method === 'POST') return handleCreateFolder(request, env, userId);
     return null;
   }
 
+  // 批量删除文件夹
   if (path === '/api/folders/delete' && method === 'POST') {
     return handleBulkDeleteFolders(request, env, userId);
   }
 
+  // 单个文件夹操作
   const folderMatch = path.match(/^\/api\/folders\/([a-f0-9-]+)$/i);
   if (folderMatch) {
     const folderId = folderMatch[1];
@@ -261,10 +293,12 @@ export async function handleAuthenticatedRoute(
     if (method === 'DELETE') return handleDeleteFolder(request, env, userId, folderId);
   }
 
+  // 认证请求（返回空列表）
   if (path.startsWith('/api/auth-requests')) {
     return jsonResponse({ data: [], object: 'list', continuationToken: null });
   }
 
+  // 集合（返回空列表）
   if (path === '/api/collections' || path.startsWith('/api/collections/')) {
     if (method === 'GET') {
       return jsonResponse({ data: [], object: 'list', continuationToken: null });
@@ -272,6 +306,7 @@ export async function handleAuthenticatedRoute(
     return null;
   }
 
+  // 组织（返回空列表）
   if (path === '/api/organizations' || path.startsWith('/api/organizations/')) {
     if (method === 'GET') {
       return jsonResponse({ data: [], object: 'list', continuationToken: null });
@@ -279,20 +314,24 @@ export async function handleAuthenticatedRoute(
     return null;
   }
 
+  // Send 管理
   if (path === '/api/sends') {
     if (method === 'GET') return handleGetSends(request, env, userId);
     if (method === 'POST') return handleCreateSend(request, env, userId);
     return null;
   }
 
+  // 创建文件类型 Send（V2）
   if (path === '/api/sends/file/v2' && method === 'POST') {
     return handleCreateFileSendV2(request, env, userId);
   }
 
+  // 批量删除 Send
   if (path === '/api/sends/delete' && method === 'POST') {
     return handleBulkDeleteSends(request, env, userId);
   }
 
+  // 单个 Send 操作
   const sendMatch = path.match(/^\/api\/sends\/([^/]+)(\/.*)?$/i);
   if (sendMatch) {
     const sendId = sendMatch[1];
@@ -312,6 +351,7 @@ export async function handleAuthenticatedRoute(
       return handleRemoveSendAuth(request, env, userId, sendId);
     }
 
+    // Send 文件上传
     const sendFileUploadMatch = subPath.match(/^\/file\/([^/]+)\/?$/i);
     if (sendFileUploadMatch) {
       const fileId = sendFileUploadMatch[1];
@@ -321,6 +361,7 @@ export async function handleAuthenticatedRoute(
     }
   }
 
+  // 策略（返回空列表）
   if (path === '/api/policies' || path.startsWith('/api/policies/')) {
     if (method === 'GET') {
       return jsonResponse({ data: [], object: 'list', continuationToken: null });
@@ -328,12 +369,14 @@ export async function handleAuthenticatedRoute(
     return null;
   }
 
+  // 域名设置
   if (path === '/api/settings/domains' || path === '/settings/domains') {
     if (method === 'GET') return handleGetDomains(env, userId);
     if (method === 'PUT' || method === 'POST') return handleUpdateDomains(request, env, userId);
     return null;
   }
 
+  // 设备管理路由
   const authenticatedDeviceResponse = await handleAuthenticatedDeviceRoute(
     request,
     env,
@@ -343,6 +386,7 @@ export async function handleAuthenticatedRoute(
   );
   if (authenticatedDeviceResponse) return authenticatedDeviceResponse;
 
+  // 管理员路由
   const adminResponse = await handleAdminRoute(request, env, currentUser, path, method);
   if (adminResponse) return adminResponse;
 

@@ -1,4 +1,4 @@
-// Secrets Manager Types
+/** Secrets Manager 类型定义 */
 
 export interface MachineAccount {
   id: string;
@@ -51,7 +51,7 @@ export interface SecretAccessLog {
   created_at: string;
 }
 
-// API 请求/响应类型
+/** API 请求/响应类型 */
 export interface CreateMachineAccountRequest {
   name: string;
   description?: string;

@@ -10,6 +10,10 @@ import {
 import { handleAdminBackupRoute } from './router-admin-backup';
 import type { Env, User } from './types';
 
+/**
+ * 管理员路由处理
+ * 处理用户管理、邀请管理等管理员操作
+ */
 export async function handleAdminRoute(
   request: Request,
   env: Env,

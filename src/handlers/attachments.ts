@@ -35,7 +35,7 @@ function notifyVaultSyncForRequest(
   notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
 }
 
-// Format file size to human readable
+// 将文件大小格式化为人类可读格式
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} Bytes`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
@@ -107,8 +107,8 @@ async function processAttachmentUpload(
   return new Response(null, { status: 201 });
 }
 
-// POST /api/ciphers/{cipherId}/attachment/v2
-// Creates attachment metadata and returns upload URL
+// [POST] /api/ciphers/{cipherId}/attachment/v2
+// 创建附件元数据并返回上传 URL
 export async function handleCreateAttachment(
   request: Request,
   env: Env,
@@ -117,7 +117,7 @@ export async function handleCreateAttachment(
 ): Promise<Response> {
   const storage = new StorageService(env.DB);
 
-  // Verify cipher exists and belongs to user
+  // 验证 cipher 存在且属于当前用户
   const cipher = await storage.getCipher(cipherId);
   if (!cipher || cipher.userId !== userId) {
     return errorResponse('Cipher not found', 404);
@@ -142,7 +142,7 @@ export async function handleCreateAttachment(
   const fileSize = body.fileSize || 0;
   const attachmentId = generateUUID();
 
-  // Create attachment metadata
+  // 创建附件元数据
   const attachment: Attachment = {
     id: attachmentId,
     cipherId: cipherId,
@@ -152,19 +152,19 @@ export async function handleCreateAttachment(
     key: body.key,
   };
 
-  // Save attachment metadata
+  // 保存附件元数据
   await storage.saveAttachment(attachment);
 
-  // Add attachment to cipher
+  // 将附件添加到 cipher
   await storage.addAttachmentToCipher(cipherId, attachmentId);
 
-  // Update cipher revision date
+  // 更新 cipher 修订日期
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
     notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
   }
 
-  // Get updated cipher for response
+  // 获取更新后的 cipher 用于响应
   const updatedCipher = await storage.getCipher(cipherId);
   const attachments = await storage.getAttachmentsByCipher(cipherId);
   const jwtSecret = getSafeJwtSecret(env);
@@ -186,8 +186,8 @@ export async function handleCreateAttachment(
   });
 }
 
-// POST /api/ciphers/{cipherId}/attachment/{attachmentId}
-// Upload attachment file content
+// [POST] /api/ciphers/{cipherId}/attachment/{attachmentId}
+// 上传附件文件内容
 export async function handleUploadAttachment(
   request: Request,
   env: Env,
@@ -197,13 +197,13 @@ export async function handleUploadAttachment(
 ): Promise<Response> {
   const storage = new StorageService(env.DB);
 
-  // Verify cipher exists and belongs to user
+  // 验证 cipher 存在且属于当前用户
   const cipher = await storage.getCipher(cipherId);
   if (!cipher || cipher.userId !== userId) {
     return errorResponse('Cipher not found', 404);
   }
 
-  // Verify attachment exists
+  // 验证附件存在
   const attachment = await storage.getAttachment(attachmentId);
   if (!attachment || attachment.cipherId !== cipherId) {
     return errorResponse('Attachment not found', 404);
@@ -250,8 +250,8 @@ export async function handlePublicUploadAttachment(
   return processAttachmentUpload(request, env, attachment, cipherId);
 }
 
-// GET /api/ciphers/{cipherId}/attachment/{attachmentId}
-// Get attachment download info
+// [GET] /api/ciphers/{cipherId}/attachment/{attachmentId}
+// 获取附件下载信息
 export async function handleGetAttachment(
   request: Request,
   env: Env,
@@ -261,22 +261,22 @@ export async function handleGetAttachment(
 ): Promise<Response> {
   const storage = new StorageService(env.DB);
 
-  // Verify cipher exists and belongs to user
+  // 验证 cipher 存在且属于当前用户
   const cipher = await storage.getCipher(cipherId);
   if (!cipher || cipher.userId !== userId) {
     return errorResponse('Cipher not found', 404);
   }
 
-  // Verify attachment exists
+  // 验证附件存在
   const attachment = await storage.getAttachment(attachmentId);
   if (!attachment || attachment.cipherId !== cipherId) {
     return errorResponse('Attachment not found', 404);
   }
 
-  // Generate short-lived download token
+  // 生成短期有效的下载令牌
   const token = await createFileDownloadToken(cipherId, attachmentId, env.JWT_SECRET);
 
-  // Generate download URL with token
+  // 生成带令牌的下载 URL
   const url = new URL(request.url);
   const downloadUrl = `${url.origin}/api/attachments/${cipherId}/${attachmentId}?token=${token}`;
 
@@ -352,8 +352,8 @@ export async function handleUpdateAttachmentMetadata(
   });
 }
 
-// GET /api/attachments/{cipherId}/{attachmentId}?token=xxx
-// Public download endpoint (uses token for auth instead of header)
+// [GET] /api/attachments/{cipherId}/{attachmentId}?token=xxx
+// 公开下载端点（使用令牌而非请求头进行认证）
 export async function handlePublicDownloadAttachment(
   request: Request,
   env: Env,
@@ -372,20 +372,20 @@ export async function handlePublicDownloadAttachment(
     return errorResponse('Token required', 401);
   }
 
-  // Verify token
+  // 验证令牌
   const claims = await verifyFileDownloadToken(token, env.JWT_SECRET);
   if (!claims) {
     return errorResponse('Invalid or expired token', 401);
   }
 
-  // Verify token matches request
+  // 验证令牌与请求匹配
   if (claims.cipherId !== cipherId || claims.attachmentId !== attachmentId) {
     return errorResponse('Token mismatch', 401);
   }
 
   const storage = new StorageService(env.DB);
 
-  // Verify attachment exists
+  // 验证附件存在
   const attachment = await storage.getAttachment(attachmentId);
   if (!attachment || attachment.cipherId !== cipherId) {
     return errorResponse('Attachment not found', 404);
@@ -412,8 +412,8 @@ export async function handlePublicDownloadAttachment(
   });
 }
 
-// DELETE /api/ciphers/{cipherId}/attachment/{attachmentId}
-// Delete attachment
+// [DELETE] /api/ciphers/{cipherId}/attachment/{attachmentId}
+// 删除附件
 export async function handleDeleteAttachment(
   request: Request,
   env: Env,
@@ -423,13 +423,13 @@ export async function handleDeleteAttachment(
 ): Promise<Response> {
   const storage = new StorageService(env.DB);
 
-  // Verify cipher exists and belongs to user
+  // 验证 cipher 存在且属于当前用户
   const cipher = await storage.getCipher(cipherId);
   if (!cipher || cipher.userId !== userId) {
     return errorResponse('Cipher not found', 404);
   }
 
-  // Verify attachment exists
+  // 验证附件存在
   const attachment = await storage.getAttachment(attachmentId);
   if (!attachment || attachment.cipherId !== cipherId) {
     return errorResponse('Attachment not found', 404);
@@ -438,16 +438,16 @@ export async function handleDeleteAttachment(
   const path = getAttachmentObjectKey(cipherId, attachmentId);
   await deleteBlobObject(env, path);
 
-  // Delete attachment metadata
+  // 删除附件元数据
   await storage.deleteAttachment(attachmentId);
 
-  // Update cipher revision date
+  // 更新 cipher 修订日期
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
     notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
   }
 
-  // Get updated cipher for response
+  // 获取更新后的 cipher 用于响应
   const updatedCipher = await storage.getCipher(cipherId);
   const attachments = await storage.getAttachmentsByCipher(cipherId);
 
@@ -456,7 +456,7 @@ export async function handleDeleteAttachment(
   });
 }
 
-// Delete all attachments for a cipher (used when deleting cipher)
+// 删除 cipher 的所有附件（删除 cipher 时使用）
 export async function deleteAllAttachmentsForCipher(env: Env, cipherId: string): Promise<void> {
   await deleteAllAttachmentsForCiphers(env, [cipherId]);
 }

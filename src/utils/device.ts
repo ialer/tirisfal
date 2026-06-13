@@ -1,6 +1,9 @@
-const DEFAULT_DEVICE_NAME = 'Unknown device';
+const DEFAULT_DEVICE_NAME = '未知设备';
 const DEFAULT_DEVICE_TYPE = 14;
 
+/**
+ * 将 Base64 URL 编码的字符串解码为 UTF-8 文本
+ */
 function decodeBase64UrlUtf8(value: string): string | null {
   try {
     const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -17,6 +20,9 @@ function decodeBase64UrlUtf8(value: string): string | null {
   }
 }
 
+/**
+ * 标准化设备标识符，去除空白并限制长度
+ */
 function normalizeDeviceIdentifier(value: string | undefined | null): string | null {
   if (!value) return null;
   const normalized = String(value).trim();
@@ -24,12 +30,18 @@ function normalizeDeviceIdentifier(value: string | undefined | null): string | n
   return normalized.slice(0, 128);
 }
 
+/**
+ * 标准化设备名称，空白则返回默认名称
+ */
 function normalizeDeviceName(value: string | undefined | null): string {
   const normalized = String(value || '').trim();
   if (!normalized) return DEFAULT_DEVICE_NAME;
   return normalized.slice(0, 128);
 }
 
+/**
+ * 解析设备类型，无效值返回默认类型
+ */
 function parseDeviceType(value: string | number | undefined | null): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.max(0, Math.floor(value));
@@ -39,12 +51,19 @@ function parseDeviceType(value: string | number | undefined | null): number {
   return DEFAULT_DEVICE_TYPE;
 }
 
+/** 设备信息接口 */
 export interface AuthRequestDeviceInfo {
   deviceIdentifier: string | null;
   deviceName: string;
   deviceType: number;
 }
 
+/**
+ * 从请求体和请求头中读取设备信息
+ * @param body - 请求体
+ * @param request - HTTP 请求对象
+ * @returns 标准化后的设备信息
+ */
 export function readAuthRequestDeviceInfo(
   body: Record<string, string | undefined>,
   request: Request
@@ -63,6 +82,9 @@ export function readAuthRequestDeviceInfo(
   };
 }
 
+/**
+ * 读取已知设备探测信息（邮箱和设备标识符）
+ */
 export function readKnownDeviceProbe(request: Request): {
   email: string | null;
   deviceIdentifier: string | null;
@@ -75,6 +97,9 @@ export function readKnownDeviceProbe(request: Request): {
   return { email, deviceIdentifier };
 }
 
+/**
+ * 读取当前操作设备的标识符
+ */
 export function readActingDeviceIdentifier(request: Request): string | null {
   return normalizeDeviceIdentifier(request.headers.get('X-Tirisfal-Acting-Device-Id'));
 }

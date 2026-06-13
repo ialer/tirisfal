@@ -14,16 +14,15 @@ import {
   putBlobObject,
 } from './blob-store';
 
-// CONTRACT:
-// Restore is intentionally whitelist-based. Old backups may contain retired
-// fields, but only the columns listed here are imported. Keep this file in sync
-// with src/services/backup-archive.ts whenever backup contents change.
+// 契约：
+// 恢复操作采用白名单机制。旧备份可能包含已废弃字段，
+// 但仅导入此处列出的列。当备份内容变更时，
+// 需与此文件及 src/services/backup-archive.ts 保持同步。
 //
-// WHEN CHANGING THIS:
-// - Update BackupTableName, BACKUP_TABLES, reset statements, prepared payloads,
-//   shadow-table count validation, insert column lists, and frontend import
-//   count types together.
-// - Do not import users.api_key, even if an older backup contains it.
+// 修改时注意：
+// - 同步更新 BackupTableName、BACKUP_TABLES、重置语句、预处理载荷、
+//   影子表数量验证、插入列列表及前端导入计数类型。
+// - 即使旧备份包含 users.api_key，也不要导入。
 type SqlRow = Record<string, string | number | null>;
 type BackupTableName =
   | 'config'

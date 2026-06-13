@@ -1,15 +1,14 @@
 import type { Env, User } from '../types';
 
-// CONTRACT:
-// Backup settings contain provider credentials. They are stored as a v2 envelope:
-// - runtime: AES-GCM encrypted with a key derived from JWT_SECRET for the current
-//   server's scheduled backup runner.
-// - portable: AES-GCM encrypted with a random DEK; that DEK is RSA-wrapped for
-//   active admin public keys so settings can be repaired after restore/migration.
+// 契约：
+// 备份设置包含提供商凭据，以 v2 信封格式存储：
+// - runtime：使用 JWT_SECRET 派生的密钥进行 AES-GCM 加密，
+//   供当前服务器的定时备份运行器使用。
+// - portable：使用随机 DEK 进行 AES-GCM 加密；该 DEK 使用
+//   活跃管理员公钥进行 RSA 包装，以便在恢复/迁移后修复设置。
 //
-// New admin-entered provider secrets, such as mail API keys, should use this
-// pattern or a deliberately documented replacement. Do not store provider
-// secrets as plain config JSON.
+// 新管理员输入的提供商密钥（如邮件 API 密钥）应使用此模式
+// 或有文档记录的替代方案。不要将提供商密钥存储为明文配置 JSON。
 const RUNTIME_SALT = 'tirisfal.backup-settings.runtime.v2';
 const RUNTIME_INFO = 'runtime';
 const PORTABLE_ALGORITHM = 'RSA-OAEP';

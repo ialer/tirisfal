@@ -1,8 +1,8 @@
 import { LIMITS } from '../config/limits';
 
-// Rate limiting service.
-// - Login attempts: D1-backed (low volume, security-critical, needs cross-colo persistence).
-// - API budgets: D1-backed (atomic operations prevent race conditions).
+// 速率限制服务
+// - 登录尝试：基于 D1（低频、安全关键，需要跨数据中心持久化）
+// - API 预算：基于 D1（原子操作防止竞态条件）
 
 const CONFIG = {
   LOGIN_MAX_ATTEMPTS: LIMITS.rateLimit.loginMaxAttempts,
@@ -110,9 +110,9 @@ export class RateLimitService {
     const now = Date.now();
     await this.maybeCleanupLoginAttemptsIp(now);
 
-    // D1 in Workers forbids raw BEGIN/COMMIT statements.
-    // Use a single atomic UPSERT to increment attempts.
-    // This is concurrency-safe because the row is keyed by IP.
+    // D1 在 Workers 中禁止原始 BEGIN/COMMIT 语句
+    // 使用单个原子 UPSERT 递增尝试次数
+    // 按 IP 分键，因此并发安全
     await this.db
       .prepare(
         'INSERT INTO login_attempts_ip(ip, attempts, locked_until, updated_at) VALUES(?, 1, NULL, ?) ' +
@@ -171,8 +171,8 @@ export class RateLimitService {
     RateLimitService.lastRateLimitCleanupAt = nowSec;
   }
 
-  // D1-backed fixed-window rate limiter with atomic operations.
-  // Uses UPSERT to prevent race conditions between concurrent requests.
+  // 基于 D1 的固定窗口速率限制器，使用原子操作
+  // 使用 UPSERT 防止并发请求间的竞态条件
   private async consumeFixedWindowBudget(
     identifier: string,
     maxRequests: number,
@@ -185,7 +185,7 @@ export class RateLimitService {
     const windowEnd = windowStart + windowSeconds;
     const ttl = Math.max(1, windowEnd - nowSec);
 
-    // Atomic increment using UPSERT - prevents race conditions
+    // 原子递增，使用 UPSERT 防止竞态条件
     await this.db
       .prepare(
         'INSERT INTO rate_limits(key, count, window_start, expires_at) VALUES(?, 1, ?, ?) ' +
@@ -202,21 +202,20 @@ export class RateLimitService {
 
     const count = row?.count || 1;
 
-    // Check if exceeded
+    // 检查是否超出限制
     if (count > maxRequests) {
       return { allowed: false, remaining: 0, retryAfterSeconds: ttl };
     }
 
-    // Periodic cleanup of expired entries
+    // 定期清理过期条目
     await this.maybeCleanupRateLimits(nowSec);
 
     return { allowed: true, remaining: Math.max(0, maxRequests - count) };
   }
 
-  // General-purpose fixed-window budget.
-  // Callers supply an identifier (must be unique per rate-limit category) and the
-  // per-window maximum.  This single method replaces all previous specialised
-  // budget helpers (write / sync / knownDevice / publicSend).
+  // 通用固定窗口预算
+  // 调用方提供标识符（每个速率限制类别必须唯一）和每窗口最大值。
+  // 此单一方法替代所有先前的专用预算辅助函数（write/sync/knownDevice/publicSend）
   async consumeBudget(
     identifier: string,
     maxRequests: number
@@ -260,7 +259,7 @@ function parseIpv6Hextets(input: string): number[] | null {
   }
   if (!value.includes(':')) return null;
 
-  // Handle IPv4-mapped tail (e.g. ::ffff:192.0.2.1).
+  // 处理 IPv4 映射尾部（如 ::ffff:192.0.2.1）
   if (value.includes('.')) {
     const lastColon = value.lastIndexOf(':');
     if (lastColon < 0) return null;
@@ -324,8 +323,8 @@ function normalizeClientIpForRateLimit(rawIp: string): string | null {
   const ipv6 = parseIpv6Hextets(input);
   if (!ipv6) return null;
 
-  // Handle IPv4-mapped / IPv4-compatible IPv6 as IPv4 identity.
-  // Examples: ::ffff:192.0.2.1, ::192.0.2.1
+  // 处理 IPv4 映射/兼容的 IPv6 作为 IPv4 标识
+  // 示例：::ffff:192.0.2.1, ::192.0.2.1
   if (
     ipv6[0] === 0 &&
     ipv6[1] === 0 &&
@@ -338,7 +337,7 @@ function normalizeClientIpForRateLimit(rawIp: string): string | null {
     return `ip4:${octets.join('.')}`;
   }
 
-  // Collapse to /64 to reduce brute-force bypass via IPv6 address rotation.
+  // 折叠为 /64 以减少通过 IPv6 地址轮换的暴力破解绕过
   const prefix64 = ipv6
     .slice(0, 4)
     .map((part) => part.toString(16).padStart(4, '0'))

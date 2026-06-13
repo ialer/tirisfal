@@ -13,15 +13,18 @@ import type { Env } from './types';
 import { DEFAULT_DEV_SECRET } from './types';
 import { jsonResponse } from './utils/response';
 
+/** 公开接口速率限制器类型 */
 type PublicRateLimiter = (category?: string, maxRequests?: number) => Promise<Response | null>;
 type JwtUnsafeReason = 'missing' | 'default' | 'too_short' | null;
 
+/** Web 启动引导响应 */
 export interface WebBootstrapResponse {
   defaultKdfIterations: number;
   jwtUnsafeReason: JwtUnsafeReason;
   jwtSecretMinLength: number;
 }
 
+/** 判断是否为同源写请求 */
 function isSameOriginWriteRequest(request: Request): boolean {
   const targetOrigin = new URL(request.url).origin;
   const origin = request.headers.get('Origin');
@@ -33,6 +36,7 @@ function isSameOriginWriteRequest(request: Request): boolean {
   return false;
 }
 
+/** 构建配置响应 */
 function buildConfigResponse(origin: string) {
   return {
     version: LIMITS.compatibility.bitwardenServerVersion,
@@ -57,6 +61,10 @@ function buildConfigResponse(origin: string) {
   };
 }
 
+/**
+ * 构建 Web 启动引导响应
+ * 包含默认 KDF 迭代次数和 JWT 密钥安全状态
+ */
 export function buildWebBootstrapResponse(env: Env): WebBootstrapResponse {
   const secret = (env.JWT_SECRET || '').trim();
   const jwtUnsafeReason = !secret
@@ -74,6 +82,10 @@ export function buildWebBootstrapResponse(env: Env): WebBootstrapResponse {
   };
 }
 
+/**
+ * 公开路由处理
+ * 处理无需认证的 API 请求，如登录、注册、Send 访问等
+ */
 export async function handlePublicRoute(
   request: Request,
   env: Env,
@@ -81,6 +93,7 @@ export async function handlePublicRoute(
   method: string,
   enforcePublicRateLimit: PublicRateLimiter
 ): Promise<Response | null> {
+  // Chrome DevTools 兼容端点
   if (path === '/.well-known/appspecific/com.chrome.devtools.json' && method === 'GET') {
     return new Response('{}', {
       status: 200,
@@ -91,6 +104,7 @@ export async function handlePublicRoute(
     });
   }
 
+  // Web 启动引导
   if ((path === '/api/web-bootstrap' || path === '/web-bootstrap') && method === 'GET') {
     const blocked = await enforcePublicRateLimit(
       'public-read',
@@ -100,6 +114,7 @@ export async function handlePublicRoute(
     return jsonResponse(buildWebBootstrapResponse(env));
   }
 
+  // 网站图标代理
   const iconMatch = path.match(/^\/icons\/([^/]+)\/icon\.png$/i);
   if (iconMatch && method === 'GET') {
     const fallbackMode =
@@ -107,6 +122,7 @@ export async function handlePublicRoute(
     return handleWebsiteIcon(iconMatch[1], fallbackMode);
   }
 
+  // 公开附件下载
   const publicAttachmentMatch = path.match(/^\/api\/attachments\/([a-f0-9-]+)\/([a-f0-9-]+)$/i);
   if (publicAttachmentMatch && method === 'GET') {
     return handlePublicDownloadAttachment(
@@ -117,6 +133,7 @@ export async function handlePublicRoute(
     );
   }
 
+  // 公开附件上传（需要令牌）
   const publicAttachmentUploadMatch = path.match(
     /^\/api\/ciphers\/([a-f0-9-]+)\/attachment\/([a-f0-9-]+)$/i
   );
@@ -133,6 +150,7 @@ export async function handlePublicRoute(
     );
   }
 
+  // 公开 Send 文件上传（需要令牌）
   const publicSendUploadMatch = path.match(/^\/api\/sends\/([^/]+)\/file\/([^/]+)\/?$/i);
   if (
     publicSendUploadMatch &&
@@ -147,6 +165,7 @@ export async function handlePublicRoute(
     );
   }
 
+  // Send 访问（V1）
   const sendAccessMatch = path.match(/^\/api\/sends\/access\/([^/]+)$/i);
   if (sendAccessMatch && method === 'POST') {
     const blocked = await enforcePublicRateLimit();
@@ -154,12 +173,14 @@ export async function handlePublicRoute(
     return handleAccessSend(request, env, sendAccessMatch[1]);
   }
 
+  // Send 访问（V2）
   if (path === '/api/sends/access' && method === 'POST') {
     const blocked = await enforcePublicRateLimit();
     if (blocked) return blocked;
     return handleAccessSendV2(request, env);
   }
 
+  // Send 文件访问（V2）
   const sendAccessFileV2Match = path.match(/^\/api\/sends\/access\/file\/([^/]+)\/?$/i);
   if (sendAccessFileV2Match && method === 'POST') {
     const blocked = await enforcePublicRateLimit();
@@ -167,6 +188,7 @@ export async function handlePublicRoute(
     return handleAccessSendFileV2(request, env, sendAccessFileV2Match[1]);
   }
 
+  // Send 文件访问（V1）
   const sendAccessFileMatch = path.match(/^\/api\/sends\/([^/]+)\/access\/file\/([^/]+)\/?$/i);
   if (sendAccessFileMatch && method === 'POST') {
     const blocked = await enforcePublicRateLimit();
@@ -174,26 +196,31 @@ export async function handlePublicRoute(
     return handleAccessSendFile(request, env, sendAccessFileMatch[1], sendAccessFileMatch[2]);
   }
 
+  // Send 文件下载
   const sendDownloadMatch = path.match(/^\/api\/sends\/([^/]+)\/([^/]+)\/?$/i);
   if (sendDownloadMatch && method === 'GET') {
     return handleDownloadSendFile(request, env, sendDownloadMatch[1], sendDownloadMatch[2]);
   }
 
+  // 身份验证令牌端点
   if (path === '/identity/connect/token' && method === 'POST') {
     return handleToken(request, env);
   }
 
+  // 已知设备探测
   if (path === '/api/devices/knowndevice' && method === 'GET') {
     const blocked = await enforcePublicRateLimit();
     if (blocked) return jsonResponse(false);
     return handleKnownDevice(request, env);
   }
 
+  // 清除设备令牌（空操作）
   const clearDeviceTokenMatch = path.match(/^\/api\/devices\/identifier\/([^/]+)\/clear-token$/i);
   if (clearDeviceTokenMatch && (method === 'PUT' || method === 'POST')) {
     return new Response(null, { status: 200 });
   }
 
+  // 令牌撤销
   if (
     (path === '/identity/connect/revocation' || path === '/identity/connect/revoke') &&
     method === 'POST'
@@ -206,6 +233,7 @@ export async function handlePublicRoute(
     return handleRevocation(request, env);
   }
 
+  // 预登录
   if (path === '/identity/accounts/prelogin' && method === 'POST') {
     const blocked = await enforcePublicRateLimit(
       'public-sensitive',
@@ -215,6 +243,7 @@ export async function handlePublicRoute(
     return handlePrelogin(request, env);
   }
 
+  // 预登录（密码路径）
   if (path === '/identity/accounts/prelogin/password' && method === 'POST') {
     const blocked = await enforcePublicRateLimit(
       'public-sensitive',
@@ -224,6 +253,7 @@ export async function handlePublicRoute(
     return handlePrelogin(request, env);
   }
 
+  // 两步验证恢复
   if (
     (path === '/identity/accounts/recover-2fa' || path === '/api/accounts/recover-2fa') &&
     method === 'POST'
@@ -231,6 +261,7 @@ export async function handlePublicRoute(
     return handleRecoverTwoFactor(request, env);
   }
 
+  // 密码提示查询
   if (path === '/api/accounts/password-hint' && method === 'POST') {
     const blocked = await enforcePublicRateLimit(
       'public-sensitive',
@@ -238,7 +269,7 @@ export async function handlePublicRoute(
     );
     if (blocked) return blocked;
     if (!isSameOriginWriteRequest(request)) {
-      return new Response(JSON.stringify({ error: 'Forbidden origin' }), {
+      return new Response(JSON.stringify({ error: '禁止的来源' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -246,6 +277,7 @@ export async function handlePublicRoute(
     return handleGetPasswordHint(request, env);
   }
 
+  // 服务器配置
   if ((path === '/config' || path === '/api/config') && method === 'GET') {
     const blocked = await enforcePublicRateLimit(
       'public-read',
@@ -256,6 +288,7 @@ export async function handlePublicRoute(
     return jsonResponse(buildConfigResponse(origin));
   }
 
+  // 版本信息
   if (path === '/api/version' && method === 'GET') {
     const blocked = await enforcePublicRateLimit(
       'public-read',
@@ -265,6 +298,7 @@ export async function handlePublicRoute(
     return jsonResponse(LIMITS.compatibility.bitwardenServerVersion);
   }
 
+  // 用户注册
   if (path === '/api/accounts/register' && method === 'POST') {
     const blocked = await enforcePublicRateLimit(
       'register',
@@ -272,7 +306,7 @@ export async function handlePublicRoute(
     );
     if (blocked) return blocked;
     if (!isSameOriginWriteRequest(request)) {
-      return new Response(JSON.stringify({ error: 'Forbidden origin' }), {
+      return new Response(JSON.stringify({ error: '禁止的来源' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -280,10 +314,12 @@ export async function handlePublicRoute(
     return handleRegister(request, env);
   }
 
+  // 通知中心协商
   if (path === '/notifications/hub/negotiate' && method === 'POST') {
     return handleNotificationsNegotiate(request, env);
   }
 
+  // 通知中心 WebSocket
   if (path === '/notifications/hub' && method === 'GET') {
     return handleNotificationsHub(request, env);
   }

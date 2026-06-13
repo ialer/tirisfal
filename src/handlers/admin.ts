@@ -57,7 +57,7 @@ function toInviteResponse(request: Request, invite: Invite): Record<string, unkn
   };
 }
 
-// GET /api/admin/users
+// [GET] /api/admin/users
 export async function handleAdminListUsers(
   request: Request,
   env: Env,
@@ -87,7 +87,7 @@ export async function handleAdminListUsers(
   });
 }
 
-// POST /api/admin/invites
+// [POST] /api/admin/invites
 export async function handleAdminCreateInvite(
   request: Request,
   env: Env,
@@ -128,7 +128,7 @@ export async function handleAdminCreateInvite(
   return jsonResponse(toInviteResponse(request, invite), 201);
 }
 
-// GET /api/admin/invites
+// [GET] /api/admin/invites
 export async function handleAdminListInvites(
   request: Request,
   env: Env,
@@ -149,7 +149,7 @@ export async function handleAdminListInvites(
   });
 }
 
-// DELETE /api/admin/invites/:code
+// [DELETE] /api/admin/invites/:code
 export async function handleAdminRevokeInvite(
   request: Request,
   env: Env,
@@ -170,7 +170,7 @@ export async function handleAdminRevokeInvite(
   return new Response(null, { status: 204 });
 }
 
-// DELETE /api/admin/invites
+// [DELETE] /api/admin/invites
 export async function handleAdminDeleteAllInvites(
   request: Request,
   env: Env,
@@ -190,7 +190,7 @@ export async function handleAdminDeleteAllInvites(
   return jsonResponse({ deleted }, 200);
 }
 
-// PUT /api/admin/users/:id/status
+// [PUT] /api/admin/users/:id/status
 export async function handleAdminSetUserStatus(
   request: Request,
   env: Env,
@@ -242,7 +242,7 @@ export async function handleAdminSetUserStatus(
   });
 }
 
-// DELETE /api/admin/users/:id
+// [DELETE] /api/admin/users/:id
 export async function handleAdminDeleteUser(
   request: Request,
   env: Env,
@@ -263,15 +263,15 @@ export async function handleAdminDeleteUser(
     return errorResponse('User not found', 404);
   }
 
-  // Clean up R2 files before DB cascade deletes the metadata rows.
-  // 1. Attachment files (keyed by cipherId/attachmentId)
+  // 在数据库级联删除元数据行之前，先清理 R2 文件。
+  // 1. 附件文件（按 cipherId/attachmentId 索引）
   const attachmentMap = await storage.getAttachmentsByUserId(target.id);
   for (const [cipherId, attachments] of attachmentMap) {
     for (const att of attachments) {
       await deleteBlobObject(env, getAttachmentObjectKey(cipherId, att.id));
     }
   }
-  // 2. Send files (keyed by sends/sendId/fileId)
+  // 2. 发送文件（按 sends/sendId/fileId 索引）
   const sends = await storage.getAllSends(target.id);
   for (const send of sends) {
     if (send.type === 1) {
@@ -283,7 +283,7 @@ export async function handleAdminDeleteUser(
           await deleteBlobObject(env, getSendFileObjectKey(send.id, fileId));
         }
       } catch {
-        /* non-file send or bad data, skip */
+        /* 非文件发送或数据错误，跳过 */
       }
     }
   }

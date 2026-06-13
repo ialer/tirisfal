@@ -3,14 +3,14 @@ import bitwardenGlobalDomainsRaw from '../static/global_domains.bitwarden.json';
 import customGlobalDomainsRaw from '../static/global_domains.custom.json';
 import type { CustomEquivalentDomain, DomainRulesResponse, GlobalEquivalentDomain } from '../types';
 
-// CONTRACT:
-// Equivalent domains are a Bitwarden compatibility surface. The DB stores both
-// the full custom rule list and the derived active equivalent-domain groups:
-// - custom_equivalent_domains: UI/client rules with id + excluded state.
-// - equivalent_domains: active groups derived from non-excluded custom rules.
-// - excluded_global_equivalent_domains: disabled global rule type ids.
-// Do not treat equivalent_domains and custom_equivalent_domains as accidental
-// duplicates without a migration and compatibility plan.
+// 契约：
+// 等效域名是 Bitwarden 兼容性功能。数据库存储完整的自定义规则列表
+// 和派生的活跃等效域名组：
+// - custom_equivalent_domains：UI/客户端规则，包含 id 和排除状态。
+// - equivalent_domains：从非排除自定义规则派生的活跃组。
+// - excluded_global_equivalent_domains：禁用的全局规则类型 id。
+// 不要在没有迁移和兼容性计划的情况下将 equivalent_domains
+// 和 custom_equivalent_domains 视为意外重复。
 type RawGlobalDomain = Partial<GlobalEquivalentDomain> & {
   Type?: unknown;
   Domains?: unknown;

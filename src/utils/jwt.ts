@@ -4,13 +4,13 @@ import type { JWTPayload } from '../types';
 const hmacKeyCache = new Map<string, Promise<CryptoKey>>();
 const HMAC_KEY_CACHE_MAX_SIZE = 100;
 
-// Base64 URL encode
+/** Base64 URL 编码 */
 function base64UrlEncode(data: Uint8Array): string {
   const base64 = btoa(String.fromCharCode(...data));
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-// Base64 URL decode
+/** Base64 URL 解码 */
 function base64UrlDecode(str: string): Uint8Array {
   str = str.replace(/-/g, '+').replace(/_/g, '/');
   while (str.length % 4) str += '=';
@@ -22,12 +22,12 @@ function base64UrlDecode(str: string): Uint8Array {
   return bytes;
 }
 
+/** 获取 HMAC 密钥（带缓存） */
 function getHmacKey(secret: string): Promise<CryptoKey> {
   const cacheKey = secret;
   let cached = hmacKeyCache.get(cacheKey);
   if (cached) return cached;
 
-  // 清理旧条目防止缓存无限增长
   if (hmacKeyCache.size >= HMAC_KEY_CACHE_MAX_SIZE) {
     const firstKey = hmacKeyCache.keys().next().value;
     if (firstKey) {
@@ -47,7 +47,13 @@ function getHmacKey(secret: string): Promise<CryptoKey> {
   return cached;
 }
 
-// Create JWT
+/**
+ * 创建 JWT 令牌
+ * @param payload - 令牌载荷（不含 iat/exp/iss/premium/email_verified/amr）
+ * @param secret - HMAC 签名密钥
+ * @param expiresIn - 过期时间（秒），默认使用配置值
+ * @returns JWT 令牌字符串
+ */
 export async function createJWT(
   payload: Omit<JWTPayload, 'iat' | 'exp' | 'iss' | 'premium' | 'email_verified' | 'amr'>,
   secret: string,
@@ -58,8 +64,8 @@ export async function createJWT(
 
   const fullPayload: JWTPayload = {
     ...payload,
-    email_verified: true, // required by mobile client
-    amr: ['Application'], // authentication methods reference - required by mobile client
+    email_verified: true, // 移动客户端必需
+    amr: ['Application'], // 认证方法引用 - 移动客户端必需
     iat: now,
     exp: now + expiresIn,
     iss: 'tirisfal',
@@ -80,7 +86,12 @@ export async function createJWT(
   return `${data}.${signatureB64}`;
 }
 
-// Verify JWT
+/**
+ * 验证 JWT 令牌
+ * @param token - JWT 令牌字符串
+ * @param secret - HMAC 签名密钥
+ * @returns 解码后的载荷，无效则返回 null
+ */
 export async function verifyJWT(token: string, secret: string): Promise<JWTPayload | null> {
   try {
     const parts = token.split('.');
@@ -99,7 +110,6 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
 
     const payload: JWTPayload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64)));
 
-    // Check expiration
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp < now) return null;
 
@@ -109,14 +119,16 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
   }
 }
 
-// Create refresh token (simple random string)
+/**
+ * 创建刷新令牌（随机字符串）
+ */
 export function createRefreshToken(): string {
   const bytes = new Uint8Array(LIMITS.auth.refreshTokenRandomBytes);
   crypto.getRandomValues(bytes);
   return base64UrlEncode(bytes);
 }
 
-// File download token payload
+/** 文件下载令牌载荷 */
 export interface FileDownloadClaims {
   cipherId: string;
   attachmentId: string;
@@ -124,6 +136,7 @@ export interface FileDownloadClaims {
   exp: number;
 }
 
+/** 附件上传令牌载荷 */
 export interface AttachmentUploadClaims {
   userId: string;
   cipherId: string;
@@ -131,7 +144,12 @@ export interface AttachmentUploadClaims {
   exp: number;
 }
 
-// Create file download token (short-lived, 5 minutes)
+/**
+ * 创建文件下载令牌（短期有效，5 分钟）
+ * @param cipherId - 密码项 ID
+ * @param attachmentId - 附件 ID
+ * @param secret - HMAC 签名密钥
+ */
 export async function createFileDownloadToken(
   cipherId: string,
   attachmentId: string,
@@ -144,7 +162,7 @@ export async function createFileDownloadToken(
     cipherId,
     attachmentId,
     jti: createRefreshToken(),
-    exp: now + LIMITS.auth.fileDownloadTokenTtlSeconds, // 5 minutes
+    exp: now + LIMITS.auth.fileDownloadTokenTtlSeconds,
   };
 
   const encoder = new TextEncoder();
@@ -161,7 +179,9 @@ export async function createFileDownloadToken(
   return `${data}.${signatureB64}`;
 }
 
-// Verify file download token
+/**
+ * 验证文件下载令牌
+ */
 export async function verifyFileDownloadToken(
   token: string,
   secret: string
@@ -185,7 +205,6 @@ export async function verifyFileDownloadToken(
       new TextDecoder().decode(base64UrlDecode(payloadB64))
     );
 
-    // Check expiration
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp < now) return null;
 
@@ -195,6 +214,9 @@ export async function verifyFileDownloadToken(
   }
 }
 
+/**
+ * 创建附件上传令牌
+ */
 export async function createAttachmentUploadToken(
   userId: string,
   cipherId: string,
@@ -222,6 +244,9 @@ export async function createAttachmentUploadToken(
   return `${data}.${signatureB64}`;
 }
 
+/**
+ * 验证附件上传令牌
+ */
 export async function verifyAttachmentUploadToken(
   token: string,
   secret: string
@@ -252,6 +277,7 @@ export async function verifyAttachmentUploadToken(
   }
 }
 
+/** Send 文件下载令牌载荷 */
 export interface SendFileDownloadClaims {
   sendId: string;
   fileId: string;
@@ -259,6 +285,7 @@ export interface SendFileDownloadClaims {
   exp: number;
 }
 
+/** Send 文件上传令牌载荷 */
 export interface SendFileUploadClaims {
   userId: string;
   sendId: string;
@@ -266,6 +293,9 @@ export interface SendFileUploadClaims {
   exp: number;
 }
 
+/**
+ * 创建 Send 文件下载令牌
+ */
 export async function createSendFileDownloadToken(
   sendId: string,
   fileId: string,
@@ -292,6 +322,9 @@ export async function createSendFileDownloadToken(
   return `${data}.${signatureB64}`;
 }
 
+/**
+ * 验证 Send 文件下载令牌
+ */
 export async function verifySendFileDownloadToken(
   token: string,
   secret: string
@@ -331,6 +364,9 @@ export async function verifySendFileDownloadToken(
   }
 }
 
+/**
+ * 创建 Send 文件上传令牌
+ */
 export async function createSendFileUploadToken(
   userId: string,
   sendId: string,
@@ -358,6 +394,9 @@ export async function createSendFileUploadToken(
   return `${data}.${signatureB64}`;
 }
 
+/**
+ * 验证 Send 文件上传令牌
+ */
 export async function verifySendFileUploadToken(
   token: string,
   secret: string
@@ -388,6 +427,7 @@ export async function verifySendFileUploadToken(
   }
 }
 
+/** Send 访问令牌载荷 */
 export interface SendAccessTokenClaims {
   sub: string; // send id
   typ: 'send_access';
@@ -395,6 +435,9 @@ export interface SendAccessTokenClaims {
   exp: number;
 }
 
+/**
+ * 创建 Send 访问令牌
+ */
 export async function createSendAccessToken(sendId: string, secret: string): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
@@ -416,6 +459,9 @@ export async function createSendAccessToken(sendId: string, secret: string): Pro
   return `${data}.${signatureB64}`;
 }
 
+/**
+ * 验证 Send 访问令牌
+ */
 export async function verifySendAccessToken(
   token: string,
   secret: string

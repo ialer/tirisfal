@@ -10,24 +10,23 @@ import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
 import { buildAccountKeys } from '../utils/user-decryption';
 import { generateUUID } from '../utils/uuid';
 
-// CONTRACT:
-// users.master_password_hash is server-side login verification only. It does
-// not decrypt vault data. Password changes must keep encrypted user key material,
-// securityStamp, refresh-token invalidation, and client compatibility together.
-// Password hints are non-secret reminders; never treat them as recovery secrets.
+// 约定：
+// users.master_password_hash 仅用于服务端登录验证，不用于解密保险库数据。
+// 修改密码时必须同时更新加密的用户密钥材料、securityStamp、刷新令牌失效以及客户端兼容性。
+// 密码提示是非机密的提醒信息，绝不能将其作为恢复密钥使用。
 function looksLikeEncString(value: string): boolean {
   if (!value) return false;
   const firstDot = value.indexOf('.');
   if (firstDot <= 0 || firstDot === value.length - 1) return false;
   const payload = value.slice(firstDot + 1);
   const parts = payload.split('|');
-  // Bitwarden encrypted payloads should have at least IV + ciphertext.
+  // Bitwarden 加密载荷应至少包含 IV 和密文。
   return parts.length >= 2;
 }
 
 /**
- * Validate KDF parameters according to Bitwarden minimum requirements.
- * Returns an error message if invalid, or null if OK.
+ * 根据 Bitwarden 最低要求验证 KDF 参数。
+ * 无效时返回错误消息，有效时返回 null。
  */
 function validateKdfParams(
   kdfType: number | undefined,
@@ -37,12 +36,12 @@ function validateKdfParams(
 ): string | null {
   const type = kdfType ?? 0;
   if (type === 0) {
-    // PBKDF2-SHA256: minimum 100 000 iterations
+    // PBKDF2-SHA256：最少 100,000 次迭代
     if (typeof kdfIterations === 'number' && kdfIterations < 100_000) {
       return 'PBKDF2 iterations must be at least 100000';
     }
   } else if (type === 1) {
-    // Argon2id: iterations >= 2, memory >= 16 MiB, parallelism >= 1
+    // Argon2id：迭代次数 >= 2，内存 >= 16 MiB，并行度 >= 1
     if (typeof kdfIterations === 'number' && kdfIterations < 2) {
       return 'Argon2id iterations must be at least 2';
     }
@@ -129,9 +128,9 @@ function toProfile(user: User, env: Env): ProfileResponse {
   };
 }
 
-// POST /api/accounts/register
-// - First user becomes admin.
-// - Any subsequent user must provide a valid inviteCode.
+// [POST] /api/accounts/register
+// - 第一个用户自动成为管理员。
+// - 后续用户必须提供有效的邀请码。
 export async function handleRegister(request: Request, env: Env): Promise<Response> {
   const storage = new StorageService(env.DB);
 
@@ -286,7 +285,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   return jsonResponse({ success: true, role: user.role }, 200);
 }
 
-// POST /api/accounts/password-hint
+// [POST] /api/accounts/password-hint
 export async function handleGetPasswordHint(request: Request, env: Env): Promise<Response> {
   const storage = new StorageService(env.DB);
   const clientIdentifier = getClientIdentifier(request);
@@ -363,7 +362,7 @@ export async function handleGetPasswordHint(request: Request, env: Env): Promise
   });
 }
 
-// GET /api/accounts/profile
+// [GET] /api/accounts/profile
 export async function handleGetProfile(
   request: Request,
   env: Env,
@@ -376,7 +375,7 @@ export async function handleGetProfile(
   return jsonResponse(toProfile(user, env));
 }
 
-// PUT /api/accounts/profile
+// [PUT] /api/accounts/profile
 export async function handleUpdateProfile(
   request: Request,
   env: Env,
@@ -407,7 +406,7 @@ export async function handleUpdateProfile(
   return jsonResponse(toProfile(user, env));
 }
 
-// PUT/POST /api/accounts/verify-devices
+// [PUT/POST] /api/accounts/verify-devices
 export async function handleSetVerifyDevices(
   request: Request,
   env: Env,
@@ -445,7 +444,7 @@ export async function handleSetVerifyDevices(
   return new Response(null, { status: 200 });
 }
 
-// POST /api/accounts/keys
+// [POST] /api/accounts/keys
 export async function handleSetKeys(request: Request, env: Env, userId: string): Promise<Response> {
   const storage = new StorageService(env.DB);
   const auth = new AuthService(env);
@@ -468,7 +467,7 @@ export async function handleSetKeys(request: Request, env: Env, userId: string):
     return errorResponse('Invalid JSON', 400);
   }
 
-  // Require password verification before allowing key replacement.
+  // 密码验证通过后才允许替换密钥。
   if (!body.masterPasswordHash) {
     return errorResponse('masterPasswordHash is required', 400);
   }
@@ -498,7 +497,7 @@ export async function handleSetKeys(request: Request, env: Env, userId: string):
   return handleGetProfile(request, env, userId);
 }
 
-// POST/PUT /api/accounts/password
+// [POST/PUT] /api/accounts/password
 export async function handleChangePassword(
   request: Request,
   env: Env,
@@ -581,7 +580,7 @@ export async function handleChangePassword(
   return new Response(null, { status: 200 });
 }
 
-// GET /api/accounts/totp
+// [GET] /api/accounts/totp
 export async function handleGetTotpStatus(
   request: Request,
   env: Env,
@@ -598,9 +597,9 @@ export async function handleGetTotpStatus(
   });
 }
 
-// PUT /api/accounts/totp
-// enable: { enabled: true, secret: "...", token: "123456" }
-// disable: { enabled: false, masterPasswordHash: "..." }
+// [PUT] /api/accounts/totp
+// 启用: { enabled: true, secret: "...", token: "123456" }
+// 禁用: { enabled: false, masterPasswordHash: "..." }
 export async function handleSetTotpStatus(
   request: Request,
   env: Env,
@@ -665,7 +664,7 @@ export async function handleSetTotpStatus(
   return errorResponse('enabled must be true or false', 400);
 }
 
-// POST /api/accounts/totp/recovery-code
+// [POST] /api/accounts/totp/recovery-code
 export async function handleGetTotpRecoveryCode(
   request: Request,
   env: Env,
@@ -708,8 +707,8 @@ export async function handleGetTotpRecoveryCode(
   });
 }
 
-// POST /identity/accounts/recover-2fa
-// Disable TOTP by recovery code + password, then rotate recovery code.
+// [POST] /identity/accounts/recover-2fa
+// 通过恢复码和密码禁用 TOTP，然后轮换恢复码。
 export async function handleRecoverTwoFactor(request: Request, env: Env): Promise<Response> {
   const storage = new StorageService(env.DB);
   const auth = new AuthService(env);
@@ -790,7 +789,7 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
   });
 }
 
-// GET /api/accounts/revision-date
+// [GET] /api/accounts/revision-date
 export async function handleGetRevisionDate(
   request: Request,
   env: Env,
@@ -800,12 +799,12 @@ export async function handleGetRevisionDate(
   const storage = new StorageService(env.DB);
   const revisionDate = await storage.getRevisionDate(userId);
 
-  // Return as milliseconds timestamp (Bitwarden format)
+  // 以毫秒时间戳格式返回（Bitwarden 格式）
   const timestamp = new Date(revisionDate).getTime();
   return jsonResponse(timestamp);
 }
 
-// POST /api/accounts/verify-password
+// [POST] /api/accounts/verify-password
 export async function handleVerifyPassword(
   request: Request,
   env: Env,
@@ -842,7 +841,7 @@ export async function handleVerifyPassword(
   return new Response(null, { status: 200 });
 }
 
-// POST /api/accounts/api-key
+// [POST] /api/accounts/api-key
 export async function handleGetApiKey(
   request: Request,
   env: Env,
@@ -851,7 +850,7 @@ export async function handleGetApiKey(
   return apiKey(request, env, userId, false);
 }
 
-// POST /api/accounts/rotate-api-key
+// [POST] /api/accounts/rotate-api-key
 export async function handleRotateApiKey(
   request: Request,
   env: Env,
@@ -892,7 +891,7 @@ async function apiKey(
   if (!valid) return errorResponse('Invalid password', 400);
 
   if (rotate || user.apiKey === null) {
-    // Upstream apikeys are 30-character random alphanumeric strings
+    // 上游 API 密钥是 30 位随机字母数字字符串
     user.apiKey = randomStringAlphanum(LIMITS.auth.clientSecretLength);
     if (rotate) {
       user.securityStamp = generateUUID();
@@ -909,7 +908,7 @@ async function apiKey(
   });
 }
 
-// Generate a random alphanumeric string of the given length using crypto.getRandomValues.
+// 使用 crypto.getRandomValues 生成指定长度的随机字母数字字符串
 function randomStringAlphanum(length: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';

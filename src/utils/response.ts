@@ -1,6 +1,7 @@
 import { LIMITS } from '../config/limits';
 
 const CORS_METHODS = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+/** 默认 CORS 允许的请求头 */
 const DEFAULT_CORS_HEADERS = [
   'Content-Type',
   'Authorization',
@@ -18,6 +19,7 @@ const DEFAULT_CORS_HEADERS = [
   'X-Tirisfal-Web-Session',
 ];
 
+/** 判断是否为浏览器扩展来源 */
 function isExtensionOrigin(origin: string): boolean {
   return (
     origin.startsWith('chrome-extension://') ||
@@ -26,6 +28,7 @@ function isExtensionOrigin(origin: string): boolean {
   );
 }
 
+/** 判断是否为通配符 CORS 路径（无需认证的公共路径） */
 function isWildcardCorsPath(path: string): boolean {
   return (
     path.startsWith('/icons/') ||
@@ -37,6 +40,10 @@ function isWildcardCorsPath(path: string): boolean {
   );
 }
 
+/**
+ * 获取 CORS 策略
+ * @returns 允许的来源和是否允许凭证
+ */
 function getCorsPolicy(request: Request): {
   allowOrigin: string | null;
   allowCredentials: boolean;
@@ -58,6 +65,7 @@ function getCorsPolicy(request: Request): {
   return { allowOrigin: null, allowCredentials: false };
 }
 
+/** 构建 CORS 响应头 */
 function buildCorsHeaders(request: Request): Record<string, string> {
   const requestedHeaders = String(request.headers.get('Access-Control-Request-Headers') || '')
     .split(',')
@@ -84,8 +92,10 @@ function buildCorsHeaders(request: Request): Record<string, string> {
   return headers;
 }
 
+/**
+ * 为响应应用 CORS 头和安全头
+ */
 export function applyCors(request: Request, response: Response): Response {
-  // WebSocket upgrade responses must be returned untouched.
   const webSocket = (response as Response & { webSocket?: unknown }).webSocket;
   if (response.status === 101 || webSocket) {
     return response;
@@ -96,7 +106,7 @@ export function applyCors(request: Request, response: Response): Response {
   for (const [k, v] of Object.entries(corsHeaders)) {
     headers.set(k, v);
   }
-  // Security headers applied to every response.
+  // 安全响应头
   headers.set('X-Frame-Options', 'DENY');
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -108,7 +118,9 @@ export function applyCors(request: Request, response: Response): Response {
   });
 }
 
-// JSON response helper
+/**
+ * JSON 响应辅助函数
+ */
 export function jsonResponse(
   data: any,
   status: number = 200,
@@ -123,17 +135,19 @@ export function jsonResponse(
   });
 }
 
-// Error response helper
-// 生产环境不暴露内部错误详情
+/**
+ * 错误响应辅助函数
+ * 生产环境不暴露内部错误详情
+ */
 export function errorResponse(message: string, status: number = 400, exposeInternals: boolean = false): Response {
   // 生产环境只暴露安全的错误信息
   const safeMessages: Record<number, string> = {
-    400: 'Bad Request',
-    401: 'Unauthorized',
-    403: 'Forbidden',
-    404: 'Not Found',
-    429: 'Too Many Requests',
-    500: 'Internal Server Error',
+    400: '请求无效',
+    401: '未授权',
+    403: '禁止访问',
+    404: '未找到',
+    429: '请求过于频繁',
+    500: '服务器内部错误',
   };
 
   const responseMessage = exposeInternals ? message : (safeMessages[status] || message);
@@ -151,7 +165,9 @@ export function errorResponse(message: string, status: number = 400, exposeInter
   );
 }
 
-// Identity endpoint error response (for /identity/connect/token)
+/**
+ * 身份验证端点错误响应（用于 /identity/connect/token）
+ */
 export function identityErrorResponse(
   message: string,
   error: string = 'invalid_grant',
@@ -170,7 +186,9 @@ export function identityErrorResponse(
   );
 }
 
-// Handle CORS preflight
+/**
+ * 处理 CORS 预检请求
+ */
 export function handleCors(request: Request): Response {
   return new Response(null, {
     status: 204,
@@ -178,17 +196,21 @@ export function handleCors(request: Request): Response {
   });
 }
 
-// Rate limit response helper
+/**
+ * 速率限制响应辅助函数
+ */
 export function rateLimitResponse(retryAfterSeconds?: number): Response {
   const retryAfter = String(retryAfterSeconds || 60);
   return jsonResponse(
-    { error: 'Too many requests', error_description: `Rate limit exceeded. Try again in ${retryAfter} seconds.` },
+    { error: '请求过于频繁', error_description: `速率限制已超出，请在 ${retryAfter} 秒后重试。` },
     429,
     { 'Retry-After': retryAfter, 'X-RateLimit-Remaining': '0' }
   );
 }
 
-// HTML response helper
+/**
+ * HTML 响应辅助函数
+ */
 export function htmlResponse(html: string, status: number = 200): Response {
   return new Response(html, {
     status,

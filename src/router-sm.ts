@@ -1,4 +1,4 @@
-// Secrets Manager Router
+// Secrets Manager 路由
 
 import { LIMITS } from './config/limits';
 import { handleMachineAccounts } from './handlers/sm-machine-accounts';
@@ -10,13 +10,16 @@ import { SecretsManagerService } from './services/sm-service';
 import type { Env } from './types';
 import { errorResponse } from './utils/response';
 
+/**
+ * Secrets Manager 路由处理
+ * 处理机器账号、项目、凭证等 Secrets Manager 相关请求
+ */
 export async function handleSmRoute(
   request: Request,
   env: Env,
   path: string,
   method: string
 ): Promise<Response | null> {
-  // 检查是否是 Secrets Manager 路由
   if (
     !path.startsWith('/api/sm/') &&
     !path.startsWith('/api/machine-accounts') &&
@@ -26,21 +29,19 @@ export async function handleSmRoute(
     return null;
   }
 
-  // 验证用户身份 - 支持 User Token 和 Machine Account Token
   const authHeader = request.headers.get('Authorization');
   if (!authHeader) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('未授权', 401);
   }
 
   const clientId = getClientIdentifier(request);
   if (!clientId) {
-    return errorResponse('Client IP is required', 403);
+    return errorResponse('需要客户端 IP', 403);
   }
 
-  // 首先尝试 Machine Account Token
+  // 首先尝试 Machine Account Token 认证
   const machineAuth = await verifyMachineToken(request, env);
   if (machineAuth) {
-    // Machine Account 速率限制
     const rateLimit = new RateLimitService(env.DB);
     const rateLimitCheck = await rateLimit.consumeBudget(
       `${clientId}:sm-machine`,
@@ -48,7 +49,7 @@ export async function handleSmRoute(
     );
     if (!rateLimitCheck.allowed) {
       return errorResponse(
-        `Rate limit exceeded. Try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
+        `速率限制已超出，请在 ${rateLimitCheck.retryAfterSeconds} 秒后重试。`,
         429
       );
     }
@@ -57,30 +58,26 @@ export async function handleSmRoute(
     if (path.startsWith('/api/secrets')) {
       return handleSecrets(request, env, path, method, machineAuth.userId, env.ENCRYPTION_KEY, machineAuth.machineAccountId);
     }
-    // Machine Account 不能管理 machine-accounts 或 projects
-    return errorResponse('Forbidden: Machine accounts cannot manage resources', 403);
+    return errorResponse('禁止：机器账号无法管理资源', 403);
   }
 
-  // 尝试 User Token
+  // 尝试 User Token 认证
   const auth = new AuthService(env);
   const verified = await auth.verifyAccessTokenWithUser(authHeader);
   if (!verified) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('未授权', 401);
   }
 
   const userId = verified.user.id;
 
-  // 处理机器账号路由
   if (path.startsWith('/api/machine-accounts')) {
     return handleMachineAccounts(request, env, path, method, userId);
   }
 
-  // 处理项目路由
   if (path.startsWith('/api/projects')) {
     return handleProjects(request, env, path, method, userId);
   }
 
-  // 处理凭证路由
   if (path.startsWith('/api/secrets')) {
     return handleSecrets(request, env, path, method, userId, env.ENCRYPTION_KEY);
   }
@@ -88,7 +85,10 @@ export async function handleSmRoute(
   return null;
 }
 
-  // 机器账号 Token 验证路由
+/**
+ * 验证机器账号 Token
+ * @returns 机器账号信息，无效则返回 null
+ */
 export async function verifyMachineToken(
   request: Request,
   env: Env

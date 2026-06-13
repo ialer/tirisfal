@@ -1,13 +1,13 @@
-// Environment bindings
+/** 环境变量绑定 */
 export interface Env {
   DB: D1Database;
   NOTIFICATIONS_HUB: DurableObjectNamespace;
   ASSETS?: {
     fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
   };
-  // Prefer R2 when available. Optional to support KV-only deployments.
+  /** 优先使用 R2 存储附件，可选以支持仅 KV 部署 */
   ATTACHMENTS?: R2Bucket;
-  // Optional fallback for attachment/send file storage (no credit card required).
+  /** 附件/Send 文件存储的可选回退方案（无需信用卡） */
   ATTACHMENTS_KV?: KVNamespace;
   JWT_SECRET: string;
   ENCRYPTION_KEY: string;
@@ -17,21 +17,20 @@ export interface Env {
 export type UserRole = 'admin' | 'user';
 export type UserStatus = 'active' | 'banned';
 
-// Sample JWT secret used by `.dev.vars.example`.
-// If runtime JWT_SECRET equals this value, treat it as unsafe.
+/** `.dev.vars.example` 中使用的示例 JWT 密钥，运行时若等于此值则视为不安全 */
 export const DEFAULT_DEV_SECRET = 'Enter-your-JWT-key-here-at-least-32-characters';
 
-// Attachment model
+/** 附件模型 */
 export interface Attachment {
   id: string;
   cipherId: string;
-  fileName: string; // encrypted
+  fileName: string; // 加密后的文件名
   size: number;
   sizeName: string;
-  key: string | null; // encrypted attachment key
+  key: string | null; // 加密后的附件密钥
 }
 
-// User model
+/** 用户模型 */
 export interface User {
   id: string;
   email: string;
@@ -104,7 +103,7 @@ export interface AuditLog {
   createdAt: string;
 }
 
-// Cipher types
+/** 密码项类型枚举 */
 export enum CipherType {
   Login = 1,
   SecureNote = 2,
@@ -181,6 +180,7 @@ export interface PasswordHistory {
   lastUsedDate: string;
 }
 
+/** 密码项模型 */
 export interface Cipher {
   id: string;
   userId: string;
@@ -202,11 +202,11 @@ export interface Cipher {
   updatedAt: string;
   archivedAt: string | null;
   deletedAt: string | null;
-  /** Allow unknown fields from Bitwarden clients to be stored and passed through transparently. */
+  /** 允许 Bitwarden 客户端的未知字段透传存储 */
   [key: string]: any;
 }
 
-// Folder model
+/** 文件夹模型 */
 export interface Folder {
   id: string;
   userId: string;
@@ -281,11 +281,13 @@ export interface TrustedDeviceTokenSummary {
   tokenCount: number;
 }
 
+/** Send 类型枚举 */
 export enum SendType {
   Text = 0,
   File = 1,
 }
 
+/** Send 认证类型枚举 */
 export enum SendAuthType {
   Email = 0,
   Password = 1,
@@ -337,23 +339,23 @@ export interface SendResponse {
   object: string;
 }
 
-// JWT Payload
+/** JWT 载荷 */
 export interface JWTPayload {
-  sub: string; // user id
+  sub: string; // 用户 ID
   email: string;
   name: string | null;
-  email_verified: boolean; // required by mobile client
-  amr: string[]; // authentication methods reference - required by mobile client
-  sstamp: string; // security stamp - invalidates token when user changes password
-  did?: string; // device identifier - invalidates per-device sessions
-  dstamp?: string; // device session stamp
+  email_verified: boolean; // 移动客户端必需
+  amr: string[]; // 认证方法引用 - 移动客户端必需
+  sstamp: string; // 安全戳，用户修改密码时使令牌失效
+  did?: string; // 设备标识符，用于设备级会话失效
+  dstamp?: string; // 设备会话戳
   iat: number;
   exp: number;
   iss: string;
   premium: boolean;
 }
 
-// UserDecryptionOptions types for mobile client compatibility
+/** 用户解密选项类型（用于移动客户端兼容性） */
 export interface MasterPasswordUnlockKdf {
   KdfType: number;
   Iterations: number;
@@ -372,13 +374,13 @@ export interface MasterPasswordUnlock {
 export interface UserDecryptionOptions {
   HasMasterPassword: boolean;
   Object: string;
-  // Bitwarden Android 2026.1.x expects this to exist; missing it breaks unlock when the vault is empty.
+  /** Bitwarden Android 2026.1.x 要求此字段存在，缺失会导致空保险库解锁失败 */
   MasterPasswordUnlock: MasterPasswordUnlock;
   TrustedDeviceOption: null;
   KeyConnectorOption: null;
 }
 
-// API Response types
+/** API 响应类型 */
 export interface TokenResponse {
   access_token: string;
   expires_in: number;
@@ -466,7 +468,7 @@ export interface CipherResponse {
   attachments: any[] | null;
   key: string | null;
   encryptedFor: string | null;
-  /** Allow unknown fields to pass through to clients transparently. */
+  /** 允许未知字段透传到客户端 */
   [key: string]: any;
 }
 
@@ -498,9 +500,9 @@ export interface SyncResponse {
     WebAuthnPrfOption?: null;
     Object?: string;
   } | null;
-  // PascalCase for desktop/browser clients
+  /** PascalCase 格式，用于桌面/浏览器客户端 */
   UserDecryptionOptions: UserDecryptionOptions | null;
-  // camelCase for Android client (SyncResponseJson uses @SerialName("userDecryption"))
+  /** camelCase 格式，用于 Android 客户端（SyncResponseJson 使用 @SerialName("userDecryption")） */
   userDecryption: {
     masterPasswordUnlock: {
       kdf: {

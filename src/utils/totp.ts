@@ -1,7 +1,11 @@
+/** TOTP 步进间隔（秒） */
 const TOTP_STEP_SECONDS = 30;
+/** TOTP 位数 */
 const TOTP_DIGITS = 6;
-const TOTP_WINDOW = 1; // allow previous/current/next step for small clock drift
+/** TOTP 窗口大小（允许前/当前/下一步，应对时钟偏移） */
+const TOTP_WINDOW = 1;
 
+/** 标准化 Base32 输入：大写、去除空白和分隔符、移除尾部填充 */
 function normalizeBase32(input: string): string {
   const raw = String(input || '').toUpperCase();
   let out = '';
@@ -15,6 +19,7 @@ function normalizeBase32(input: string): string {
   return out;
 }
 
+/** Base32 解码 */
 function base32Decode(input: string): Uint8Array | null {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
   const normalized = normalizeBase32(input);
@@ -38,6 +43,7 @@ function base32Decode(input: string): Uint8Array | null {
   return output.length > 0 ? new Uint8Array(output) : null;
 }
 
+/** HOTP 算法实现 */
 async function hotp(secret: Uint8Array, counter: number): Promise<string> {
   const counterBytes = new Uint8Array(8);
   let c = counter;
@@ -62,10 +68,18 @@ async function hotp(secret: Uint8Array, counter: number): Promise<string> {
   return otp.toString().padStart(TOTP_DIGITS, '0');
 }
 
+/** 移除令牌中的空白字符 */
 function normalizeToken(token: string): string {
   return token.replace(/\s+/g, '');
 }
 
+/**
+ * 验证 TOTP 令牌
+ * @param secretRaw - Base32 编码的密钥
+ * @param tokenRaw - 用户输入的 6 位令牌
+ * @param nowMs - 当前时间戳（毫秒）
+ * @returns 令牌是否有效
+ */
 export async function verifyTotpToken(
   secretRaw: string,
   tokenRaw: string,
@@ -81,7 +95,7 @@ export async function verifyTotpToken(
   let matched = false;
   for (let delta = -TOTP_WINDOW; delta <= TOTP_WINDOW; delta++) {
     const expected = await hotp(secret, currentCounter + delta);
-    // Constant-time comparison: always check all windows, never short-circuit.
+    // 常量时间比较：始终检查所有窗口，不提前短路
     const a = new TextEncoder().encode(expected);
     const b = new TextEncoder().encode(token);
     let diff = a.length ^ b.length;
@@ -93,6 +107,9 @@ export async function verifyTotpToken(
   return matched;
 }
 
+/**
+ * 检查 TOTP 是否已启用
+ */
 export function isTotpEnabled(secretRaw: string | undefined | null): boolean {
   return Boolean(secretRaw && normalizeBase32(secretRaw).length > 0);
 }

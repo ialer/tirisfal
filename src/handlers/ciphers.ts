@@ -18,11 +18,10 @@ import { errorResponse, jsonResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
 import { deleteAllAttachmentsForCipher, deleteAllAttachmentsForCiphers } from './attachments';
 
-// CONTRACT:
-// Cipher JSON is the highest-risk Bitwarden compatibility surface. Preserve
-// unknown/future client fields by default, then override only server-owned
-// fields. Any change to cipher response shape must be checked against /api/sync,
-// attachments, import/export, and current official clients.
+// 约定：
+// Cipher JSON 是 Bitwarden 兼容性风险最高的接口面。默认保留未知/未来的客户端字段，
+// 仅覆盖服务端拥有的字段。cipher 响应结构的任何变更都必须检查 /api/sync、
+// 附件、导入/导出以及当前官方客户端的兼容性。
 function normalizeOptionalId(value: unknown): string | null {
   if (value === null) return null;
   const normalized = String(value).trim();
@@ -107,12 +106,12 @@ function isValidEncString(value: unknown): value is string {
   const parts = trimmed.slice(dot + 1).split('|');
   if (parts.some((part) => part.length === 0)) return false;
 
-  // Bitwarden's legacy symmetric EncString variants require IV + data,
-  // while the authenticated AES-CBC-HMAC variant requires IV + data + MAC.
+  // Bitwarden 旧版对称 EncString 变体需要 IV + 数据，
+  // 而经过认证的 AES-CBC-HMAC 变体需要 IV + 数据 + MAC。
   if (type === 0 || type === 1 || type === 4) return parts.length >= 2;
   if (type === 2) return parts.length === 3;
 
-  // Keep newer one-part formats, such as COSE Encrypt0, future-compatible.
+  // 保持较新的单部分格式（如 COSE Encrypt0）的前向兼容性。
   return parts.length >= 1;
 }
 
@@ -211,8 +210,8 @@ function normalizeFido2CredentialsForCompatibility(
   return out.length ? out : null;
 }
 
-// Android 2026.2.0 requires sshKey.keyFingerprint in sync payloads.
-// Keep legacy alias "fingerprint" in parallel for older web payloads.
+// Android 2026.2.0 要求同步载荷中包含 sshKey.keyFingerprint。
+// 同时保留旧版别名 "fingerprint" 以兼容旧版 Web 载荷。
 export function normalizeCipherSshKeyForCompatibility(
   sshKey: Record<string, unknown> | null | undefined
 ): Record<string, unknown> | null {
@@ -243,7 +242,7 @@ export function normalizeCipherSshKeyForCompatibility(
   };
 }
 
-// Format attachments for API response
+// 为 API 响应格式化附件
 export function formatAttachments(attachments: Attachment[]): any[] | null {
   if (attachments.length === 0) return null;
   const formatted = attachments
@@ -251,11 +250,11 @@ export function formatAttachments(attachments: Attachment[]): any[] | null {
     .map((a) => ({
       id: a.id,
       fileName: a.fileName.trim(),
-      // Bitwarden clients decode attachment size as string in cipher payloads.
+      // Bitwarden 客户端在 cipher 载荷中将附件大小解码为字符串。
       size: String(Number(a.size) || 0),
       sizeName: a.sizeName,
       key: optionalEncString(a.key),
-      url: `/api/ciphers/${a.cipherId}/attachment/${a.id}`, // Android requires non-null url!
+      url: `/api/ciphers/${a.cipherId}/attachment/${a.id}`, // Android 要求 url 非空！
       object: 'attachment',
     }));
   return formatted.length ? formatted : null;
@@ -301,12 +300,12 @@ export function isCipherResponseSyncCompatible(cipher: CipherResponse): boolean 
   return isValidEncString(cipher.name);
 }
 
-// Convert internal cipher to API response format.
-// Uses opaque passthrough: spreads ALL stored fields (including unknown/future ones),
-// then overlays server-computed fields. This ensures new Bitwarden client fields
-// survive a round-trip without code changes.
+// 将内部 cipher 转换为 API 响应格式。
+// 使用不透明透传：展开所有存储字段（包括未知/未来字段），
+// 然后覆盖服务端计算的字段。这确保新的 Bitwarden 客户端字段
+// 在无需代码变更的情况下能完整往返。
 export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = []): CipherResponse {
-  // Strip internal-only fields that must not appear in the API response
+  // 移除不应出现在 API 响应中的纯内部字段
   const { userId, createdAt, updatedAt, archivedAt, deletedAt, ...passthrough } = cipher;
   const normalizedLogin = normalizeCipherLoginForCompatibility((passthrough as Record<string, unknown>).login ?? null);
   const normalizedCard = sanitizeEncryptedObject((passthrough as Record<string, unknown>).card ?? null, [
@@ -342,9 +341,9 @@ export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = [])
   );
 
   return {
-    // Pass through ALL stored cipher fields (known + unknown)
+    // 传递所有存储的 cipher 字段（已知 + 未知）
     ...passthrough,
-    // Server-computed / enforced fields (always override)
+    // 服务端计算/强制的字段（始终覆盖）
     folderId: normalizeOptionalId(cipher.folderId),
     type: Number(cipher.type) || 1,
     organizationId: normalizeOptionalId((passthrough as Record<string, unknown>).organizationId ?? null),
@@ -377,7 +376,7 @@ export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = [])
   };
 }
 
-// GET /api/ciphers
+// [GET] /api/ciphers - 获取密码项列表
 export async function handleGetCiphers(
   request: Request,
   env: Env,
@@ -411,7 +410,7 @@ export async function handleGetCiphers(
     filteredCiphers.map((cipher) => cipher.id)
   );
 
-  // Build responses only for the current page to keep pagination cheap.
+  // 仅为当前页构建响应，保持分页效率。
   const cipherResponses: CipherResponse[] = [];
   for (const cipher of filteredCiphers) {
     const attachments = attachmentsByCipher.get(cipher.id) || [];
@@ -425,7 +424,7 @@ export async function handleGetCiphers(
   });
 }
 
-// GET /api/ciphers/:id
+// [GET] /api/ciphers/:id - 获取单个密码项
 export async function handleGetCipher(
   request: Request,
   env: Env,
@@ -453,7 +452,7 @@ async function verifyFolderOwnership(
   return !!(folder && folder.userId === userId);
 }
 
-// POST /api/ciphers
+// [POST] /api/ciphers - 创建密码项
 export async function handleCreateCipher(
   request: Request,
   env: Env,
@@ -468,8 +467,8 @@ export async function handleCreateCipher(
     return errorResponse('Invalid JSON', 400);
   }
 
-  // Handle nested cipher object (from some clients)
-  // Android client sends PascalCase "Cipher" for organization ciphers
+  // 处理嵌套的 cipher 对象（部分客户端发送）
+  // Android 客户端对组织 cipher 发送 PascalCase 格式的 "Cipher"
   const cipherData = (body.Cipher || body.cipher || body) as Record<string, unknown>;
   const createFolderId = readCipherProp<string | null>(cipherData, ['folderId', 'FolderId']);
   const createKey = readCipherProp<string | null>(cipherData, ['key', 'Key']);
@@ -490,11 +489,11 @@ export async function handleCreateCipher(
   ]);
 
   const now = new Date().toISOString();
-  // Opaque passthrough: spread ALL client fields to preserve unknown/future ones,
-  // then override only server-controlled fields.
+  // 不透明透传：展开所有客户端字段以保留未知/未来字段，
+  // 然后仅覆盖服务端控制的字段。
   const cipher: Cipher = {
     ...cipherData,
-    // Server-controlled fields (always override client values)
+    // 服务端控制的字段（始终覆盖客户端值）
     id: generateUUID(),
     userId: userId,
     type: Number(cipherData.type) || 1,
@@ -525,7 +524,7 @@ export async function handleCreateCipher(
   cipher.fields = createFields.present ? (createFields.value ?? null) : (cipher.fields ?? null);
   normalizeCipherForStorage(cipher);
 
-  // Prevent referencing a folder owned by another user.
+  // 防止引用其他用户拥有的文件夹。
   if (cipher.folderId) {
     const folderOk = await verifyFolderOwnership(storage, cipher.folderId, userId);
     if (!folderOk) return errorResponse('Folder not found', 404);
@@ -538,7 +537,7 @@ export async function handleCreateCipher(
   return jsonResponse(cipherToResponse(cipher, []), 200);
 }
 
-// PUT /api/ciphers/:id
+// [PUT] /api/ciphers/:id - 更新密码项
 export async function handleUpdateCipher(
   request: Request,
   env: Env,
@@ -559,8 +558,8 @@ export async function handleUpdateCipher(
     return errorResponse('Invalid JSON', 400);
   }
 
-  // Handle nested cipher object
-  // Android client sends PascalCase "Cipher" for organization ciphers
+  // 处理嵌套的 cipher 对象
+  // Android 客户端对组织 cipher 发送 PascalCase 格式的 "Cipher"
   const cipherData = (body.Cipher || body.cipher || body) as Record<string, unknown>;
   const incomingFolderId = readCipherProp<string | null>(cipherData, ['folderId', 'FolderId']);
   const incomingKey = readCipherProp<string | null>(cipherData, ['key', 'Key']);
@@ -590,12 +589,12 @@ export async function handleUpdateCipher(
 
   const nextType = Number(cipherData.type) || existingCipher.type;
 
-  // Opaque passthrough: merge existing stored data with ALL incoming client fields.
-  // Unknown/future fields from the client are preserved; server-controlled fields are protected.
+  // 不透明透传：合并现有存储数据与所有传入的客户端字段。
+  // 客户端的未知/未来字段被保留；服务端控制的字段受到保护。
   const cipher: Cipher = {
     ...existingCipher, // start with all existing stored data (including unknowns)
     ...cipherData, // overlay all client data (including new/unknown fields)
-    // Server-controlled fields (never from client)
+    // 服务端控制的字段（不来自客户端）
     id: existingCipher.id,
     userId: existingCipher.userId,
     type: nextType,
@@ -646,10 +645,10 @@ export async function handleUpdateCipher(
     cipher.passwordHistory = incomingPasswordHistory.value ?? null;
   }
 
-  // Custom fields deletion compatibility:
-  // - Accept both camelCase "fields" and PascalCase "Fields".
-  // - For full update (PUT/POST on this endpoint), missing fields means cleared fields.
-  //   This prevents stale custom fields from being resurrected by merge fallback.
+  // 自定义字段删除兼容性：
+  // - 接受 camelCase "fields" 和 PascalCase "Fields"。
+  // - 对于完整更新（此端点的 PUT/POST），缺失字段意味着清空字段。
+  //   这防止了陈旧的自定义字段通过合并回退被恢复。
   const incomingFields = getAliasedProp(cipherData, ['fields', 'Fields']);
   if (incomingFields.present) {
     cipher.fields = incomingFields.value ?? null;
@@ -658,7 +657,7 @@ export async function handleUpdateCipher(
   }
   normalizeCipherForStorage(cipher);
 
-  // Prevent referencing a folder owned by another user.
+  // 防止引用其他用户拥有的文件夹。
   if (cipher.folderId) {
     const folderOk = await verifyFolderOwnership(storage, cipher.folderId, userId);
     if (!folderOk) return errorResponse('Folder not found', 404);
@@ -672,7 +671,7 @@ export async function handleUpdateCipher(
   return jsonResponse(cipherToResponse(cipher, attachments));
 }
 
-// DELETE /api/ciphers/:id
+// [DELETE] /api/ciphers/:id - 软删除密码项
 export async function handleDeleteCipher(
   request: Request,
   env: Env,
@@ -686,7 +685,7 @@ export async function handleDeleteCipher(
     return errorResponse('Cipher not found', 404);
   }
 
-  // Soft delete
+  // 软删除
   cipher.deletedAt = new Date().toISOString();
   cipher.updatedAt = cipher.deletedAt;
   syncCipherComputedAliases(cipher);
@@ -697,11 +696,11 @@ export async function handleDeleteCipher(
   return jsonResponse(cipherToResponse(cipher, []));
 }
 
-// DELETE /api/ciphers/:id (compat mode)
-// Bitwarden clients may call DELETE on a trashed item to purge it permanently.
-// For compatibility:
-// - If item is active -> soft delete.
-// - If item is already soft-deleted -> hard delete.
+// [DELETE] /api/ciphers/:id（兼容模式）
+// Bitwarden 客户端可能对已移至回收站的项目调用 DELETE 以永久清除。
+// 兼容性处理：
+// - 如果项目处于活动状态 -> 软删除。
+// - 如果项目已被软删除 -> 硬删除。
 export async function handleDeleteCipherCompat(
   request: Request,
   env: Env,
@@ -726,7 +725,7 @@ export async function handleDeleteCipherCompat(
   return handleDeleteCipher(request, env, userId, id);
 }
 
-// DELETE /api/ciphers/:id (permanent)
+// [DELETE] /api/ciphers/:id（永久删除）
 export async function handlePermanentDeleteCipher(
   request: Request,
   env: Env,
@@ -740,7 +739,7 @@ export async function handlePermanentDeleteCipher(
     return errorResponse('Cipher not found', 404);
   }
 
-  // Delete all attachments first
+  // 首先删除所有附件
   await deleteAllAttachmentsForCipher(env, id);
 
   await storage.deleteCipher(id, userId);
@@ -750,7 +749,7 @@ export async function handlePermanentDeleteCipher(
   return new Response(null, { status: 204 });
 }
 
-// PUT /api/ciphers/:id/restore
+// [PUT] /api/ciphers/:id/restore - 恢复密码项
 export async function handleRestoreCipher(
   request: Request,
   env: Env,
@@ -774,7 +773,7 @@ export async function handleRestoreCipher(
   return jsonResponse(cipherToResponse(cipher, []));
 }
 
-// PUT /api/ciphers/:id/partial - Update only favorite/folderId
+// [PUT] /api/ciphers/:id/partial - 仅更新收藏夹/文件夹
 export async function handlePartialUpdateCipher(
   request: Request,
   env: Env,
@@ -816,7 +815,7 @@ export async function handlePartialUpdateCipher(
   return jsonResponse(cipherToResponse(cipher, []));
 }
 
-// POST/PUT /api/ciphers/move - Bulk move to folder
+// [POST/PUT] /api/ciphers/move - 批量移动到文件夹
 export async function handleBulkMoveCiphers(
   request: Request,
   env: Env,
@@ -874,7 +873,7 @@ function parseCipherIdList(body: { ids?: unknown }): string[] | null {
   return Array.from(new Set(body.ids.map((id) => String(id || '').trim()).filter(Boolean)));
 }
 
-// PUT/POST /api/ciphers/:id/archive
+// [PUT/POST] /api/ciphers/:id/archive - 归档密码项
 export async function handleArchiveCipher(
   request: Request,
   env: Env,
@@ -902,7 +901,7 @@ export async function handleArchiveCipher(
   return jsonResponse(cipherToResponse(cipher, attachments));
 }
 
-// PUT/POST /api/ciphers/:id/unarchive
+// [PUT/POST] /api/ciphers/:id/unarchive - 取消归档密码项
 export async function handleUnarchiveCipher(
   request: Request,
   env: Env,
@@ -927,7 +926,7 @@ export async function handleUnarchiveCipher(
   return jsonResponse(cipherToResponse(cipher, attachments));
 }
 
-// PUT/POST /api/ciphers/archive
+// [PUT/POST] /api/ciphers/archive - 批量归档
 export async function handleBulkArchiveCiphers(
   request: Request,
   env: Env,
@@ -955,7 +954,7 @@ export async function handleBulkArchiveCiphers(
   return buildCipherListResponse(request, storage, userId, ids);
 }
 
-// PUT/POST /api/ciphers/unarchive
+// [PUT/POST] /api/ciphers/unarchive - 批量取消归档
 export async function handleBulkUnarchiveCiphers(
   request: Request,
   env: Env,
@@ -983,7 +982,7 @@ export async function handleBulkUnarchiveCiphers(
   return buildCipherListResponse(request, storage, userId, ids);
 }
 
-// POST /api/ciphers/delete - Bulk soft delete
+// [POST] /api/ciphers/delete - 批量软删除
 export async function handleBulkDeleteCiphers(
   request: Request,
   env: Env,
@@ -1010,7 +1009,7 @@ export async function handleBulkDeleteCiphers(
   return new Response(null, { status: 204 });
 }
 
-// POST /api/ciphers/restore - Bulk restore
+// [POST] /api/ciphers/restore - 批量恢复
 export async function handleBulkRestoreCiphers(
   request: Request,
   env: Env,
@@ -1037,7 +1036,7 @@ export async function handleBulkRestoreCiphers(
   return new Response(null, { status: 204 });
 }
 
-// POST /api/ciphers/delete-permanent - Bulk permanent delete
+// [POST] /api/ciphers/delete-permanent - 批量永久删除
 export async function handleBulkPermanentDeleteCiphers(
   request: Request,
   env: Env,

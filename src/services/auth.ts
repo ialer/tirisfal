@@ -2,9 +2,9 @@ import type { Env, JWTPayload, User } from '../types';
 import { createJWT, createRefreshToken, verifyJWT } from '../utils/jwt';
 import { StorageService } from './storage';
 
-// Server-side iterations for second-layer hashing.
-// The client already does heavy PBKDF2 (600k iterations).
-// This second layer only needs to be non-trivial, not expensive.
+// 服务端第二层哈希迭代次数
+// 客户端已执行重量级 PBKDF2（600k 次迭代）
+// 第二层只需保证非平凡性，无需高开销
 const SERVER_HASH_ITERATIONS = 600_000;
 const AUTH_CONTEXT_CACHE_TTL_MS = 15 * 1000;
 const CACHE_MAX_SIZE = 1000;
@@ -109,9 +109,9 @@ export class AuthService {
     return device;
   }
 
-  // Second-layer hash: PBKDF2-SHA256(clientHash, email-salt, iterations).
-  // Ensures database contents alone cannot be used to authenticate (pass-the-hash defense).
-  // Result is prefixed with "$s$" to distinguish from legacy raw client hashes.
+// 第二层哈希：PBKDF2-SHA256(clientHash, email-salt, iterations)
+// 确保仅凭数据库内容无法进行认证（防哈希传递攻击）
+// 结果以 "$s$" 为前缀，与旧版原始客户端哈希区分
   async hashPasswordServer(clientHash: string, email: string): Promise<string> {
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
@@ -132,16 +132,16 @@ export class AuthService {
     return `$s$${btoa(binary)}`;
   }
 
-  // Verify password: hash the input the same way, then constant-time compare.
-  async verifyPassword(inputHash: string, storedHash: string, email?: string): Promise<boolean> {
-    // New server-hashed passwords are prefixed with "$s$".
-    // Legacy accounts (created before the upgrade) store raw client hashes without prefix.
+// 验证密码：以相同方式哈希输入，然后进行常量时间比较
+async verifyPassword(inputHash: string, storedHash: string, email?: string): Promise<boolean> {
+  // 新版服务端哈希密码以 "$s$" 为前缀
+  // 旧版账户（升级前创建）存储原始客户端哈希，无前缀
     if (email && storedHash.startsWith('$s$')) {
       const serverHash = await this.hashPasswordServer(inputHash, email);
       return this.constantTimeEquals(serverHash, storedHash);
     }
-    // Legacy path: direct constant-time comparison of raw client hashes.
-    return this.constantTimeEquals(inputHash, storedHash);
+  // 旧版路径：直接常量时间比较原始客户端哈希
+  return this.constantTimeEquals(inputHash, storedHash);
   }
 
   private constantTimeEquals(a: string, b: string): boolean {
@@ -164,7 +164,7 @@ export class AuthService {
     return diff === 0;
   }
 
-  // Generate access token
+  // 生成访问令牌
   async generateAccessToken(
     user: User,
     device?: { identifier: string; sessionStamp: string } | null
@@ -181,7 +181,7 @@ export class AuthService {
     );
   }
 
-  // Generate refresh token
+  // 生成刷新令牌
   async generateRefreshToken(
     userId: string,
     device?: { identifier: string; sessionStamp: string } | null
@@ -233,13 +233,13 @@ export class AuthService {
     return { payload, user };
   }
 
-  // Verify access token from Authorization header
+  // 从 Authorization 头验证访问令牌
   async verifyAccessToken(authHeader: string | null): Promise<JWTPayload | null> {
     const verified = await this.verifyAccessTokenWithUser(authHeader);
     return verified?.payload ?? null;
   }
 
-  // Refresh access token
+  // 刷新访问令牌
   async refreshAccessToken(
     refreshToken: string
   ): Promise<{
