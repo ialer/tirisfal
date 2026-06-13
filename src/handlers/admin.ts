@@ -7,6 +7,7 @@ import { StorageService } from '../services/storage';
 import type { Env, Invite, User } from '../types';
 import { errorResponse, jsonResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
+import { AuthService } from '../services/auth';
 
 function isAdmin(user: User): boolean {
   return user.role === 'admin' && user.status === 'active';
@@ -226,6 +227,9 @@ export async function handleAdminSetUserStatus(
   target.status = nextStatus;
   target.updatedAt = new Date().toISOString();
   await storage.saveUser(target);
+  // 清除用户缓存，确保状态变更立即生效
+  AuthService.invalidateUserCache(target.id);
+  AuthService.invalidateAllDeviceCache(target.id);
   if (nextStatus === 'banned') {
     await storage.deleteRefreshTokensByUserId(target.id);
   }

@@ -183,6 +183,9 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   if (!email.includes('@') || email.length < 3) {
     return errorResponse('Invalid email address', 400);
   }
+  if (email.length > LIMITS.input.maxEmailLength) {
+    return errorResponse('Email is too long', 400);
+  }
   if (!privateKey || !publicKey) {
     return errorResponse('Private key and public key are required', 400);
   }
@@ -192,8 +195,11 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   if (!looksLikeEncString(privateKey)) {
     return errorResponse('encryptedPrivateKey is not a valid encrypted string', 400);
   }
-  if (masterPasswordHint && masterPasswordHint.length > 120) {
-    return errorResponse('masterPasswordHint must be 120 characters or fewer', 400);
+  if (masterPasswordHint && masterPasswordHint.length > LIMITS.input.maxPasswordHintLength) {
+    return errorResponse(`masterPasswordHint must be ${LIMITS.input.maxPasswordHintLength} characters or fewer`, 400);
+  }
+  if (name && name.length > LIMITS.input.maxNameLength) {
+    return errorResponse(`Name must be ${LIMITS.input.maxNameLength} characters or fewer`, 400);
   }
 
   const kdfErr = validateKdfParams(
@@ -566,6 +572,9 @@ export async function handleChangePassword(
   user.securityStamp = generateUUID();
   user.updatedAt = new Date().toISOString();
   await storage.saveUser(user);
+  // 清除缓存，使旧 token 立即失效
+  AuthService.invalidateUserCache(user.id);
+  AuthService.invalidateAllDeviceCache(user.id);
   await storage.deleteRefreshTokensByUserId(user.id);
   await storage.createAuditLog({
     id: generateUUID(),
@@ -635,7 +644,20 @@ export async function handleSetTotpStatus(
     }
     user.updatedAt = new Date().toISOString();
     await storage.saveUser(user);
+    // 清除缓存
+    AuthService.invalidateUserCache(user.id);
+    AuthService.invalidateAllDeviceCache(user.id);
     await storage.deleteRefreshTokensByUserId(user.id);
+    // 记录审计日志
+    await storage.createAuditLog({
+      id: generateUUID(),
+      actorUserId: user.id,
+      action: 'user.totp.enable',
+      targetType: 'user',
+      targetId: user.id,
+      metadata: JSON.stringify({ email: user.email }),
+      createdAt: user.updatedAt,
+    });
     return jsonResponse({
       enabled: true,
       recoveryCode: user.totpRecoveryCode,
@@ -657,7 +679,20 @@ export async function handleSetTotpStatus(
     user.totpSecret = null;
     user.updatedAt = new Date().toISOString();
     await storage.saveUser(user);
+    // 清除缓存
+    AuthService.invalidateUserCache(user.id);
+    AuthService.invalidateAllDeviceCache(user.id);
     await storage.deleteRefreshTokensByUserId(user.id);
+    // 记录审计日志
+    await storage.createAuditLog({
+      id: generateUUID(),
+      actorUserId: user.id,
+      action: 'user.totp.disable',
+      targetType: 'user',
+      targetId: user.id,
+      metadata: JSON.stringify({ email: user.email }),
+      createdAt: user.updatedAt,
+    });
     return jsonResponse({ enabled: false, object: 'twoFactor' });
   }
 
@@ -778,6 +813,9 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
   user.securityStamp = generateUUID();
   user.updatedAt = new Date().toISOString();
   await storage.saveUser(user);
+  // 清除缓存，使旧 token 立即失效
+  AuthService.invalidateUserCache(user.id);
+  AuthService.invalidateAllDeviceCache(user.id);
   await storage.deleteRefreshTokensByUserId(user.id);
   await rateLimit.clearLoginAttempts(recoverLimitKey);
 
@@ -895,6 +933,9 @@ async function apiKey(
     user.apiKey = randomStringAlphanum(LIMITS.auth.clientSecretLength);
     if (rotate) {
       user.securityStamp = generateUUID();
+      // 清除缓存，使旧 token 立即失效
+      AuthService.invalidateUserCache(user.id);
+      AuthService.invalidateAllDeviceCache(user.id);
       await storage.deleteRefreshTokensByUserId(user.id);
     }
     user.updatedAt = new Date().toISOString();

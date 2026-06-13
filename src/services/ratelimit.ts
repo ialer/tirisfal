@@ -110,9 +110,8 @@ export class RateLimitService {
     const now = Date.now();
     await this.maybeCleanupLoginAttemptsIp(now);
 
-    // D1 在 Workers 中禁止原始 BEGIN/COMMIT 语句
-    // 使用单个原子 UPSERT 递增尝试次数
-    // 按 IP 分键，因此并发安全
+    // 使用原子 UPSERT 递增尝试次数，然后立即检查
+    // 虽然不是真正事务，但单条 UPSERT 保证原子性
     await this.db
       .prepare(
         'INSERT INTO login_attempts_ip(ip, attempts, locked_until, updated_at) VALUES(?, 1, NULL, ?) ' +
@@ -121,12 +120,20 @@ export class RateLimitService {
       .bind(key, now)
       .run();
 
+    // 递增后立即读取当前状态
     const row = await this.db
-      .prepare('SELECT attempts FROM login_attempts_ip WHERE ip = ?')
+      .prepare('SELECT attempts, locked_until FROM login_attempts_ip WHERE ip = ?')
       .bind(key)
-      .first<{ attempts: number }>();
+      .first<{ attempts: number; locked_until: number | null }>();
 
     const attempts = row?.attempts || 1;
+
+    // 如果已锁定，返回锁定信息
+    if (row?.locked_until && row.locked_until > now) {
+      return { locked: true, retryAfterSeconds: Math.ceil((row.locked_until - now) / 1000) };
+    }
+
+    // 达到最大尝试次数，执行锁定
     if (attempts >= CONFIG.LOGIN_MAX_ATTEMPTS) {
       const lockedUntil = now + CONFIG.LOGIN_LOCKOUT_MINUTES * 60 * 1000;
       await this.db

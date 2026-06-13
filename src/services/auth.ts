@@ -39,6 +39,25 @@ export class AuthService {
     if (firstKey) cache.delete(firstKey);
   }
 
+  // 清除指定用户的缓存（在用户状态变更时调用）
+  static invalidateUserCache(userId: string): void {
+    AuthService.userCache.delete(userId);
+  }
+
+  // 清除指定设备的缓存
+  static invalidateDeviceCache(userId: string, deviceId: string): void {
+    AuthService.deviceCache.delete(`${userId}:${deviceId}`);
+  }
+
+  // 清除用户所有设备缓存
+  static invalidateAllDeviceCache(userId: string): void {
+    for (const key of AuthService.deviceCache.keys()) {
+      if (key.startsWith(`${userId}:`)) {
+        AuthService.deviceCache.delete(key);
+      }
+    }
+  }
+
   private readCachedUser(userId: string): User | null | undefined {
     const cached = AuthService.userCache.get(userId);
     if (!cached) return undefined;

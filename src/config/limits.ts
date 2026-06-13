@@ -19,6 +19,23 @@ export const LIMITS = {
     // clientSecret 长度
     clientSecretLength: 30,
   },
+  // 输入长度限制
+  input: {
+    // 邮箱最大长度
+    maxEmailLength: 256,
+    // 密码最大长度
+    maxPasswordLength: 1024,
+    // 用户名最大长度
+    maxNameLength: 128,
+    // 密码提示最大长度
+    maxPasswordHintLength: 120,
+    // 笔记最大长度
+    maxNotesLength: 10000,
+    // 自定义字段名最大长度
+    maxFieldNameLength: 256,
+    // 自定义字段值最大长度
+    maxFieldValueLength: 10000,
+  },
   rateLimit: {
     // 触发临时锁定前允许的最大登录失败次数
     loginMaxAttempts: 5,
