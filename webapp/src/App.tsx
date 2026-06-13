@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import AppAuthenticatedShell from '@/components/AppAuthenticatedShell';
 import AppGlobalOverlays, { type AppConfirmState } from '@/components/AppGlobalOverlays';
 import TirisfalLogin from '@/components/TirisfalLogin';
-import SecretsManagerPage from '@/components/SecretsManagerPage';
 import NotFoundPage from '@/components/NotFoundPage';
 import PublicSendPage from '@/components/PublicSendPage';
 import RecoverTwoFactorPage from '@/components/RecoverTwoFactorPage';
@@ -1437,6 +1436,7 @@ export default function App() {
     importRoute: IMPORT_ROUTE,
     settingsHomeRoute: SETTINGS_HOME_ROUTE,
     settingsAccountRoute: SETTINGS_ACCOUNT_ROUTE,
+    authedFetch,
     decryptedCiphers,
     decryptedFolders,
     decryptedSends,
@@ -1667,10 +1667,6 @@ export default function App() {
 
   return (
     <>
-      {location === '/secrets' ? (
-        <SecretsManagerPage authedFetch={authedFetch} />
-      ) : (
-      <>
       <AppAuthenticatedShell
         profile={profile}
         location={location}
@@ -1725,8 +1721,6 @@ export default function App() {
         }}
         disableTotpSubmitting={disableTotpSubmitting}
       />
-      </>
-      )}
     </>
   );
 }

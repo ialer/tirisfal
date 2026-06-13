@@ -19,6 +19,7 @@ const SecurityDevicesPage = lazy(() => import('@/components/SecurityDevicesPage'
 const AdminPage = lazy(() => import('@/components/AdminPage'));
 const BackupCenterPage = lazy(() => import('@/components/BackupCenterPage'));
 const ImportPage = lazy(() => import('@/components/ImportPage'));
+const SecretsManagerPage = lazy(() => import('@/components/SecretsManagerPage'));
 
 function RouteContentFallback() {
   return <LoadingState card lines={5} />;
@@ -40,6 +41,7 @@ export interface AppMainRoutesProps {
   importRoute: string;
   settingsHomeRoute: string;
   settingsAccountRoute: string;
+  authedFetch?: (url: string, init?: RequestInit) => Promise<Response>;
   decryptedCiphers: Cipher[];
   decryptedFolders: VaultFolder[];
   decryptedSends: Send[];
@@ -385,6 +387,9 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
       ))}
       <Route path="/help">
         <LegacyBackupRedirect onNavigate={props.onNavigate} />
+      </Route>
+      <Route path="/secrets">
+        <SecretsManagerPage authedFetch={props.authedFetch || (() => new Response('', { status: 500 }))} />
       </Route>
       <Route path="/backup">
         {isAdmin ? (
