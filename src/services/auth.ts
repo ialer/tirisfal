@@ -4,8 +4,9 @@ import { StorageService } from './storage';
 
 // 服务端第二层哈希迭代次数
 // 客户端已执行重量级 PBKDF2（600k 次迭代）
-// 第二层只需保证非平凡性，无需高开销
-const SERVER_HASH_ITERATIONS = 600_000;
+// Cloudflare Workers Web Crypto 限制 PBKDF2 最大 100k 次迭代
+// 第二层只需保证非平凡性，100k 已足够防止哈希传递攻击
+const SERVER_HASH_ITERATIONS = 100_000;
 const AUTH_CONTEXT_CACHE_TTL_MS = 15 * 1000;
 const CACHE_MAX_SIZE = 1000;
 

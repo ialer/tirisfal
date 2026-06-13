@@ -7,7 +7,7 @@ import { AuthService } from './services/auth';
 import { getClientIdentifier, RateLimitService } from './services/ratelimit';
 import type { Env } from './types';
 import { DEFAULT_DEV_SECRET } from './types';
-import { errorResponse, handleCors, rateLimitResponse } from './utils/response';
+import { errorResponse, handleCors, jsonResponse, rateLimitResponse } from './utils/response';
 
 /** 检查 JWT 密钥是否不安全 */
 function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | null {
@@ -102,7 +102,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     return errorResponse('未找到', 404);
   } catch (error) {
-    console.error('请求错误:', error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('请求错误:', errMsg);
     return errorResponse('服务器内部错误', 500);
   }
 }

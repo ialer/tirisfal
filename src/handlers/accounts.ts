@@ -241,7 +241,13 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   const userCount = await storage.getUserCount();
   if (userCount === 0) {
     user.role = 'admin';
-    const created = await storage.createFirstUser(user);
+    let created = false;
+    try {
+      created = await storage.createFirstUser(user);
+    } catch (err) {
+      console.error('createFirstUser error:', err instanceof Error ? err.message : err);
+      return errorResponse('Failed to create first user', 500);
+    }
     if (!created) {
       return errorResponse('Registration is temporarily unavailable, retry once', 409);
     }

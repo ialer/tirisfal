@@ -882,7 +882,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         let plainJsonCache: string | null = null;
         let plainJsonDocCache: Record<string, unknown> | null = null;
         let encryptedJsonCache: string | null = null;
-        let nodeWardenAttachmentsCache: ReturnType<typeof buildTirisfalAttachmentRecords> | null = null;
+        let tirisfalAttachmentsCache: ReturnType<typeof buildTirisfalAttachmentRecords> | null = null;
 
         const getPlainJson = async () => {
           if (!plainJsonCache) {
@@ -983,7 +983,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         };
 
         const getTirisfalAttachmentRecords = async () => {
-          if (nodeWardenAttachmentsCache) return nodeWardenAttachmentsCache;
+          if (tirisfalAttachmentsCache) return tirisfalAttachmentsCache;
           const [doc, attachments] = await Promise.all([getPlainJsonDoc(), zipAttachments()]);
           const cipherIndexById = new Map<string, number>();
           const items = Array.isArray(doc.items) ? (doc.items as Array<Record<string, unknown>>) : [];
@@ -991,8 +991,8 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
             const id = String(items[i]?.id || '').trim();
             if (id) cipherIndexById.set(id, i);
           }
-          nodeWardenAttachmentsCache = buildTirisfalAttachmentRecords(attachments, cipherIndexById);
-          return nodeWardenAttachmentsCache;
+          tirisfalAttachmentsCache = buildTirisfalAttachmentRecords(attachments, cipherIndexById);
+          return tirisfalAttachmentsCache;
         };
 
         let result: { fileName: string; mimeType: string; bytes: Uint8Array } | null = null;
@@ -1027,19 +1027,19 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           }
         } else if (format === 'tirisfal_json') {
           const [plainDoc, attachments] = await Promise.all([getPlainJsonDoc(), getTirisfalAttachmentRecords()]);
-          const nodeWardenDoc = buildTirisfalPlainJsonDocument(plainDoc, attachments);
+          const tirisfalDoc = buildTirisfalPlainJsonDocument(plainDoc, attachments);
           result = {
             fileName: buildExportFileName(format),
             mimeType: 'application/json',
-            bytes: new TextEncoder().encode(JSON.stringify(nodeWardenDoc, null, 2)),
+            bytes: new TextEncoder().encode(JSON.stringify(tirisfalDoc, null, 2)),
           };
         } else if (format === 'tirisfal_encrypted_json') {
           if (request.encryptedJsonMode === 'password') {
             const [plainDoc, attachments] = await Promise.all([getPlainJsonDoc(), getTirisfalAttachmentRecords()]);
-            const nodeWardenDoc = buildTirisfalPlainJsonDocument(plainDoc, attachments);
+            const tirisfalDoc = buildTirisfalPlainJsonDocument(plainDoc, attachments);
             const kdf = await getPreloginKdfConfig(profile?.email || session.email, defaultKdfIterations);
             const encrypted = await buildPasswordProtectedBitwardenJsonString({
-              plaintextJson: JSON.stringify(nodeWardenDoc, null, 2),
+              plaintextJson: JSON.stringify(tirisfalDoc, null, 2),
               password: String(request.filePassword || ''),
               kdf,
             });
