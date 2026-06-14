@@ -53,9 +53,9 @@ export async function handleNotificationsHub(request: Request, env: Env): Promis
   const id = env.NOTIFICATIONS_HUB.idFromName(userId);
   const stub = env.NOTIFICATIONS_HUB.get(id);
   const forwardedUrl = new URL(request.url);
-  forwardedUrl.searchParams.set('nw_uid', userId);
+  forwardedUrl.searchParams.set('t_uid', userId);
   if (payload.did) {
-    forwardedUrl.searchParams.set('nw_did', payload.did);
+    forwardedUrl.searchParams.set('t_did', payload.did);
   }
   return stub.fetch(new Request(forwardedUrl.toString(), request));
 }

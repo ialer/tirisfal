@@ -389,7 +389,15 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
         <LegacyBackupRedirect onNavigate={props.onNavigate} />
       </Route>
       <Route path="/secrets">
-        <SecretsManagerPage authedFetch={props.authedFetch || (() => new Response('', { status: 500 }))} />
+        <Suspense fallback={<RouteContentFallback />}>
+          {props.authedFetch ? (
+            <SecretsManagerPage authedFetch={props.authedFetch} />
+          ) : (
+            <div className="card text-center" style={{ padding: '48px' }}>
+              <p className="text-muted">加载中...</p>
+            </div>
+          )}
+        </Suspense>
       </Route>
       <Route path="/backup">
         {isAdmin ? (

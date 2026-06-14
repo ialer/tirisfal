@@ -262,8 +262,8 @@ export class NotificationsHub extends DurableObject<Env> {
       return new Response('期望 WebSocket', { status: 426 });
     }
 
-    const requestUserId = String(url.searchParams.get('nw_uid') || '').trim();
-    const requestDeviceIdentifier = String(url.searchParams.get('nw_did') || '').trim() || null;
+    const requestUserId = String(url.searchParams.get('t_uid') || '').trim();
+    const requestDeviceIdentifier = String(url.searchParams.get('t_did') || '').trim() || null;
 
     if (!requestUserId) {
       return new Response('未授权', { status: 401 });
