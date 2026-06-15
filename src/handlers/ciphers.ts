@@ -24,7 +24,7 @@ import { deleteAllAttachmentsForCipher, deleteAllAttachmentsForCiphers } from '.
 // 仅覆盖服务端拥有的字段。cipher 响应结构的任何变更都必须检查 /api/sync、
 // 附件、导入/导出以及当前官方客户端的兼容性。
 function normalizeOptionalId(value: unknown): string | null {
-  if (value === null) return null;
+  if (value === null || value === undefined) return null;
   const normalized = String(value).trim();
   return normalized ? normalized : null;
 }
@@ -458,7 +458,8 @@ async function verifyFolderOwnership(
 export async function handleCreateCipher(
   request: Request,
   env: Env,
-  userId: string
+  userId: string,
+  presetId?: string
 ): Promise<Response> {
   const storage = new StorageService(env.DB);
 
@@ -496,7 +497,7 @@ export async function handleCreateCipher(
   const cipher: Cipher = {
     ...(cipherData as unknown as Cipher),
     // 服务端控制的字段（始终覆盖客户端值）
-    id: generateUUID(),
+    id: presetId || generateUUID(),
     userId: userId,
     type: Number(cipherData.type) || 1,
     favorite: !!(cipherData.favorite as boolean),
@@ -549,7 +550,12 @@ export async function handleUpdateCipher(
   const storage = new StorageService(env.DB);
   const existingCipher = await storage.getCipher(id);
 
-  if (!existingCipher || existingCipher.userId !== userId) {
+  if (!existingCipher) {
+    // Bitwarden 扩展使用 PUT 语义创建密码项（客户端生成 UUID）
+    // 当密码项不存在时，转为创建操作
+    return handleCreateCipher(request, env, userId, id);
+  }
+  if (existingCipher.userId !== userId) {
     return errorResponse('Cipher not found', 404);
   }
 
