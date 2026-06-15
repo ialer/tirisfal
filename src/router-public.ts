@@ -305,12 +305,6 @@ export async function handlePublicRoute(
       LIMITS.rateLimit.registerRequestsPerMinute
     );
     if (blocked) return blocked;
-    if (!isSameOriginWriteRequest(request)) {
-      return new Response(JSON.stringify({ error: '禁止的来源' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
     return handleRegister(request, env);
   }
 
