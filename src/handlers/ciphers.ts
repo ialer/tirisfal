@@ -298,7 +298,7 @@ function normalizePasswordHistoryForCompatibility(
 }
 
 export function isCipherResponseSyncCompatible(cipher: CipherResponse): boolean {
-  return isValidEncString(cipher.name);
+  return typeof cipher.name === 'string' && cipher.name.length > 0;
 }
 
 // 将内部 cipher 转换为 API 响应格式。
