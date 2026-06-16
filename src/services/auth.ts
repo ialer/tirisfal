@@ -153,7 +153,7 @@ export class AuthService {
   }
 
 // 验证密码：以相同方式哈希输入，然后进行常量时间比较
-async verifyPassword(inputHash: string, storedHash: string, email?: string): Promise<boolean> {
+  async verifyPassword(inputHash: string, storedHash: string, email?: string): Promise<boolean> {
   // 新版服务端哈希密码以 "$s$" 为前缀
   // 旧版账户（升级前创建）存储原始客户端哈希，无前缀
     if (email && storedHash.startsWith('$s$')) {
