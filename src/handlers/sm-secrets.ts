@@ -77,7 +77,14 @@ export async function handleSecrets(
     }
 
     const secrets = await smService.getSecretsByProject(projectId, environment || undefined);
-    return jsonResponse({ data: secrets });
+    // 解密每个 secret 的 value
+    const decryptedSecrets = await Promise.all(
+      secrets.map(async (s: any) => ({
+        ...s,
+        value: await smService.decryptSecretValue(s.value),
+      }))
+    );
+    return jsonResponse({ data: decryptedSecrets });
   }
 
   // 匹配 /api/secrets/:id

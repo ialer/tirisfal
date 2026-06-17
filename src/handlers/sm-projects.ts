@@ -11,7 +11,7 @@ export async function handleProjects(
   method: string,
   userId: string
 ): Promise<Response> {
-  const smService = new SecretsManagerService(env.DB);
+  const smService = new SecretsManagerService(env.DB, env.ENCRYPTION_KEY);
 
   // POST /api/projects - 创建项目
   if (method === 'POST' && path === '/api/projects') {

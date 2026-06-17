@@ -104,6 +104,6 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error('请求错误:', errMsg);
-    return errorResponse('服务器内部错误', 500);
+    return jsonResponse({ error: '服务器内部错误', detail: errMsg }, 500);
   }
 }

@@ -24,7 +24,7 @@ async function deriveKey(masterKey: string, salt: Uint8Array): Promise<CryptoKey
     {
       name: 'PBKDF2',
       salt: salt as unknown as BufferSource,
-      iterations: 600000,
+      iterations: 100000,
       hash: 'SHA-256',
     },
     keyMaterial,

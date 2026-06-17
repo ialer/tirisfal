@@ -11,7 +11,7 @@ export async function handleMachineAccounts(
   method: string,
   userId: string
 ): Promise<Response> {
-  const smService = new SecretsManagerService(env.DB);
+  const smService = new SecretsManagerService(env.DB, env.ENCRYPTION_KEY);
 
   // POST /api/machine-accounts - 创建机器账号
   if (method === 'POST' && path === '/api/machine-accounts') {
