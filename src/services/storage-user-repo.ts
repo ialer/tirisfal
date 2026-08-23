@@ -4,7 +4,7 @@ type SafeBind = (stmt: D1PreparedStatement, ...values: any[]) => D1PreparedState
 const USER_SELECT_COLUMNS =
   'id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, ' +
   'kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, ' +
-  'totp_secret, totp_recovery_code, api_key, created_at, updated_at';
+  'totp_secret, totp_recovery_code, api_key, created_at, updated_at, totp_last_used_step';
 
 function mapUserRow(row: any): User {
   return {
@@ -26,6 +26,7 @@ function mapUserRow(row: any): User {
     verifyDevices: row.verify_devices == null ? true : !!row.verify_devices,
     totpSecret: row.totp_secret ?? null,
     totpRecoveryCode: row.totp_recovery_code ?? null,
+    totpLastUsedStep: row.totp_last_used_step ?? null,
     apiKey: row.api_key ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -143,4 +144,16 @@ export async function createFirstUser(
 export async function deleteUserById(db: D1Database, id: string): Promise<boolean> {
   const result = await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
   return (result.meta.changes ?? 0) > 0;
+}
+
+/** 记录最近一次成功使用的 TOTP timestep（防重放） */
+export async function updateUserTotpLastUsedStep(
+  db: D1Database,
+  userId: string,
+  step: number
+): Promise<void> {
+  await db
+    .prepare('UPDATE users SET totp_last_used_step = ?, updated_at = updated_at WHERE id = ?')
+    .bind(step, userId)
+    .run();
 }

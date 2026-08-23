@@ -233,6 +233,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     verifyDevices: true,
     totpSecret: null,
     totpRecoveryCode: null,
+    totpLastUsedStep: null,
     apiKey: null,
     createdAt: now,
     updatedAt: now,

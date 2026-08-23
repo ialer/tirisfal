@@ -7,7 +7,7 @@ import { readAuthRequestDeviceInfo } from '../utils/device';
 import { createRefreshToken } from '../utils/jwt';
 import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { errorResponse, identityErrorResponse, jsonResponse } from '../utils/response';
-import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
+import { isTotpEnabled, verifyTotpTokenWithStep } from '../utils/totp';
 import { buildAccountKeys, buildUserDecryptionOptions } from '../utils/user-decryption';
 import { generateUUID } from '../utils/uuid';
 import { issueSendAccessToken } from './sends';
@@ -167,9 +167,14 @@ function twoFactorRequiredResponse(
 async function recordFailedLoginAndBuildResponse(
   rateLimit: RateLimitService,
   loginIdentifier: string,
-  message: string
+  message: string,
+  ipKey?: string
 ): Promise<Response> {
   const result = await rateLimit.recordFailedLogin(loginIdentifier);
+  // 同时计入纯 IP 维度，防止单 IP 轮换邮箱喷洒
+  if (ipKey) {
+    await rateLimit.recordFailedLogin(ipKey, LIMITS.rateLimit.ipLoginMaxAttempts);
+  }
   if (result.locked) {
     return identityErrorResponse(
       `Too many failed login attempts. Account locked for ${Math.ceil(result.retryAfterSeconds! / 60)} minutes.`,
@@ -182,9 +187,13 @@ async function recordFailedLoginAndBuildResponse(
 
 async function recordFailedTwoFactorAndBuildResponse(
   rateLimit: RateLimitService,
-  loginIdentifier: string
+  loginIdentifier: string,
+  ipKey?: string
 ): Promise<Response> {
   const failed = await rateLimit.recordFailedLogin(loginIdentifier);
+  if (ipKey) {
+    await rateLimit.recordFailedLogin(ipKey, LIMITS.rateLimit.ipLoginMaxAttempts);
+  }
   if (failed.locked) {
     return identityErrorResponse(
       `Too many failed login attempts. Account locked for ${Math.ceil(failed.retryAfterSeconds! / 60)} minutes.`,
@@ -235,6 +244,19 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       return identityErrorResponse('Email and password are required', 'invalid_request', 400);
     }
 
+    // 纯 IP 维度防喷洒：跨账号失败共享同一 IP 预算（阈值放宽以兼容 NAT 共享出口）
+    const ipCheck = await rateLimit.checkLoginAttempt(
+      clientIdentifier,
+      LIMITS.rateLimit.ipLoginMaxAttempts
+    );
+    if (!ipCheck.allowed) {
+      return identityErrorResponse(
+        `Too many failed login attempts from this network. Try again in ${Math.ceil((ipCheck.retryAfterSeconds || 0) / 60)} minutes.`,
+        'TooManyRequests',
+        429
+      );
+    }
+
     // Check login lockout before user lookup to reduce user-enumeration signal
     const loginCheck = await rateLimit.checkLoginAttempt(loginIdentifier);
     if (!loginCheck.allowed) {
@@ -248,6 +270,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const user = await storage.getUser(email);
     if (!user) {
       await rateLimit.recordFailedLogin(loginIdentifier);
+      await rateLimit.recordFailedLogin(clientIdentifier, LIMITS.rateLimit.ipLoginMaxAttempts);
       return identityErrorResponse(
         'Username or password is incorrect. Try again',
         'invalid_grant',
@@ -256,6 +279,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     }
     if (user.status !== 'active') {
       await rateLimit.recordFailedLogin(loginIdentifier);
+      await rateLimit.recordFailedLogin(clientIdentifier, LIMITS.rateLimit.ipLoginMaxAttempts);
       return identityErrorResponse('Account is disabled', 'invalid_grant', 400);
     }
 
@@ -264,7 +288,8 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       return recordFailedLoginAndBuildResponse(
         rateLimit,
         loginIdentifier,
-        'Username or password is incorrect. Try again'
+        'Username or password is incorrect. Try again',
+        clientIdentifier
       );
     }
 
@@ -302,9 +327,20 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
           return twoFactorRequiredResponse('Two factor required.', canUseRecoveryCode);
         }
       } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)) {
-        const totpOk = await verifyTotpToken(effectiveTotpSecret, normalizedTwoFactorToken);
-        if (!totpOk) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
+        const totpResult = await verifyTotpTokenWithStep(effectiveTotpSecret, normalizedTwoFactorToken);
+        if (!totpResult.valid) {
+          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier, clientIdentifier);
+        }
+        // 防重放：同一 timestep 的验证码只允许消费一次
+        if (
+          totpResult.step != null &&
+          user.totpLastUsedStep != null &&
+          totpResult.step <= user.totpLastUsedStep
+        ) {
+          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier, clientIdentifier);
+        }
+        if (totpResult.step != null) {
+          await storage.updateUserTotpLastUsedStep(user.id, totpResult.step);
         }
       } else if (
         normalizedTwoFactorProvider === TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE ||
@@ -312,7 +348,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
         normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_RECOVERY_CODE_ANDROID_REQUEST)
       ) {
         if (!recoveryCodeEquals(normalizedTwoFactorToken, user.totpRecoveryCode)) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
+          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier, clientIdentifier);
         }
         user.totpSecret = null;
         user.totpRecoveryCode = createRecoveryCode();
@@ -322,7 +358,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
         rememberRequested = false;
       } else {
         // Unsupported provider for this server profile behaves as an invalid 2FA attempt.
-        return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
+        return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier, clientIdentifier);
       }
 
       // Upstream behavior: do not issue a new remember token when auth itself used remember provider.
@@ -353,6 +389,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
     // Successful login - clear failed attempts
     await rateLimit.clearLoginAttempts(loginIdentifier);
+    await rateLimit.clearLoginAttempts(clientIdentifier);
 
     const accessToken = await auth.generateAccessToken(user, deviceSession);
     const refreshToken = await auth.generateRefreshToken(user.id, deviceSession);
@@ -402,6 +439,19 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       return identityErrorResponse('Parameter error', 'invalid_request', 400);
     }
 
+    // 纯 IP 维度防喷洒：跨账号失败共享同一 IP 预算（阈值放宽以兼容 NAT 共享出口）
+    const ipCheck = await rateLimit.checkLoginAttempt(
+      clientIdentifier,
+      LIMITS.rateLimit.ipLoginMaxAttempts
+    );
+    if (!ipCheck.allowed) {
+      return identityErrorResponse(
+        `Too many failed login attempts from this network. Try again in ${Math.ceil((ipCheck.retryAfterSeconds || 0) / 60)} minutes.`,
+        'TooManyRequests',
+        429
+      );
+    }
+
     // Check login lockout before user lookup to reduce user-enumeration signal
     const loginCheck = await rateLimit.checkLoginAttempt(loginIdentifier);
     if (!loginCheck.allowed) {
@@ -416,6 +466,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const user = await storage.getUserById(uid);
     if (!user) {
       await rateLimit.recordFailedLogin(loginIdentifier);
+      await rateLimit.recordFailedLogin(clientIdentifier, LIMITS.rateLimit.ipLoginMaxAttempts);
       return identityErrorResponse(
         'ClientId or clientSecret is incorrect. Try again',
         'invalid_grant',
@@ -424,11 +475,13 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     }
     if (user.status !== 'active') {
       await rateLimit.recordFailedLogin(loginIdentifier);
+      await rateLimit.recordFailedLogin(clientIdentifier, LIMITS.rateLimit.ipLoginMaxAttempts);
       return identityErrorResponse('Account is disabled', 'invalid_grant', 400);
     }
 
     if (!user.apiKey || !constantTimeEquals(clientSecret, user.apiKey)) {
       await rateLimit.recordFailedLogin(loginIdentifier);
+      await rateLimit.recordFailedLogin(clientIdentifier, LIMITS.rateLimit.ipLoginMaxAttempts);
       return identityErrorResponse(
         'ClientId or clientSecret is incorrect. Try again',
         'invalid_grant',
@@ -452,6 +505,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
     // Successful login - clear failed attempts
     await rateLimit.clearLoginAttempts(loginIdentifier);
+    await rateLimit.clearLoginAttempts(clientIdentifier);
 
     const accessToken = await auth.generateAccessToken(user, deviceSession);
     const refreshToken = await auth.generateRefreshToken(user.id, deviceSession);
@@ -580,12 +634,16 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       refreshToken,
       Date.now() + LIMITS.auth.refreshTokenOverlapGraceMs
     );
+    // 标记旧令牌已被换发：宽限期外再次使用将触发家族撤销（重用检测）
+    await storage.markRefreshTokenRotated(refreshToken);
 
-    const { accessToken, user, device } = result;
+    const { accessToken, user, device, familyId } = result;
     if (device?.identifier) {
       await storage.touchDeviceLastSeen(user.id, device.identifier);
     }
-    const newRefreshToken = await auth.generateRefreshToken(user.id, device);
+    // 新令牌继承旧令牌的轮换家族（存量无家族则从本次轮换起建立新家族）
+    const nextFamilyId = familyId ?? generateUUID();
+    const newRefreshToken = await auth.generateRefreshToken(user.id, device, nextFamilyId);
     const accountKeys = buildAccountKeys(user);
     const userDecryptionOptions = buildUserDecryptionOptions(user);
 

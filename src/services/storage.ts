@@ -94,6 +94,8 @@ import {
   deleteRefreshTokensByDevice as deleteStoredRefreshTokensByDevice,
   deleteRefreshTokensByUserId as deleteStoredRefreshTokensByUserId,
   getRefreshTokenRecord as findStoredRefreshTokenRecord,
+  markRefreshTokenRotated as markStoredRefreshTokenRotated,
+  revokeRefreshTokenFamily as revokeStoredRefreshTokenFamily,
   saveRefreshToken as saveStoredRefreshToken,
 } from './storage-refresh-token-repo';
 import {
@@ -120,6 +122,7 @@ import {
   getUserById as findStoredUserById,
   getUserCount as countStoredUsers,
   saveUser as saveStoredUser,
+  updateUserTotpLastUsedStep as updateStoredUserTotpLastUsedStep,
 } from './storage-user-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -262,6 +265,10 @@ export class StorageService {
 
   async saveUser(user: User): Promise<void> {
     await saveStoredUser(this.db, this.safeBind.bind(this), user);
+  }
+
+  async updateUserTotpLastUsedStep(userId: string, step: number): Promise<void> {
+    await updateStoredUserTotpLastUsedStep(this.db, userId, step);
   }
 
   async createUser(user: User): Promise<void> {
@@ -517,7 +524,8 @@ export class StorageService {
     userId: string,
     expiresAtMs?: number,
     deviceIdentifier?: string | null,
-    deviceSessionStamp?: string | null
+    deviceSessionStamp?: string | null,
+    familyId?: string | null
   ): Promise<void> {
     const expiresAt = expiresAtMs ?? Date.now() + LIMITS.auth.refreshTokenTtlMs;
     await saveStoredRefreshToken(
@@ -528,7 +536,8 @@ export class StorageService {
       userId,
       expiresAt,
       deviceIdentifier,
-      deviceSessionStamp
+      deviceSessionStamp,
+      familyId
     );
   }
 
@@ -550,6 +559,14 @@ export class StorageService {
 
   async deleteRefreshToken(token: string): Promise<void> {
     await deleteStoredRefreshToken(this.db, this.refreshTokenKey.bind(this), token);
+  }
+
+  async markRefreshTokenRotated(token: string): Promise<void> {
+    await markStoredRefreshTokenRotated(this.db, this.refreshTokenKey.bind(this), token);
+  }
+
+  async revokeRefreshTokenFamily(userId: string, familyId: string): Promise<number> {
+    return revokeStoredRefreshTokenFamily(this.db, userId, familyId);
   }
 
   // --- Sends ---

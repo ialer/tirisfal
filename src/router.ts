@@ -102,8 +102,9 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     return errorResponse('未找到', 404);
   } catch (error) {
+    // 详细错误只进服务端日志，不回传客户端——避免泄漏内部实现/表结构
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error('请求错误:', errMsg);
-    return jsonResponse({ error: '服务器内部错误', detail: errMsg }, 500);
+    return jsonResponse({ error: '服务器内部错误' }, 500);
   }
 }

@@ -39,6 +39,8 @@ export const LIMITS = {
   rateLimit: {
     // 触发临时锁定前允许的最大登录失败次数
     loginMaxAttempts: 5,
+    // 纯 IP 维度（跨账号）登录失败上限——防邮箱轮换喷洒，阈值放宽以兼容 NAT 共享出口
+    ipLoginMaxAttempts: 30,
     // 登录锁定时长（分钟）
     loginLockoutMinutes: 15,
     // 认证 API 每用户每分钟请求配额（读写合计）

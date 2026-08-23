@@ -64,6 +64,7 @@ export async function createJWT(
 
   const fullPayload: JWTPayload = {
     ...payload,
+    typ: 'access', // 令牌用途区分，防止跨类令牌混用
     email_verified: true, // 移动客户端必需
     amr: ['Application'], // 认证方法引用 - 移动客户端必需
     iat: now,
@@ -110,6 +111,9 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
 
     const payload: JWTPayload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64)));
 
+    // 签发者校验：拒绝异源令牌
+    if (payload.iss !== 'tirisfal') return null;
+
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp < now) return null;
 
@@ -130,6 +134,7 @@ export function createRefreshToken(): string {
 
 /** 文件下载令牌载荷 */
 export interface FileDownloadClaims {
+  typ: 'file_download';
   cipherId: string;
   attachmentId: string;
   jti: string;
@@ -138,6 +143,7 @@ export interface FileDownloadClaims {
 
 /** 附件上传令牌载荷 */
 export interface AttachmentUploadClaims {
+  typ: 'attachment_upload';
   userId: string;
   cipherId: string;
   attachmentId: string;
@@ -159,6 +165,7 @@ export async function createFileDownloadToken(
   const now = Math.floor(Date.now() / 1000);
 
   const payload: FileDownloadClaims = {
+    typ: 'file_download',
     cipherId,
     attachmentId,
     jti: createRefreshToken(),
@@ -204,6 +211,7 @@ export async function verifyFileDownloadToken(
     const payload: FileDownloadClaims = JSON.parse(
       new TextDecoder().decode(base64UrlDecode(payloadB64))
     );
+    if (payload.typ !== 'file_download') return null;
 
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp < now) return null;
@@ -226,6 +234,7 @@ export async function createAttachmentUploadToken(
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
   const payload: AttachmentUploadClaims = {
+    typ: 'attachment_upload',
     userId,
     cipherId,
     attachmentId,
@@ -268,6 +277,7 @@ export async function verifyAttachmentUploadToken(
     const payload: AttachmentUploadClaims = JSON.parse(
       new TextDecoder().decode(base64UrlDecode(payloadB64))
     );
+    if (payload.typ !== 'attachment_upload') return null;
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp < now) return null;
     if (!payload.userId || !payload.cipherId || !payload.attachmentId) return null;
@@ -279,6 +289,7 @@ export async function verifyAttachmentUploadToken(
 
 /** Send 文件下载令牌载荷 */
 export interface SendFileDownloadClaims {
+  typ: 'send_file_download';
   sendId: string;
   fileId: string;
   jti: string;
@@ -287,6 +298,7 @@ export interface SendFileDownloadClaims {
 
 /** Send 文件上传令牌载荷 */
 export interface SendFileUploadClaims {
+  typ: 'send_file_upload';
   userId: string;
   sendId: string;
   fileId: string;
@@ -304,6 +316,7 @@ export async function createSendFileDownloadToken(
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
   const payload: SendFileDownloadClaims = {
+    typ: 'send_file_download',
     sendId,
     fileId,
     jti: createRefreshToken(),
@@ -347,6 +360,7 @@ export async function verifySendFileDownloadToken(
       new TextDecoder().decode(base64UrlDecode(payloadB64))
     );
     if (
+      payload.typ !== 'send_file_download' ||
       typeof payload.sendId !== 'string' ||
       typeof payload.fileId !== 'string' ||
       typeof payload.jti !== 'string' ||
@@ -376,6 +390,7 @@ export async function createSendFileUploadToken(
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
   const payload: SendFileUploadClaims = {
+    typ: 'send_file_upload',
     userId,
     sendId,
     fileId,
@@ -418,6 +433,7 @@ export async function verifySendFileUploadToken(
     const payload: SendFileUploadClaims = JSON.parse(
       new TextDecoder().decode(base64UrlDecode(payloadB64))
     );
+    if (payload.typ !== 'send_file_upload') return null;
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp < now) return null;
     if (!payload.userId || !payload.sendId || !payload.fileId) return null;
