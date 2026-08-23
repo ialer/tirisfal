@@ -1,7 +1,8 @@
 import { LIMITS } from '../config/limits';
 
 const ICON_UPSTREAM_TIMEOUT_MS = 2500;
-const DEFAULT_GLOBE_ICON_SHA256 = 'aaa64871332ad5b7d28fe8874efb19c2d9cc2f1e6de75d52b080b438225a0783';
+const DEFAULT_GLOBE_ICON_SHA256 =
+  'aaa64871332ad5b7d28fe8874efb19c2d9cc2f1e6de75d52b080b438225a0783';
 const DEFAULT_GLOBE_ICON_BYTES = 500;
 
 const DEFAULT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="Globe icon"><circle cx="48" cy="48" r="34" fill="none" stroke="#8ea9c7" stroke-width="6"/><path d="M14 48h68M48 14c10 10 16 21.5 16 34s-6 24-16 34c-10-10-16-21.5-16-34s6-24 16-34zm-24 10c8 5 17 8 24 8s16-3 24-8m-48 48c8-5 17-8 24-8s16 3 24 8" fill="none" stroke="#8ea9c7" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -15,7 +16,9 @@ type IconSource = {
 function normalizeIconHost(rawHost: string): string | null {
   let decoded: string;
   try {
-    decoded = decodeURIComponent(String(rawHost || '').trim()).toLowerCase().replace(/\.+$/, '');
+    decoded = decodeURIComponent(String(rawHost || '').trim())
+      .toLowerCase()
+      .replace(/\.+$/, '');
   } catch {
     return null;
   }
@@ -80,7 +83,8 @@ export async function handleWebsiteIcon(
   fallbackMode: 'default' | 'not-found' = 'default'
 ): Promise<Response> {
   const normalizedHost = normalizeIconHost(host);
-  if (!normalizedHost) return fallbackMode === 'not-found' ? notFoundIconResponse() : defaultIconResponse();
+  if (!normalizedHost)
+    return fallbackMode === 'not-found' ? notFoundIconResponse() : defaultIconResponse();
 
   const encodedHost = encodeURIComponent(normalizedHost);
   const headers = { 'User-Agent': 'Tirisfal/1.0' };
@@ -102,13 +106,21 @@ export async function handleWebsiteIcon(
       if (!source.rejectImage) return iconResponse(resp.body, resp.headers.get('Content-Type'));
 
       const contentLength = Number(resp.headers.get('Content-Length') || '');
-      if (Number.isFinite(contentLength) && contentLength > 0 && contentLength !== source.rejectImage.byteLength) {
+      if (
+        Number.isFinite(contentLength) &&
+        contentLength > 0 &&
+        contentLength !== source.rejectImage.byteLength
+      ) {
         return iconResponse(resp.body, resp.headers.get('Content-Type'));
       }
 
       const bytes = await resp.arrayBuffer();
       if (bytes.byteLength === 0) continue;
-      if (bytes.byteLength === source.rejectImage.byteLength && (await sha256Hex(bytes)) === source.rejectImage.sha256) continue;
+      if (
+        bytes.byteLength === source.rejectImage.byteLength &&
+        (await sha256Hex(bytes)) === source.rejectImage.sha256
+      )
+        continue;
       return iconResponse(bytes, resp.headers.get('Content-Type'));
     } catch {
       continue;

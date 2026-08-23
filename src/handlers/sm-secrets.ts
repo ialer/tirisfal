@@ -61,7 +61,7 @@ export async function handleSecrets(
     }
 
     // 输入验证
-    if (!body.name || typeof body.name !== 'string' || (body.name).trim().length === 0) {
+    if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
       return errorResponse('Name is required and must be a non-empty string', 400);
     }
     if (body.name.length > 255) {
@@ -79,12 +79,16 @@ export async function handleSecrets(
     if (body.environment && typeof body.environment !== 'string') {
       return errorResponse('environment must be a string', 400);
     }
-    if (body.environment && typeof body.environment === 'string' && !['prod', 'staging', 'dev', 'test'].includes(body.environment)) {
+    if (
+      body.environment &&
+      typeof body.environment === 'string' &&
+      !['prod', 'staging', 'dev', 'test'].includes(body.environment)
+    ) {
       return errorResponse('environment must be one of: prod, staging, dev, test', 400);
     }
 
     const secret = await smService.createSecret(userId, {
-      name: (body.name).trim(),
+      name: body.name.trim(),
       value: body.value,
       project_id: body.project_id,
       environment: body.environment as string | undefined,
@@ -106,7 +110,11 @@ export async function handleSecrets(
 
     // 验证项目访问权限（Machine Account 走项目授权校验，用户走所有权校验）
     const listAccessError = await assertProjectSecretAccess(
-      smService, request, projectId, userId, machineAccountId
+      smService,
+      request,
+      projectId,
+      userId,
+      machineAccountId
     );
     if (listAccessError) return listAccessError;
 
@@ -136,7 +144,11 @@ export async function handleSecrets(
       // Machine Account 权限验证
       if (machineAccountId) {
         const clientIp = getClientIp(request);
-        const accessCheck = await smService.validateProjectAccess(machineAccountId, secret.project_id, clientIp || undefined);
+        const accessCheck = await smService.validateProjectAccess(
+          machineAccountId,
+          secret.project_id,
+          clientIp || undefined
+        );
         if (!accessCheck.allowed) {
           return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
         }
@@ -149,9 +161,11 @@ export async function handleSecrets(
       const decryptedValue = await smService.decryptSecretValue(secret.value);
 
       // 记录访问日志
-      const clientIp = request.headers.get('CF-Connecting-IP') ||
-                       request.headers.get('X-Real-IP') ||
-                       request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || null;
+      const clientIp =
+        request.headers.get('CF-Connecting-IP') ||
+        request.headers.get('X-Real-IP') ||
+        request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
+        null;
       await smService.logSecretAccess(
         machineAccountId || null,
         userId,
@@ -180,7 +194,11 @@ export async function handleSecrets(
       // Machine Account 权限验证
       if (machineAccountId) {
         const clientIp = getClientIp(request);
-        const accessCheck = await smService.validateProjectAccess(machineAccountId, secret.project_id, clientIp || undefined);
+        const accessCheck = await smService.validateProjectAccess(
+          machineAccountId,
+          secret.project_id,
+          clientIp || undefined
+        );
         if (!accessCheck.allowed) {
           return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
         }
@@ -216,7 +234,11 @@ export async function handleSecrets(
       // Machine Account 权限验证
       if (machineAccountId) {
         const clientIp = getClientIp(request);
-        const accessCheck = await smService.validateProjectAccess(machineAccountId, secret.project_id, clientIp || undefined);
+        const accessCheck = await smService.validateProjectAccess(
+          machineAccountId,
+          secret.project_id,
+          clientIp || undefined
+        );
         if (!accessCheck.allowed) {
           return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
         }
@@ -233,13 +255,14 @@ export async function handleSecrets(
   if (method === 'POST' && path === '/api/secrets/batch') {
     let body: Record<string, unknown>;
     try {
-      body = (await request.json());
+      body = await request.json();
     } catch {
       return errorResponse('Invalid JSON body', 400);
     }
     const projectId = typeof body.project_id === 'string' ? body.project_id : '';
     const environment =
-      typeof body.environment === 'string' && ['prod', 'staging', 'dev', 'test'].includes(body.environment)
+      typeof body.environment === 'string' &&
+      ['prod', 'staging', 'dev', 'test'].includes(body.environment)
         ? body.environment
         : undefined;
     const names = Array.isArray(body.names)
@@ -252,7 +275,11 @@ export async function handleSecrets(
 
     // 与单条读取一致的权限校验（Machine Account 走项目授权，用户走所有权）
     const accessError = await assertProjectSecretAccess(
-      smService, request, projectId, userId, machineAccountId
+      smService,
+      request,
+      projectId,
+      userId,
+      machineAccountId
     );
     if (accessError) return accessError;
 
@@ -304,7 +331,11 @@ export async function handleSecrets(
 
     // 项目访问权限校验（Machine Account 走项目授权校验，用户走所有权校验）
     const byNameAccessError = await assertProjectSecretAccess(
-      smService, request, projectId, userId, machineAccountId
+      smService,
+      request,
+      projectId,
+      userId,
+      machineAccountId
     );
     if (byNameAccessError) return byNameAccessError;
 

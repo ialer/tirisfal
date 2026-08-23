@@ -157,9 +157,7 @@ export async function unwrapPortableDek(
       // 尝试下一个 hash（SHA-256 失败则回退 SHA-1）
     }
   }
-  throw new Error(
-    'Failed to unwrap portable backup settings key with any supported OAEP hash'
-  );
+  throw new Error('Failed to unwrap portable backup settings key with any supported OAEP hash');
 }
 
 function getEligiblePortableUsers(

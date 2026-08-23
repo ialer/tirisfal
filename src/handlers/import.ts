@@ -267,14 +267,18 @@ export async function handleCiphersImport(
         })) || null,
       passwordHistory: passwordHistory ?? null,
       reprompt: c.reprompt ?? 0,
-      sshKey: normalizeCipherSshKeyForCompatibility((c as any).sshKey ?? null) as CipherSshKey | null,
+      sshKey: normalizeCipherSshKeyForCompatibility(
+        (c as any).sshKey ?? null
+      ) as CipherSshKey | null,
       key: key ?? null,
       createdAt: now,
       updatedAt: now,
       archivedAt: null,
       deletedAt: null,
     };
-    cipher.login = normalizeCipherLoginForStorage(cipher.login as unknown as Record<string, unknown>) as CipherLogin | null;
+    cipher.login = normalizeCipherLoginForStorage(
+      cipher.login as unknown as Record<string, unknown>
+    ) as CipherLogin | null;
 
     cipherRows.push(cipher);
     cipherMapRows.push({ index: i, sourceId, id: cipher.id });

@@ -1,4 +1,4 @@
-import { beforeEach,describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SecretsManagerService } from '../../src/services/sm-service';
 
@@ -22,11 +22,15 @@ describe('SecretsManagerService', () => {
 
   describe('constructor', () => {
     it('should throw error when encryption key is empty', () => {
-      expect(() => new SecretsManagerService(mockDb as any, '')).toThrow('ENCRYPTION_KEY is required');
+      expect(() => new SecretsManagerService(mockDb as any, '')).toThrow(
+        'ENCRYPTION_KEY is required'
+      );
     });
 
     it('should throw error when encryption key is undefined', () => {
-      expect(() => new SecretsManagerService(mockDb as any, undefined)).toThrow('ENCRYPTION_KEY is required');
+      expect(() => new SecretsManagerService(mockDb as any, undefined)).toThrow(
+        'ENCRYPTION_KEY is required'
+      );
     });
 
     it('should create service with valid key', () => {

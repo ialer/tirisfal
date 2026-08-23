@@ -6,9 +6,9 @@ describe('Health Check Handler', () => {
   const mockEnv = {
     DB: {
       prepare: vi.fn().mockReturnValue({
-        first: vi.fn().mockResolvedValue({ '1': 1 })
-      })
-    }
+        first: vi.fn().mockResolvedValue({ '1': 1 }),
+      }),
+    },
   } as any;
 
   it('should return healthy status', async () => {
@@ -25,9 +25,9 @@ describe('Health Check Handler', () => {
     const failingEnv = {
       DB: {
         prepare: vi.fn().mockReturnValue({
-          first: vi.fn().mockRejectedValue(new Error('DB connection failed'))
-        })
-      }
+          first: vi.fn().mockRejectedValue(new Error('DB connection failed')),
+        }),
+      },
     } as any;
 
     const request = new Request('https://example.com/health');

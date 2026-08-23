@@ -1,4 +1,4 @@
-import { describe, expect,it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   decrypt,
@@ -85,8 +85,6 @@ describe('Crypto Fast Path (v2, HKDF + cached key)', () => {
     // 旧 decrypt() 不识别 v2 前缀，应失败而不是返回明文
     await expect(decrypt(fastEncrypted, testKey)).rejects.toThrow();
     // 新 decryptFast() 可读旧格式
-    await expect(decrypt(await encrypt(plaintext, testKey), testKey)).resolves.toBe(
-      plaintext
-    );
+    await expect(decrypt(await encrypt(plaintext, testKey), testKey)).resolves.toBe(plaintext);
   });
 });

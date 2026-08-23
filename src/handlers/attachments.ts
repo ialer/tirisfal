@@ -331,8 +331,7 @@ export async function handleUpdateAttachmentMetadata(
     attachment.fileName = fileName;
   }
   if (Object.prototype.hasOwnProperty.call(body, 'key')) {
-    const key =
-      body.key !== undefined && body.key !== null ? String(body.key || '').trim() : null;
+    const key = body.key !== undefined && body.key !== null ? String(body.key || '').trim() : null;
     attachment.key = key || null;
   }
 

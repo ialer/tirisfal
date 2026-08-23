@@ -56,7 +56,15 @@ export async function handleSmRoute(
 
     // Machine Account 只能访问被授权的 secrets
     if (path.startsWith('/api/secrets')) {
-      return handleSecrets(request, env, path, method, machineAuth.userId, env.ENCRYPTION_KEY, machineAuth.machineAccountId);
+      return handleSecrets(
+        request,
+        env,
+        path,
+        method,
+        machineAuth.userId,
+        env.ENCRYPTION_KEY,
+        machineAuth.machineAccountId
+      );
     }
     return errorResponse('禁止：机器账号无法管理资源', 403);
   }

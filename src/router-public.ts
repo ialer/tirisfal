@@ -1,12 +1,19 @@
 import { LIMITS } from './config/limits';
 import { handleGetPasswordHint, handleRecoverTwoFactor, handleRegister } from './handlers/accounts';
-import { handlePublicDownloadAttachment, handlePublicUploadAttachment } from './handlers/attachments';
+import {
+  handlePublicDownloadAttachment,
+  handlePublicUploadAttachment,
+} from './handlers/attachments';
 import { handleKnownDevice } from './handlers/devices';
 import { handlePrelogin, handleRevocation, handleToken } from './handlers/identity';
 import { handleNotificationsHub, handleNotificationsNegotiate } from './handlers/notifications';
 import {
-  handleAccessSend, handleAccessSendFile, handleAccessSendFileV2, handleAccessSendV2,
-  handleDownloadSendFile, handlePublicUploadSendFile,
+  handleAccessSend,
+  handleAccessSendFile,
+  handleAccessSendFileV2,
+  handleAccessSendV2,
+  handleDownloadSendFile,
+  handlePublicUploadSendFile,
 } from './handlers/sends';
 import { handleWebsiteIcon } from './services/icon-proxy';
 import { DEFAULT_DEV_SECRET, type Env } from './types';
@@ -30,7 +37,11 @@ function isSameOriginWriteRequest(request: Request): boolean {
   if (origin) return origin === targetOrigin;
   const referer = request.headers.get('Referer');
   if (referer) {
-    try { return new URL(referer).origin === targetOrigin; } catch { return false; }
+    try {
+      return new URL(referer).origin === targetOrigin;
+    } catch {
+      return false;
+    }
   }
   return false;
 }
@@ -42,9 +53,14 @@ function buildConfigResponse(origin: string) {
     gitHash: 'tirisfal',
     server: null,
     environment: {
-      cloudRegion: 'self-hosted', vault: origin, api: `${origin}/api`,
-      identity: `${origin}/identity`, notifications: `${origin}/notifications`,
-      icons: origin, sso: '', fillAssistRules: null,
+      cloudRegion: 'self-hosted',
+      vault: origin,
+      api: `${origin}/api`,
+      identity: `${origin}/identity`,
+      notifications: `${origin}/notifications`,
+      icons: origin,
+      sso: '',
+      fillAssistRules: null,
     },
     push: { pushTechnology: 0, vapidPublicKey: null },
     communication: null,
@@ -52,9 +68,13 @@ function buildConfigResponse(origin: string) {
     _icon_service_url: `${origin}/icons/{}/icon.png`,
     _icon_service_csp: `img-src 'self' data: ${origin}`,
     featureStates: {
-      'cipher-key-encryption': true, 'duo-redirect': true, 'email-verification': true,
-      'pm-19051-send-email-verification': false, 'pm-19148-innovation-archive': true,
-      'unauth-ui-refresh': true, 'web-push': false,
+      'cipher-key-encryption': true,
+      'duo-redirect': true,
+      'email-verification': true,
+      'pm-19051-send-email-verification': false,
+      'pm-19148-innovation-archive': true,
+      'unauth-ui-refresh': true,
+      'web-push': false,
     },
     object: 'config',
   };

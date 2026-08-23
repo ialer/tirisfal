@@ -66,7 +66,10 @@ export class RateLimitService {
     RateLimitService.loginIpTableReady = true;
   }
 
-  async checkLoginAttempt(ip: string, maxAttempts: number = CONFIG.LOGIN_MAX_ATTEMPTS): Promise<{
+  async checkLoginAttempt(
+    ip: string,
+    maxAttempts: number = CONFIG.LOGIN_MAX_ATTEMPTS
+  ): Promise<{
     allowed: boolean;
     remainingAttempts: number;
     retryAfterSeconds?: number;
@@ -103,7 +106,10 @@ export class RateLimitService {
     return { allowed: true, remainingAttempts };
   }
 
-  async recordFailedLogin(ip: string, maxAttempts: number = CONFIG.LOGIN_MAX_ATTEMPTS): Promise<{ locked: boolean; retryAfterSeconds?: number }> {
+  async recordFailedLogin(
+    ip: string,
+    maxAttempts: number = CONFIG.LOGIN_MAX_ATTEMPTS
+  ): Promise<{ locked: boolean; retryAfterSeconds?: number }> {
     await this.ensureLoginIpTable();
 
     const key = ip.trim() || 'unknown';
@@ -168,13 +174,13 @@ export class RateLimitService {
   }
 
   private async maybeCleanupRateLimits(nowSec: number): Promise<void> {
-    if (nowSec - RateLimitService.lastRateLimitCleanupAt < RateLimitService.RATE_LIMIT_CLEANUP_INTERVAL_MS / 1000) {
+    if (
+      nowSec - RateLimitService.lastRateLimitCleanupAt <
+      RateLimitService.RATE_LIMIT_CLEANUP_INTERVAL_MS / 1000
+    ) {
       return;
     }
-    await this.db
-      .prepare('DELETE FROM rate_limits WHERE expires_at < ?')
-      .bind(nowSec)
-      .run();
+    await this.db.prepare('DELETE FROM rate_limits WHERE expires_at < ?').bind(nowSec).run();
     RateLimitService.lastRateLimitCleanupAt = nowSec;
   }
 
