@@ -8,8 +8,7 @@ import {
   putBlobObject,
 } from '../services/blob-store';
 import { StorageService } from '../services/storage';
-import type { Attachment, Env } from '../types';
-import { DEFAULT_DEV_SECRET } from '../types';
+import { type Attachment, DEFAULT_DEV_SECRET, type Env } from '../types';
 import { readActingDeviceIdentifier } from '../utils/device';
 import {
   buildDirectUploadUrl,
@@ -332,7 +331,8 @@ export async function handleUpdateAttachmentMetadata(
     attachment.fileName = fileName;
   }
   if (Object.prototype.hasOwnProperty.call(body, 'key')) {
-    const key = body.key == null ? null : String(body.key || '').trim();
+    const key =
+      body.key !== undefined && body.key !== null ? String(body.key || '').trim() : null;
     attachment.key = key || null;
   }
 

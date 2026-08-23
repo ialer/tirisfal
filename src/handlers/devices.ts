@@ -4,9 +4,9 @@ import type {
   Device,
   DevicePendingAuthRequest,
   DeviceResponse,
+  Env,
   ProtectedDeviceResponse as ProtectedDeviceWireResponse,
 } from '../types';
-import type { Env } from '../types';
 import { readKnownDeviceProbe } from '../utils/device';
 import { errorResponse, jsonResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
@@ -504,6 +504,7 @@ export async function handleDeactivateDevice(
 // PUT /api/devices/identifier/{deviceIdentifier}/token
 // Bitwarden mobile reports push token updates to this endpoint.
 // Tirisfal does not implement push notifications, so accept and no-op.
+// eslint-disable-next-line @typescript-eslint/require-await -- 保持与其他设备端点一致的 async 签名
 export async function handleUpdateDeviceToken(
   request: Request,
   env: Env,
@@ -518,6 +519,7 @@ export async function handleUpdateDeviceToken(
 }
 
 // PUT/POST /api/devices/:deviceIdentifier/web-push-auth
+// eslint-disable-next-line @typescript-eslint/require-await -- 保持与其他设备端点一致的 async 签名
 export async function handleUpdateDeviceWebPushAuth(
   request: Request,
   env: Env,
@@ -532,6 +534,7 @@ export async function handleUpdateDeviceWebPushAuth(
 }
 
 // PUT/POST /api/devices/:deviceIdentifier/clear-token
+// eslint-disable-next-line @typescript-eslint/require-await -- 保持与其他设备端点一致的 async 签名
 export async function handleClearDeviceToken(
   request: Request,
   env: Env,

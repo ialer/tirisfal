@@ -293,7 +293,8 @@ export class NotificationsHub extends DurableObject<Env> {
     });
   }
 
-  /** 处理 WebSocket 消息 */
+  /** 处理 WebSocket 消息（Durable Object 接口要求 async 签名） */
+  // eslint-disable-next-line @typescript-eslint/require-await
   async webSocketMessage(
     ws: WebSocket,
     message: string | ArrayBuffer | ArrayBufferView
@@ -332,6 +333,7 @@ export class NotificationsHub extends DurableObject<Env> {
   }
 
   /** 处理 WebSocket 关闭 */
+  // eslint-disable-next-line @typescript-eslint/require-await
   async webSocketClose(
     ws: WebSocket,
     code: number,
@@ -346,6 +348,7 @@ export class NotificationsHub extends DurableObject<Env> {
   }
 
   /** 处理 WebSocket 错误 */
+  // eslint-disable-next-line @typescript-eslint/require-await
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     const attachment = ws.deserializeAttachment() as WsAttachment | null;
     const shouldBroadcast = !!attachment?.handshakeComplete;

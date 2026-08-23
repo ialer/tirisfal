@@ -27,7 +27,7 @@ export async function handleProjects(
     }
 
     const project = await smService.createProject(userId, {
-      name: body.name as string,
+      name: body.name,
       description: body.description as string | undefined,
     });
 

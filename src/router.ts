@@ -5,8 +5,7 @@ import { handlePublicRoute } from './router-public';
 import { handleSmRoute } from './router-sm';
 import { AuthService } from './services/auth';
 import { getClientIdentifier, RateLimitService } from './services/ratelimit';
-import type { Env } from './types';
-import { DEFAULT_DEV_SECRET } from './types';
+import { DEFAULT_DEV_SECRET, type Env } from './types';
 import { errorResponse, handleCors, jsonResponse, rateLimitResponse } from './utils/response';
 
 /** 检查 JWT 密钥是否不安全 */

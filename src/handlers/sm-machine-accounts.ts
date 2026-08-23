@@ -27,7 +27,7 @@ export async function handleMachineAccounts(
     }
 
     const account = await smService.createMachineAccount(userId, {
-      name: body.name as string,
+      name: body.name,
       description: body.description as string | undefined,
     });
 
@@ -103,9 +103,10 @@ export async function handleMachineAccounts(
     // 支持自定义过期时间
     let expiryDays: number | undefined;
     try {
-      const body = await request.json() as Record<string, unknown>;
-      if (body.expiry_days && typeof body.expiry_days === 'number') {
-        expiryDays = body.expiry_days;
+      const body = await request.json<Record<string, unknown>>();
+      const expiryDaysRaw = body?.expiry_days;
+      if (typeof expiryDaysRaw === 'number') {
+        expiryDays = expiryDaysRaw;
       }
     } catch {
       // 使用默认值

@@ -119,7 +119,7 @@ curl "https://your-worker.workers.dev/api/secrets/by-name/API_KEY?project_id=<id
 | 特性 | 实现 |
 |:---:|:---|
 | 🔑 | **AES-256-GCM** - 行业标准加密算法 |
-| 🧂 | **PBKDF2 600K** - OWASP 推荐迭代次数 |
+| 🧂 | **PBKDF2 600K** - 客户端主密码派生（迭代数可配置）；服务端敏感值加密另用 HKDF/AES-GCM |
 | ⏰ | **Token Rotation** - 支持自动轮换和撤销 |
 | 🛡️ | **IP Whitelist** - 限制访问来源 |
 | 🕐 | **Time Window** - 基于时间的访问控制 |

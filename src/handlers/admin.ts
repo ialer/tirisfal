@@ -1,13 +1,13 @@
+import { AuthService } from '../services/auth';
 import {
   deleteBlobObject,
   getAttachmentObjectKey,
   getSendFileObjectKey,
 } from '../services/blob-store';
 import { StorageService } from '../services/storage';
-import type { Env, Invite, User } from '../types';
+import { type Env, type Invite, SendType, type User } from '../types';
 import { errorResponse, jsonResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
-import { AuthService } from '../services/auth';
 
 function isAdmin(user: User): boolean {
   return user.role === 'admin' && user.status === 'active';
@@ -278,7 +278,7 @@ export async function handleAdminDeleteUser(
   // 2. 发送文件（按 sends/sendId/fileId 索引）
   const sends = await storage.getAllSends(target.id);
   for (const send of sends) {
-    if (send.type === 1) {
+    if (Number(send.type) === Number(SendType.File)) {
       // SendType.File
       try {
         const parsed = JSON.parse(send.data) as Record<string, unknown>;

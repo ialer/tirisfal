@@ -1,11 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect,it } from 'vitest';
+
 import {
-  encrypt,
   decrypt,
-  encryptFast,
   decryptFast,
-  generateKey,
+  encrypt,
+  encryptFast,
   FAST_FORMAT_PREFIX,
+  generateKey,
 } from '../../src/utils/crypto';
 
 describe('Crypto Utils', () => {

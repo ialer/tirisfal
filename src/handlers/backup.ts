@@ -30,7 +30,6 @@ import {
   importBackupArchiveBytes,
   importRemoteBackupArchiveBytes,
 } from '../services/backup-import';
-import type { uploadBackupArchive } from '../services/backup-uploader';
 import {
   createRemoteBackupTransferSession,
   deleteRemoteBackupFile,
@@ -39,6 +38,7 @@ import {
   listRemoteBackupEntries,
   pruneRemoteBackupArchives,
   type RemoteBackupTransferSession,
+  type uploadBackupArchive,
 } from '../services/backup-uploader';
 import { getBlobObject } from '../services/blob-store';
 import { StorageService } from '../services/storage';
@@ -568,7 +568,7 @@ export async function runScheduledBackupIfDue(env: Env): Promise<void> {
     const storage = new StorageService(env.DB);
     let scanStartMs = Date.now();
 
-    while (true) {
+    for (;;) {
       await keepAlive();
       const settings = await loadBackupSettings(storage, env, 'UTC');
       const now = new Date();

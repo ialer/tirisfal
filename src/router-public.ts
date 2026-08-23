@@ -9,8 +9,7 @@ import {
   handleDownloadSendFile, handlePublicUploadSendFile,
 } from './handlers/sends';
 import { handleWebsiteIcon } from './services/icon-proxy';
-import type { Env } from './types';
-import { DEFAULT_DEV_SECRET } from './types';
+import { DEFAULT_DEV_SECRET, type Env } from './types';
 import { jsonResponse } from './utils/response';
 
 /** 公开接口速率限制器类型 */

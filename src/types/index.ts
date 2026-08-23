@@ -330,8 +330,8 @@ export interface SendResponse {
   type: number;
   name: string;
   notes: string | null;
-  text: any | null;
-  file: any | null;
+  text: any;
+  file: any;
   key: string;
   maxAccessCount: number | null;
   accessCount: number;
@@ -411,8 +411,8 @@ export interface TokenResponse {
     Object: string;
   } | null;
   ApiUseKeyConnector?: boolean;
-  AccountKeys?: any | null;
-  accountKeys?: any | null;
+  AccountKeys?: any;
+  accountKeys?: any;
   UserDecryptionOptions: UserDecryptionOptions;
   userDecryptionOptions?: UserDecryptionOptions;
   VaultKeys?: {
@@ -434,7 +434,7 @@ export interface ProfileResponse {
   twoFactorEnabled: boolean;
   key: string;
   privateKey: string | null;
-  accountKeys: any | null;
+  accountKeys: any;
   securityStamp: string;
   organizations: any[];
   providers: any[];
