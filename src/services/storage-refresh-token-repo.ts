@@ -11,16 +11,24 @@ export async function saveRefreshToken(
   userId: string,
   expiresAtMs: number,
   deviceIdentifier?: string | null,
-  deviceSessionStamp?: string | null
+  deviceSessionStamp?: string | null,
+  familyId?: string | null
 ): Promise<void> {
   await maybeCleanupExpiredRefreshTokens(Date.now());
   const tokenKey = await refreshTokenKey(token);
   await db
     .prepare(
-      'INSERT INTO refresh_tokens(token, user_id, expires_at, device_identifier, device_session_stamp) VALUES(?, ?, ?, ?, ?) ' +
-        'ON CONFLICT(token) DO UPDATE SET user_id=excluded.user_id, expires_at=excluded.expires_at, device_identifier=excluded.device_identifier, device_session_stamp=excluded.device_session_stamp'
+      'INSERT INTO refresh_tokens(token, user_id, expires_at, device_identifier, device_session_stamp, family_id) VALUES(?, ?, ?, ?, ?, ?) ' +
+        'ON CONFLICT(token) DO UPDATE SET user_id=excluded.user_id, expires_at=excluded.expires_at, device_identifier=excluded.device_identifier, device_session_stamp=excluded.device_session_stamp, family_id=excluded.family_id'
     )
-    .bind(tokenKey, userId, expiresAtMs, deviceIdentifier ?? null, deviceSessionStamp ?? null)
+    .bind(
+      tokenKey,
+      userId,
+      expiresAtMs,
+      deviceIdentifier ?? null,
+      deviceSessionStamp ?? null,
+      familyId ?? null
+    )
     .run();
 }
 
@@ -44,7 +52,7 @@ export async function getRefreshTokenRecord(
 
   const row = await db
     .prepare(
-      'SELECT user_id, expires_at, device_identifier, device_session_stamp FROM refresh_tokens WHERE token = ?'
+      'SELECT user_id, expires_at, device_identifier, device_session_stamp, family_id, rotated_at FROM refresh_tokens WHERE token = ?'
     )
     .bind(tokenKey)
     .first<{
@@ -52,6 +60,8 @@ export async function getRefreshTokenRecord(
       expires_at: number;
       device_identifier: string | null;
       device_session_stamp: string | null;
+      family_id: string | null;
+      rotated_at: number | null;
     }>();
 
   if (!row) {
@@ -99,6 +109,8 @@ export async function getRefreshTokenRecord(
     expiresAt: row.expires_at,
     deviceIdentifier: row.device_identifier ?? null,
     deviceSessionStamp: row.device_session_stamp ?? null,
+    familyId: row.family_id ?? null,
+    rotatedAt: row.rotated_at ?? null,
   };
 }
 
@@ -110,6 +122,32 @@ export async function deleteRefreshToken(
   const tokenKey = await refreshTokenKey(token);
   await db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(token).run();
   await db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(tokenKey).run();
+}
+
+/** 标记令牌已被轮换换发（用于重用检测） */
+export async function markRefreshTokenRotated(
+  db: D1Database,
+  refreshTokenKey: RefreshTokenKeyFn,
+  token: string
+): Promise<void> {
+  const tokenKey = await refreshTokenKey(token);
+  await db
+    .prepare('UPDATE refresh_tokens SET rotated_at = ? WHERE token = ? OR token = ?')
+    .bind(Date.now(), token, tokenKey)
+    .run();
+}
+
+/** 撤销整个令牌家族（检测到已轮换令牌被重放时调用） */
+export async function revokeRefreshTokenFamily(
+  db: D1Database,
+  userId: string,
+  familyId: string
+): Promise<number> {
+  const result = await db
+    .prepare('DELETE FROM refresh_tokens WHERE user_id = ? AND family_id = ?')
+    .bind(userId, familyId)
+    .run();
+  return Number(result.meta.changes ?? 0);
 }
 
 export async function deleteRefreshTokensByUserId(db: D1Database, userId: string): Promise<number> {

@@ -66,7 +66,7 @@ export class RateLimitService {
     RateLimitService.loginIpTableReady = true;
   }
 
-  async checkLoginAttempt(ip: string): Promise<{
+  async checkLoginAttempt(ip: string, maxAttempts: number = CONFIG.LOGIN_MAX_ATTEMPTS): Promise<{
     allowed: boolean;
     remainingAttempts: number;
     retryAfterSeconds?: number;
@@ -83,7 +83,7 @@ export class RateLimitService {
       .first<{ attempts: number; locked_until: number | null }>();
 
     if (!row) {
-      return { allowed: true, remainingAttempts: CONFIG.LOGIN_MAX_ATTEMPTS };
+      return { allowed: true, remainingAttempts: maxAttempts };
     }
 
     if (row.locked_until && row.locked_until > now) {
@@ -96,14 +96,14 @@ export class RateLimitService {
 
     if (row.locked_until && row.locked_until <= now) {
       await this.db.prepare('DELETE FROM login_attempts_ip WHERE ip = ?').bind(key).run();
-      return { allowed: true, remainingAttempts: CONFIG.LOGIN_MAX_ATTEMPTS };
+      return { allowed: true, remainingAttempts: maxAttempts };
     }
 
-    const remainingAttempts = Math.max(0, CONFIG.LOGIN_MAX_ATTEMPTS - (row.attempts || 0));
+    const remainingAttempts = Math.max(0, maxAttempts - (row.attempts || 0));
     return { allowed: true, remainingAttempts };
   }
 
-  async recordFailedLogin(ip: string): Promise<{ locked: boolean; retryAfterSeconds?: number }> {
+  async recordFailedLogin(ip: string, maxAttempts: number = CONFIG.LOGIN_MAX_ATTEMPTS): Promise<{ locked: boolean; retryAfterSeconds?: number }> {
     await this.ensureLoginIpTable();
 
     const key = ip.trim() || 'unknown';
@@ -134,7 +134,7 @@ export class RateLimitService {
     }
 
     // 达到最大尝试次数，执行锁定
-    if (attempts >= CONFIG.LOGIN_MAX_ATTEMPTS) {
+    if (attempts >= maxAttempts) {
       const lockedUntil = now + CONFIG.LOGIN_LOCKOUT_MINUTES * 60 * 1000;
       await this.db
         .prepare('UPDATE login_attempts_ip SET locked_until = ?, updated_at = ? WHERE ip = ?')
@@ -376,27 +376,26 @@ function isLocalRequest(request: Request): boolean {
 }
 
 export function getClientIdentifier(request: Request): string | null {
-  // Strict fallback order:
-  // 1) CF-Connecting-IP
-  // 2) X-Real-IP
-  // 3) first item of X-Forwarded-For
-  // If none are present/valid, treat client IP as unavailable.
-  const candidates: Array<string | null> = [
-    request.headers.get('CF-Connecting-IP'),
-    request.headers.get('X-Real-IP'),
-    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || null,
-  ];
+  // 生产环境运行在 Cloudflare 上，CF-Connecting-IP 由边缘强制注入、不可被客户端伪造。
+  // 仅信任它作为限流/锁定键的来源；X-Real-IP / X-Forwarded-For 可被任意伪造，
+  // 一旦采信即允许攻击者轮换伪造头绕过所有限流。
+  const cfIp = normalizeClientIpForRateLimit(request.headers.get('CF-Connecting-IP') || '');
+  if (cfIp) return cfIp;
 
-  for (const raw of candidates) {
-    if (!raw) continue;
-    const normalized = normalizeClientIpForRateLimit(raw);
-    if (normalized) return normalized;
-  }
-
-  // Local dev (wrangler dev / localhost): allow a deterministic loopback identifier.
+  // 本地开发（wrangler dev / localhost）没有 CF 头，才回退到代理头，便于联调。
   if (isLocalRequest(request)) {
+    const candidates: Array<string | null> = [
+      request.headers.get('X-Real-IP'),
+      request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || null,
+    ];
+    for (const raw of candidates) {
+      if (!raw) continue;
+      const normalized = normalizeClientIpForRateLimit(raw);
+      if (normalized) return normalized;
+    }
     return 'ip4:127.0.0.1';
   }
 
+  // 非本地且无 CF 头：视为无法定位客户端，交由调用方拒绝。
   return null;
 }

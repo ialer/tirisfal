@@ -50,6 +50,7 @@ export interface User {
   verifyDevices?: boolean;
   totpSecret: string | null;
   totpRecoveryCode: string | null;
+  totpLastUsedStep: number | null;
   apiKey: string | null;
   createdAt: string;
   updatedAt: string;
@@ -273,6 +274,10 @@ export interface RefreshTokenRecord {
   expiresAt: number;
   deviceIdentifier: string | null;
   deviceSessionStamp: string | null;
+  /** 所属轮换家族；存量令牌可能为空 */
+  familyId?: string | null;
+  /** 被轮换换发的时间戳；非空表示该令牌已被换发过 */
+  rotatedAt?: number | null;
 }
 
 export interface TrustedDeviceTokenSummary {
@@ -353,6 +358,8 @@ export interface JWTPayload {
   exp: number;
   iss: string;
   premium: boolean;
+  /** 令牌用途；存量令牌无此字段时按 access 处理 */
+  typ?: 'access';
 }
 
 /** 用户解密选项类型（用于移动客户端兼容性） */

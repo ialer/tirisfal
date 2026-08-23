@@ -1,3 +1,4 @@
+import { LIMITS } from '../config/limits';
 import type { Env, JWTPayload, User } from '../types';
 import { createJWT, createRefreshToken, verifyJWT } from '../utils/jwt';
 import { StorageService } from './storage';
@@ -204,7 +205,8 @@ export class AuthService {
   // 生成刷新令牌
   async generateRefreshToken(
     userId: string,
-    device?: { identifier: string; sessionStamp: string } | null
+    device?: { identifier: string; sessionStamp: string } | null,
+    familyId?: string | null
   ): Promise<string> {
     const token = createRefreshToken();
     await this.storage.saveRefreshToken(
@@ -212,7 +214,8 @@ export class AuthService {
       userId,
       undefined,
       device?.identifier ?? null,
-      device?.sessionStamp ?? null
+      device?.sessionStamp ?? null,
+      familyId ?? null
     );
     return token;
   }
@@ -229,6 +232,8 @@ export class AuthService {
 
     const payload = await verifyJWT(parts[1], this.env.JWT_SECRET);
     if (!payload) return null;
+    // 类型区分：短期文件/上传令牌不得用作访问令牌（存量无 typ 的旧访问令牌放行）
+    if (payload.typ && payload.typ !== 'access') return null;
 
     let user = await this.getCachedUser(payload.sub);
     if (!user || user.status !== 'active' || payload.sstamp !== user.securityStamp) {
@@ -266,9 +271,21 @@ export class AuthService {
     accessToken: string;
     user: User;
     device: { identifier: string; sessionStamp: string } | null;
+    familyId: string | null;
   } | null> {
     const record = await this.storage.getRefreshTokenRecord(refreshToken);
     if (!record?.userId) return null;
+
+    // 重用检测：已轮换令牌在宽限期外再次出现，视为盗用信号，撤销整个家族
+    const overlapGraceMs = LIMITS.auth.refreshTokenOverlapGraceMs;
+    if (
+      record.rotatedAt != null &&
+      Date.now() - record.rotatedAt > overlapGraceMs &&
+      record.familyId
+    ) {
+      await this.storage.revokeRefreshTokenFamily(record.userId, record.familyId);
+      return null;
+    }
 
     const user = await this.storage.getUserById(record.userId);
     if (!user) return null;
@@ -292,6 +309,6 @@ export class AuthService {
     }
 
     const accessToken = await this.generateAccessToken(user, device);
-    return { accessToken, user, device };
+    return { accessToken, user, device, familyId: record.familyId ?? null };
   }
 }

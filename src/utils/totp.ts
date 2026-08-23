@@ -85,16 +85,29 @@ export async function verifyTotpToken(
   tokenRaw: string,
   nowMs: number = Date.now()
 ): Promise<boolean> {
+  const result = await verifyTotpTokenWithStep(secretRaw, tokenRaw, nowMs);
+  return result.valid;
+}
+
+/**
+ * 验证 TOTP 并返回命中的 timestep（用于防重放：同一 step 只允许消费一次）
+ */
+export async function verifyTotpTokenWithStep(
+  secretRaw: string,
+  tokenRaw: string,
+  nowMs: number = Date.now()
+): Promise<{ valid: boolean; step?: number }> {
   const token = normalizeToken(tokenRaw);
-  if (!/^\d{6}$/.test(token)) return false;
+  if (!/^\d{6}$/.test(token)) return { valid: false };
 
   const secret = base32Decode(secretRaw);
-  if (!secret) return false;
+  if (!secret) return { valid: false };
 
   const currentCounter = Math.floor(nowMs / 1000 / TOTP_STEP_SECONDS);
-  let matched = false;
+  let matchedStep: number | undefined;
   for (let delta = -TOTP_WINDOW; delta <= TOTP_WINDOW; delta++) {
-    const expected = await hotp(secret, currentCounter + delta);
+    const step = currentCounter + delta;
+    const expected = await hotp(secret, step);
     // 常量时间比较：始终检查所有窗口，不提前短路
     const a = new TextEncoder().encode(expected);
     const b = new TextEncoder().encode(token);
@@ -102,9 +115,9 @@ export async function verifyTotpToken(
     for (let i = 0; i < a.length && i < b.length; i++) {
       diff |= a[i] ^ b[i];
     }
-    if (diff === 0) matched = true;
+    if (diff === 0) matchedStep = step;
   }
-  return matched;
+  return matchedStep !== undefined ? { valid: true, step: matchedStep } : { valid: false };
 }
 
 /**
