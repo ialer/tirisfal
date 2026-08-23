@@ -118,7 +118,9 @@ function isValidEncString(value: unknown): value is string {
 
 function optionalEncString(value: unknown): string | null {
   if (value === null || value === '') return null;
-  return isValidEncString(value) ? value.trim() : null;
+  // 自托管兼容：允许明文凭据直通（导入/迁移的历史数据为明文格式），仅裁剪空白。
+  // 官方加密串（"N.iv|ct" 格式）原样保留。
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function sanitizeEncryptedObject<T extends Record<string, unknown>>(
