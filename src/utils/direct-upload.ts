@@ -1,6 +1,5 @@
 import { LIMITS } from '../config/limits';
-import type { Env } from '../types';
-import { DEFAULT_DEV_SECRET } from '../types';
+import { DEFAULT_DEV_SECRET, type Env } from '../types';
 import { errorResponse } from './response';
 
 /** 直接上传载荷 */

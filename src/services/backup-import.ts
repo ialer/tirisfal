@@ -97,7 +97,7 @@ async function getTableCreateSql(db: D1Database, table: BackupTableName): Promis
 
 function buildShadowTableCreateSql(createSql: string, table: BackupTableName): string {
   const tablePattern = new RegExp(
-    `^CREATE TABLE(?:\\s+IF NOT EXISTS)?\\s+(?:\"${table}\"|${table})(?=\\s*\\()`,
+    `^CREATE TABLE(?:\\s+IF NOT EXISTS)?\\s+(?:"${table}"|${table})(?=\\s*\\()`,
     'i'
   );
   let next = createSql.replace(tablePattern, `CREATE TABLE "${shadowTableName(table)}"`);
@@ -106,7 +106,7 @@ function buildShadowTableCreateSql(createSql: string, table: BackupTableName): s
   }
   for (const currentTable of BACKUP_TABLES) {
     const referencePattern = new RegExp(
-      `\\bREFERENCES\\s+(?:\"${currentTable}\"|${currentTable})(?=\\s*\\()`,
+      `\\bREFERENCES\\s+(?:"${currentTable}"|${currentTable})(?=\\s*\\()`,
       'gi'
     );
     next = next.replace(referencePattern, `REFERENCES "${shadowTableName(currentTable)}"`);
@@ -504,6 +504,7 @@ function buildAttachmentBlobLookup(
   );
 }
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- 与同步版本保持一致的调用约定
 async function prepareRemoteAttachmentPayload(
   env: Env,
   payload: BackupPayload,

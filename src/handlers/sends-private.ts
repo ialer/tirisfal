@@ -6,8 +6,7 @@ import {
   putBlobObject,
 } from '../services/blob-store';
 import { StorageService } from '../services/storage';
-import type { Env, Send } from '../types';
-import { SendAuthType, SendType } from '../types';
+import { type Env, type Send,SendAuthType, SendType } from '../types';
 import {
   buildDirectUploadUrl,
   getSafeJwtSecret,

@@ -25,7 +25,6 @@ jobs:
 
       - name: Initialize CodeQL
         if: env.ACT != 'true'
-        continue-on-error: true
         uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript, actions
@@ -34,7 +33,6 @@ jobs:
 
       - name: Perform CodeQL Analysis
         if: env.ACT != 'true'
-        continue-on-error: true
         uses: github/codeql-action/analyze@v4
         with:
           upload: true
@@ -42,7 +40,6 @@ jobs:
 
       - name: Install Gitleaks
         if: env.ACT != 'true'
-        continue-on-error: true
         run: |
           GITLEAKS_VERSION="8.28.0"
           curl -sSL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
@@ -52,7 +49,6 @@ jobs:
 
       - name: Secret Detection
         if: env.ACT != 'true'
-        continue-on-error: true
         run: |
           gitleaks git . --report-format sarif --report-path results.sarif --no-banner || true
 
@@ -82,10 +78,9 @@ jobs:
       - name: Dependency Scan
         id: snyk
         if: env.SECURITY_SNYK_TOKEN != ''
-        continue-on-error: true
         run: |
           npm install -g snyk          
-          snyk auth ${{ secrets.SECURITY_SNYK_TOKEN }}
+          echo "${{ secrets.SECURITY_SNYK_TOKEN }}" | snyk auth --stdin
           snyk test --all-projects --json-file-output=snyk_result.json > snyk_result.txt || true
         env:
           SECURITY_SNYK_TOKEN: ${{ secrets.SECURITY_SNYK_TOKEN }}
@@ -101,7 +96,6 @@ jobs:
 
       - name: Container Security Scan (Trivy)
         if: steps.check_docker.outputs.exists == 'true'
-        continue-on-error: true
         run: |
           VERSION="0.56.1"
           echo "Installing Trivy $VERSION..."

@@ -16,7 +16,7 @@ interface CiphersImportRequest {
     notes?: string | null;
     favorite?: boolean;
     reprompt?: number;
-    sshKey?: any | null;
+    sshKey?: any;
     key?: string | null;
     login?: {
       uris?: Array<{ uri: string | null; match?: number | null }> | null;
@@ -183,10 +183,10 @@ export async function handleCiphersImport(
       null;
     const sourceIdRaw = String(c?.id ?? '').trim();
     const sourceId = sourceIdRaw || null;
-    const login = readAliasedImportProp<any | null>(c, ['login', 'Login']);
-    const card = readAliasedImportProp<any | null>(c, ['card', 'Card']);
-    const identity = readAliasedImportProp<any | null>(c, ['identity', 'Identity']);
-    const secureNote = readAliasedImportProp<any | null>(c, ['secureNote', 'SecureNote']);
+    const login = readAliasedImportProp<any>(c, ['login', 'Login']);
+    const card = readAliasedImportProp<any>(c, ['card', 'Card']);
+    const identity = readAliasedImportProp<any>(c, ['identity', 'Identity']);
+    const secureNote = readAliasedImportProp<any>(c, ['secureNote', 'SecureNote']);
     const fields = readAliasedImportProp<any[] | null>(c, ['fields', 'Fields']);
     const passwordHistory = readAliasedImportProp<any[] | null>(c, [
       'passwordHistory',

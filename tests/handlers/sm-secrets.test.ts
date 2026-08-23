@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach,describe, expect, it, vi } from 'vitest';
 
 // Mock SecretsManagerService，隔离数据库
 const mockServiceInstance = {
@@ -22,7 +22,7 @@ vi.mock('../../src/services/sm-service', () => ({
 import { handleSecrets } from '../../src/handlers/sm-secrets';
 
 function makeRequest(method: string, path: string): Request {
-  return new Request('https://vault.example.com' + path, { method });
+  return new Request(`https://vault.example.com${  path}`, { method });
 }
 
 const ENV = { ENCRYPTION_KEY: 'test-encryption-key-1234567890123456' } as any;
@@ -44,7 +44,7 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
       });
 
       const resp = await handleSecrets(
-        makeRequest('GET', '/api/secrets?project_id=' + OTHER_USER_PROJECT),
+        makeRequest('GET', `/api/secrets?project_id=${  OTHER_USER_PROJECT}`),
         ENV,
         '/api/secrets',
         'GET',
@@ -89,7 +89,7 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
       });
 
       const resp = await handleSecrets(
-        makeRequest('GET', '/api/secrets?project_id=' + OTHER_USER_PROJECT),
+        makeRequest('GET', `/api/secrets?project_id=${  OTHER_USER_PROJECT}`),
         ENV,
         '/api/secrets',
         'GET',
@@ -113,7 +113,7 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
       const resp = await handleSecrets(
         makeRequest(
           'GET',
-          '/api/secrets/by-name/API_KEY?project_id=' + OTHER_USER_PROJECT + '&environment=prod'
+          `/api/secrets/by-name/API_KEY?project_id=${  OTHER_USER_PROJECT  }&environment=prod`
         ),
         ENV,
         '/api/secrets/by-name/API_KEY',

@@ -97,7 +97,6 @@ describe('功能描述', () => {
 3. **保持测试** - 重构后测试必须通过
 
 ### 重构大文件
-参考: `REFACTOR-PLAN.md`
 
 ---
 
@@ -120,7 +119,6 @@ npm audit
 - `CONTRIBUTING.md` - 贡献指南
 - `SECURITY-CHECKLIST.md` - 安全检查清单
 - `DEVELOPMENT-FLOW.md` - 开发流程
-- `REFACTOR-PLAN.md` - 重构计划
 
 ---
 

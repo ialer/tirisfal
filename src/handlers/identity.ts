@@ -332,15 +332,17 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
           return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier, clientIdentifier);
         }
         // 防重放：同一 timestep 的验证码只允许消费一次
+        const usedStep = totpResult.step;
         if (
-          totpResult.step != null &&
-          user.totpLastUsedStep != null &&
-          totpResult.step <= user.totpLastUsedStep
+          usedStep !== undefined &&
+          user.totpLastUsedStep !== null &&
+          user.totpLastUsedStep !== undefined &&
+          usedStep <= user.totpLastUsedStep
         ) {
           return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier, clientIdentifier);
         }
-        if (totpResult.step != null) {
-          await storage.updateUserTotpLastUsedStep(user.id, totpResult.step);
+        if (usedStep !== undefined) {
+          await storage.updateUserTotpLastUsedStep(user.id, usedStep);
         }
       } else if (
         normalizedTwoFactorProvider === TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE ||

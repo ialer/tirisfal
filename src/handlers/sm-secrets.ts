@@ -61,7 +61,7 @@ export async function handleSecrets(
     }
 
     // 输入验证
-    if (!body.name || typeof body.name !== 'string' || (body.name as string).trim().length === 0) {
+    if (!body.name || typeof body.name !== 'string' || (body.name).trim().length === 0) {
       return errorResponse('Name is required and must be a non-empty string', 400);
     }
     if (body.name.length > 255) {
@@ -84,9 +84,9 @@ export async function handleSecrets(
     }
 
     const secret = await smService.createSecret(userId, {
-      name: (body.name as string).trim(),
-      value: body.value as string,
-      project_id: body.project_id as string,
+      name: (body.name).trim(),
+      value: body.value,
+      project_id: body.project_id,
       environment: body.environment as string | undefined,
       note: body.note as string | undefined,
     });
@@ -230,7 +230,7 @@ export async function handleSecrets(
   }
 
   // 匹配 /api/secrets/by-name/:name
-  const secretByNameMatch = path.match(/^\/api\/secrets\/by-name\/([^\/]+)$/);
+  const secretByNameMatch = path.match(/^\/api\/secrets\/by-name\/([^/]+)$/);
   if (secretByNameMatch && method === 'GET') {
     const secretName = decodeURIComponent(secretByNameMatch[1]);
     const url = new URL(request.url);
