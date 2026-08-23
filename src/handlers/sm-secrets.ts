@@ -4,6 +4,42 @@ import { SecretsManagerService } from '../services/sm-service';
 import type { Env } from '../types';
 import { errorResponse, jsonResponse } from '../utils/response';
 
+/** 从请求头提取客户端真实 IP（与 ratelimit 的提取逻辑保持一致） */
+function getClientIp(request: Request): string | null {
+  return (
+    request.headers.get('CF-Connecting-IP') ||
+    request.headers.get('X-Real-IP') ||
+    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
+    null
+  );
+}
+
+/** 校验当前调用者（用户或 Machine Account）对项目下凭证的访问权限，失败时返回错误 Response */
+async function assertProjectSecretAccess(
+  smService: SecretsManagerService,
+  request: Request,
+  projectId: string,
+  userId: string,
+  machineAccountId?: string
+): Promise<Response | null> {
+  if (machineAccountId) {
+    const accessCheck = await smService.validateProjectAccess(
+      machineAccountId,
+      projectId,
+      getClientIp(request) || undefined
+    );
+    if (!accessCheck.allowed) {
+      return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
+    }
+    return null;
+  }
+  const project = await smService.getProject(projectId);
+  if (!project || project.user_id !== userId) {
+    return errorResponse('Not found', 404);
+  }
+  return null;
+}
+
 export async function handleSecrets(
   request: Request,
   env: Env,
@@ -68,13 +104,11 @@ export async function handleSecrets(
       return errorResponse('project_id is required', 400);
     }
 
-    // 验证项目所有权（非 Machine Account 时）
-    if (!machineAccountId) {
-      const project = await smService.getProject(projectId);
-      if (!project || project.user_id !== userId) {
-        return errorResponse('Not found', 404);
-      }
-    }
+    // 验证项目访问权限（Machine Account 走项目授权校验，用户走所有权校验）
+    const listAccessError = await assertProjectSecretAccess(
+      smService, request, projectId, userId, machineAccountId
+    );
+    if (listAccessError) return listAccessError;
 
     const secrets = await smService.getSecretsByProject(projectId, environment || undefined);
     // 解密每个 secret 的 value
@@ -101,9 +135,7 @@ export async function handleSecrets(
 
       // Machine Account 权限验证
       if (machineAccountId) {
-        const clientIp = request.headers.get('CF-Connecting-IP') ||
-                         request.headers.get('X-Real-IP') ||
-                         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim();
+        const clientIp = getClientIp(request);
         const accessCheck = await smService.validateProjectAccess(machineAccountId, secret.project_id, clientIp || undefined);
         if (!accessCheck.allowed) {
           return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
@@ -147,9 +179,7 @@ export async function handleSecrets(
 
       // Machine Account 权限验证
       if (machineAccountId) {
-        const clientIp = request.headers.get('CF-Connecting-IP') ||
-                         request.headers.get('X-Real-IP') ||
-                         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim();
+        const clientIp = getClientIp(request);
         const accessCheck = await smService.validateProjectAccess(machineAccountId, secret.project_id, clientIp || undefined);
         if (!accessCheck.allowed) {
           return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
@@ -168,7 +198,12 @@ export async function handleSecrets(
         value: body.value as string | undefined,
         note: body.note as string | undefined,
       });
-      return jsonResponse(updated);
+      if (!updated) return errorResponse('Not found', 404);
+      // 返回前解密 value，与 GET 行为保持一致（避免调用方拿到密文）
+      return jsonResponse({
+        ...updated,
+        value: await smService.decryptSecretValue(updated.value),
+      });
     }
 
     // DELETE /api/secrets/:id
@@ -180,9 +215,7 @@ export async function handleSecrets(
 
       // Machine Account 权限验证
       if (machineAccountId) {
-        const clientIp = request.headers.get('CF-Connecting-IP') ||
-                         request.headers.get('X-Real-IP') ||
-                         request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim();
+        const clientIp = getClientIp(request);
         const accessCheck = await smService.validateProjectAccess(machineAccountId, secret.project_id, clientIp || undefined);
         if (!accessCheck.allowed) {
           return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
@@ -218,17 +251,11 @@ export async function handleSecrets(
       return errorResponse('environment must be one of: prod, staging, dev, test', 400);
     }
 
-    // Machine Account 权限验证
-    if (machineAccountId) {
-      // 使用与 ratelimit 相同的 IP 提取逻辑
-      const clientIp = request.headers.get('CF-Connecting-IP') ||
-                       request.headers.get('X-Real-IP') ||
-                       request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim();
-      const accessCheck = await smService.validateProjectAccess(machineAccountId, projectId, clientIp || undefined);
-      if (!accessCheck.allowed) {
-        return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
-      }
-    }
+    // 项目访问权限校验（Machine Account 走项目授权校验，用户走所有权校验）
+    const byNameAccessError = await assertProjectSecretAccess(
+      smService, request, projectId, userId, machineAccountId
+    );
+    if (byNameAccessError) return byNameAccessError;
 
     const secret = await smService.getSecretByNameAndProject(secretName, projectId, environment);
     if (!secret) {
@@ -239,9 +266,7 @@ export async function handleSecrets(
     const decryptedValue = await smService.decryptSecretValue(secret.value);
 
     // 记录访问日志
-    const clientIp = request.headers.get('CF-Connecting-IP') ||
-                     request.headers.get('X-Real-IP') ||
-                     request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || null;
+    const clientIp = getClientIp(request);
     await smService.logSecretAccess(
       machineAccountId || null,
       userId,
