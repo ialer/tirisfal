@@ -229,6 +229,57 @@ export async function handleSecrets(
     }
   }
 
+  // POST /api/secrets/batch - 批量获取凭证（Agent 场景：一次调用拉取多个命名凭证）
+  if (method === 'POST' && path === '/api/secrets/batch') {
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json());
+    } catch {
+      return errorResponse('Invalid JSON body', 400);
+    }
+    const projectId = typeof body.project_id === 'string' ? body.project_id : '';
+    const environment =
+      typeof body.environment === 'string' && ['prod', 'staging', 'dev', 'test'].includes(body.environment)
+        ? body.environment
+        : undefined;
+    const names = Array.isArray(body.names)
+      ? (body.names as unknown[]).filter((n): n is string => typeof n === 'string' && n.length > 0)
+      : null;
+    if (!projectId) return errorResponse('project_id is required', 400);
+    if (names !== null && names.length === 0) {
+      return jsonResponse({ data: [] });
+    }
+
+    // 与单条读取一致的权限校验（Machine Account 走项目授权，用户走所有权）
+    const accessError = await assertProjectSecretAccess(
+      smService, request, projectId, userId, machineAccountId
+    );
+    if (accessError) return accessError;
+
+    const secrets = await smService.getSecretsByProject(projectId, environment);
+    const filtered = names ? secrets.filter((s) => names.includes(s.name)) : secrets;
+    const data = await Promise.all(
+      filtered.map(async (s) => ({
+        name: s.name,
+        value: await smService.decryptSecretValue(s.value),
+        environment: s.environment ?? 'prod',
+      }))
+    );
+
+    await smService.logSecretAccess(
+      machineAccountId || null,
+      userId,
+      `batch:${filtered.length}`,
+      'read_batch',
+      getClientIp(request),
+      request.headers.get('User-Agent'),
+      undefined,
+      projectId,
+      environment
+    );
+    return jsonResponse({ data });
+  }
+
   // 匹配 /api/secrets/by-name/:name
   const secretByNameMatch = path.match(/^\/api\/secrets\/by-name\/([^/]+)$/);
   if (secretByNameMatch && method === 'GET') {

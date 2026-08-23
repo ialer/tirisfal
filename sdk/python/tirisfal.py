@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Optional
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
+from urllib.parse import quote
 
 
 @dataclass
@@ -74,9 +75,11 @@ class TirisfalClient:
         token: Machine account access token or user JWT token
     """
 
-    def __init__(self, server: str, token: str):
+    def __init__(self, server: str, token: str, timeout: float = 15.0):
         self.server = server.rstrip("/")
         self.token = token
+        # 请求超时（秒）：防止 Agent 调用永久挂起
+        self.timeout = timeout
 
     def _request(
         self,
@@ -102,7 +105,7 @@ class TirisfalClient:
         req = Request(url, data=body, headers=headers, method=method)
 
         try:
-            with urlopen(req) as response:
+            with urlopen(req, timeout=self.timeout) as response:
                 return json.loads(response.read().decode())
         except HTTPError as e:
             error_body = e.read().decode() if e.fp else str(e)
@@ -134,7 +137,7 @@ class TirisfalClient:
         """
         data = self._request(
             "GET",
-            f"/api/secrets/by-name/{name}",
+            f"/api/secrets/by-name/{quote(name, safe=\"\")}",
             params={"project_id": project_id, "environment": environment}
         )
         return Secret(
@@ -147,6 +150,33 @@ class TirisfalClient:
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
         )
+
+    def get_secret_values(
+        self,
+        project_id: str,
+        environment: str = "prod",
+        names: Optional[list[str]] = None,
+        inject_env: bool = False
+    ) -> dict:
+        """
+        批量获取凭证值，返回 { 名称: 值 } 映射；可选注入 os.environ。
+        """
+        data = self._request(
+            "POST",
+            "/api/secrets/batch",
+            data={
+                "project_id": project_id,
+                "environment": environment,
+                **({"names": names} if names else {}),
+            }
+        )
+        values = {}
+        for item in data.get("data", []):
+            values[item["name"]] = item["value"]
+            if inject_env:
+                import os
+                os.environ[item["name"]] = item["value"]
+        return values
 
     def get_secrets(
         self,

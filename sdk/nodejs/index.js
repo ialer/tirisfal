@@ -56,9 +56,22 @@ class TirisfalError extends Error {
    * @param {number} statusCode
    */
   constructor(message, statusCode = 0) {
-    super(message);
+    // 脱敏：避免异常消息/栈中携带凭证值或访问令牌
+    super(TirisfalError.redact(message));
     this.name = 'TirisfalError';
     this.statusCode = statusCode;
+  }
+
+  /**
+   * 遮蔽消息中的敏感片段（令牌、键值对形式的 value）。
+   * @param {string} message
+   * @returns {string}
+   */
+  static redact(message) {
+    if (typeof message !== 'string') return message;
+    return message
+      .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, '$1[REDACTED]')
+      .replace(/((?:value|password|secret|token)["'\\s=:]+)[^\s&",']{4,}/gi, '$1[REDACTED]');
   }
 }
 
@@ -71,6 +84,8 @@ class TirisfalClient {
   constructor(options) {
     this.server = options.server.replace(/\/$/, '');
     this.token = options.token;
+    /** @type {number} 请求超时毫秒数，防止 Agent 调用永久挂起 */
+    this.timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 15000;
   }
 
   /**
@@ -110,7 +125,10 @@ class TirisfalClient {
       options.body = JSON.stringify(data);
     }
 
-    const response = await fetch(url, options);
+    const response = await fetch(url, {
+      ...options,
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
 
     if (!response.ok) {
       let errorMessage;
@@ -152,6 +170,32 @@ class TirisfalClient {
       createdAt: data.created_at || null,
       updatedAt: data.updated_at || null,
     };
+  }
+
+  /**
+   * 批量获取凭证值，返回 { 名称: 值 } 映射；可选注入 process.env。
+   * @param {string} projectId - Project ID
+   * @param {Object} [options] - Options
+   * @param {string} [options.environment='prod'] - Environment
+   * @param {string[]} [options.names] - 只取指定名称（缺省=全部）
+   * @param {boolean} [options.injectEnv=false] - 是否写入 process.env
+   * @returns {Promise<Record<string, string>>}
+   */
+  async getSecretValues(projectId, options = {}) {
+    const { environment = 'prod', names, injectEnv = false } = options;
+    const data = await this._request('POST', '/api/secrets/batch', {
+      project_id: projectId,
+      environment,
+      ...(names ? { names } : {}),
+    });
+    const values = {};
+    for (const item of data.data || []) {
+      values[item.name] = item.value;
+      if (injectEnv && typeof process !== 'undefined' && process.env) {
+        process.env[item.name] = item.value;
+      }
+    }
+    return values;
   }
 
   /**
