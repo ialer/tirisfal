@@ -9,6 +9,18 @@ const IV_LENGTH = 12;
 const TAG_LENGTH = 128;
 
 /**
+ * 字节数组转 base64（分块转换，避免大数组触发 String.fromCharCode.apply 栈溢出）
+ */
+function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK_SIZE = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE));
+  }
+  return btoa(binary);
+}
+
+/**
  * 从主密钥派生加密密钥
  */
 async function deriveKey(masterKey: string, salt: Uint8Array): Promise<CryptoKey> {
@@ -55,7 +67,7 @@ export async function encrypt(plaintext: string, masterKey: string): Promise<str
   result.set(iv, salt.length);
   result.set(encryptedArray, salt.length + iv.length);
 
-  return btoa(String.fromCharCode.apply(null, Array.from(result)));
+  return bytesToBase64(result);
 }
 
 /**
@@ -85,5 +97,5 @@ export async function decrypt(encryptedData: string, masterKey: string): Promise
  */
 export function generateKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode.apply(null, Array.from(bytes)));
+  return bytesToBase64(bytes);
 }
