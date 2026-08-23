@@ -136,7 +136,7 @@ const SENSITIVE_USER_FIELDS = [
 ];
 
 function sanitizeUserRowsForExport(rows: SqlRow[]): SqlRow[] {
-  return rows.map(row => {
+  return rows.map((row) => {
     const sanitized = { ...row };
     for (const field of SENSITIVE_USER_FIELDS) {
       if (field in sanitized) {

@@ -63,12 +63,19 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     // 尝试公开路由
-    const publicResponse = await handlePublicRoute(request, env, path, method, enforcePublicRateLimit);
+    const publicResponse = await handlePublicRoute(
+      request,
+      env,
+      path,
+      method,
+      enforcePublicRateLimit
+    );
     if (publicResponse) return publicResponse;
 
     // 检查安全配置
     if (jwtSecretUnsafeReason(env)) return errorResponse('JWT_SECRET 未设置或强度不足', 500);
-    if (encryptionKeyUnsafeReason(env)) return errorResponse('ENCRYPTION_KEY 未设置或强度不足', 500);
+    if (encryptionKeyUnsafeReason(env))
+      return errorResponse('ENCRYPTION_KEY 未设置或强度不足', 500);
 
     // 验证访问令牌
     const auth = new AuthService(env);
@@ -88,7 +95,10 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     // 认证接口速率限制
     const rateLimit = new RateLimitService(env.DB);
-    const apiCheck = await rateLimit.consumeBudget(`${payload.sub}:api`, LIMITS.rateLimit.apiRequestsPerMinute);
+    const apiCheck = await rateLimit.consumeBudget(
+      `${payload.sub}:api`,
+      LIMITS.rateLimit.apiRequestsPerMinute
+    );
     if (!apiCheck.allowed) return rateLimitResponse(apiCheck.retryAfterSeconds);
 
     // 尝试 Secrets Manager 路由
@@ -96,7 +106,14 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if (smResponse) return smResponse;
 
     // 尝试已认证路由
-    const authResponse = await handleAuthenticatedRoute(request, env, payload.sub, currentUser, path, method);
+    const authResponse = await handleAuthenticatedRoute(
+      request,
+      env,
+      payload.sub,
+      currentUser,
+      path,
+      method
+    );
     if (authResponse) return authResponse;
 
     return errorResponse('未找到', 404);

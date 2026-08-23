@@ -1,7 +1,14 @@
 import { LIMITS } from '../config/limits';
 import { notifyUserVaultSync } from '../durable/notifications-hub';
 import type { StorageService } from '../services/storage';
-import { DEFAULT_DEV_SECRET, type Env, type Send, SendAuthType, type SendResponse,SendType } from '../types';
+import {
+  DEFAULT_DEV_SECRET,
+  type Env,
+  type Send,
+  SendAuthType,
+  type SendResponse,
+  SendType,
+} from '../types';
 import { readActingDeviceIdentifier } from '../utils/device';
 import { errorResponse, jsonResponse } from '../utils/response';
 

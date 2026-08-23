@@ -65,7 +65,10 @@ function normalizeCipherTimestamp(value: unknown): string | null {
   return parsed.toISOString();
 }
 
-function readCipherArchivedAt(source: Record<string, unknown> | null | undefined, fallback: string | null = null): string | null {
+function readCipherArchivedAt(
+  source: Record<string, unknown> | null | undefined,
+  fallback: string | null = null
+): string | null {
   const archived = getAliasedProp(source, [
     'archivedAt',
     'ArchivedAt',
@@ -137,8 +140,12 @@ function sanitizeEncryptedObject<T extends Record<string, unknown>>(
 }
 
 function normalizeCipherForStorage(cipher: Cipher): Cipher {
-  cipher.login = normalizeCipherLoginForStorage(cipher.login as unknown as Record<string, unknown>) as CipherLogin | null;
-  cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey as unknown as Record<string, unknown>) as CipherSshKey | null;
+  cipher.login = normalizeCipherLoginForStorage(
+    cipher.login as unknown as Record<string, unknown>
+  ) as CipherLogin | null;
+  cipher.sshKey = normalizeCipherSshKeyForCompatibility(
+    cipher.sshKey as unknown as Record<string, unknown>
+  ) as CipherSshKey | null;
   cipher.folderId = normalizeOptionalId(cipher.folderId);
   const hasArchivedAt = Object.prototype.hasOwnProperty.call(cipher as object, 'archivedAt');
   cipher.archivedAt = hasArchivedAt
@@ -263,9 +270,7 @@ export function formatAttachments(attachments: Attachment[]): any[] | null {
   return formatted.length ? formatted : null;
 }
 
-function normalizeCipherFieldsForCompatibility(
-  fields: unknown
-): Record<string, unknown>[] | null {
+function normalizeCipherFieldsForCompatibility(fields: unknown): Record<string, unknown>[] | null {
   if (!Array.isArray(fields) || fields.length === 0) return null;
   const out = fields
     .map((field) => {
@@ -288,8 +293,11 @@ function normalizePasswordHistoryForCompatibility(
 ): PasswordHistory[] | null {
   if (!Array.isArray(passwordHistory) || passwordHistory.length === 0) return null;
   const out = passwordHistory
-    .filter((entry): entry is Record<string, unknown> =>
-      entry !== null && typeof entry === 'object' && isValidEncString((entry as Record<string, unknown>).password)
+    .filter(
+      (entry): entry is Record<string, unknown> =>
+        entry !== null &&
+        typeof entry === 'object' &&
+        isValidEncString((entry as Record<string, unknown>).password)
     )
     .map((entry) => ({
       ...entry,
@@ -311,7 +319,9 @@ export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = [])
   // 移除不应出现在 API 响应中的纯内部字段
   const { userId, createdAt, updatedAt, archivedAt, deletedAt, ...passthrough } = cipher;
   const p = passthrough as Record<string, unknown>;
-  const normalizedLogin = normalizeCipherLoginForCompatibility(p.login as Record<string, unknown> | null);
+  const normalizedLogin = normalizeCipherLoginForCompatibility(
+    p.login as Record<string, unknown> | null
+  );
   const normalizedCard = sanitizeEncryptedObject(p.card as Record<string, unknown> | null, [
     'cardholderName',
     'brand',
@@ -363,9 +373,7 @@ export function cipherToResponse(cipher: Cipher, attachments: Attachment[] = [])
       restore: true,
     },
     object: 'cipherDetails',
-    collectionIds: Array.isArray(p.collectionIds)
-      ? (p.collectionIds as string[])
-      : [],
+    collectionIds: Array.isArray(p.collectionIds) ? (p.collectionIds as string[]) : [],
     attachments: formatAttachments(attachments),
     name: isValidEncString(cipher.name) ? cipher.name.trim() : cipher.name,
     notes: optionalEncString(cipher.notes),
@@ -526,7 +534,9 @@ export async function handleCreateCipher(
     ? (createPasswordHistory.value ?? null)
     : (cipher.passwordHistory ?? null);
   const createFields = getAliasedProp(cipherData, ['fields', 'Fields']);
-  cipher.fields = createFields.present ? (createFields.value as CipherField[] ?? null) : (cipher.fields ?? null);
+  cipher.fields = createFields.present
+    ? ((createFields.value as CipherField[]) ?? null)
+    : (cipher.fields ?? null);
   normalizeCipherForStorage(cipher);
 
   // 防止引用其他用户拥有的文件夹。
@@ -661,7 +671,7 @@ export async function handleUpdateCipher(
   //   这防止了陈旧的自定义字段通过合并回退被恢复。
   const incomingFields = getAliasedProp(cipherData, ['fields', 'Fields']);
   if (incomingFields.present) {
-    cipher.fields = incomingFields.value as CipherField[] ?? null;
+    cipher.fields = (incomingFields.value as CipherField[]) ?? null;
   } else if (request.method === 'PUT' || request.method === 'POST') {
     cipher.fields = null;
   }

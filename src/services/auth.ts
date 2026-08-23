@@ -130,9 +130,9 @@ export class AuthService {
     return device;
   }
 
-// 第二层哈希：PBKDF2-SHA256(clientHash, email-salt, iterations)
-// 确保仅凭数据库内容无法进行认证（防哈希传递攻击）
-// 结果以 "$s$" 为前缀，与旧版原始客户端哈希区分
+  // 第二层哈希：PBKDF2-SHA256(clientHash, email-salt, iterations)
+  // 确保仅凭数据库内容无法进行认证（防哈希传递攻击）
+  // 结果以 "$s$" 为前缀，与旧版原始客户端哈希区分
   async hashPasswordServer(clientHash: string, email: string): Promise<string> {
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
@@ -153,16 +153,16 @@ export class AuthService {
     return `$s$${btoa(binary)}`;
   }
 
-// 验证密码：以相同方式哈希输入，然后进行常量时间比较
+  // 验证密码：以相同方式哈希输入，然后进行常量时间比较
   async verifyPassword(inputHash: string, storedHash: string, email?: string): Promise<boolean> {
-  // 新版服务端哈希密码以 "$s$" 为前缀
-  // 旧版账户（升级前创建）存储原始客户端哈希，无前缀
+    // 新版服务端哈希密码以 "$s$" 为前缀
+    // 旧版账户（升级前创建）存储原始客户端哈希，无前缀
     if (email && storedHash.startsWith('$s$')) {
       const serverHash = await this.hashPasswordServer(inputHash, email);
       return this.constantTimeEquals(serverHash, storedHash);
     }
-  // 旧版路径：直接常量时间比较原始客户端哈希
-  return this.constantTimeEquals(inputHash, storedHash);
+    // 旧版路径：直接常量时间比较原始客户端哈希
+    return this.constantTimeEquals(inputHash, storedHash);
   }
 
   private constantTimeEquals(a: string, b: string): boolean {
@@ -265,9 +265,7 @@ export class AuthService {
   }
 
   // 刷新访问令牌
-  async refreshAccessToken(
-    refreshToken: string
-  ): Promise<{
+  async refreshAccessToken(refreshToken: string): Promise<{
     accessToken: string;
     user: User;
     device: { identifier: string; sessionStamp: string } | null;

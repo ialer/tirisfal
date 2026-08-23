@@ -96,10 +96,7 @@ function getDerivedKey(masterKey: string): Promise<CryptoKey> {
       keyMaterial,
       KEY_LENGTH
     );
-    return crypto.subtle.importKey('raw', bits, { name: ALGORITHM }, false, [
-      'encrypt',
-      'decrypt',
-    ]);
+    return crypto.subtle.importKey('raw', bits, { name: ALGORITHM }, false, ['encrypt', 'decrypt']);
   })();
 
   derivedKeyCache.set(masterKey, cached);

@@ -504,7 +504,7 @@ function buildAttachmentBlobLookup(
   );
 }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- 与同步版本保持一致的调用约定
+// eslint-disable-next-line @typescript-eslint/require-await -- 与同步版本保持一致的调用约定
 async function prepareRemoteAttachmentPayload(
   env: Env,
   payload: BackupPayload,

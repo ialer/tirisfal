@@ -69,7 +69,9 @@ export async function handleMachineAccounts(
       }
       // 确保 status 是有效的值
       const validStatus =
-        body.status === 'active' || body.status === 'disabled' ? body.status as string : undefined;
+        body.status === 'active' || body.status === 'disabled'
+          ? (body.status as string)
+          : undefined;
       const updated = await smService.updateMachineAccount(accountId, {
         name: body.name as string | undefined,
         status: validStatus as 'active' | 'disabled' | undefined,

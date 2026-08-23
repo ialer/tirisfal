@@ -139,7 +139,11 @@ export function jsonResponse(
  * 错误响应辅助函数
  * 生产环境不暴露内部错误详情
  */
-export function errorResponse(message: string, status: number = 400, exposeInternals: boolean = false): Response {
+export function errorResponse(
+  message: string,
+  status: number = 400,
+  exposeInternals: boolean = false
+): Response {
   // 生产环境只暴露安全的错误信息
   const safeMessages: Record<number, string> = {
     400: '请求无效',
@@ -150,7 +154,7 @@ export function errorResponse(message: string, status: number = 400, exposeInter
     500: '服务器内部错误',
   };
 
-  const responseMessage = exposeInternals ? message : (safeMessages[status] || message);
+  const responseMessage = exposeInternals ? message : safeMessages[status] || message;
 
   return jsonResponse(
     {

@@ -327,9 +327,16 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
           return twoFactorRequiredResponse('Two factor required.', canUseRecoveryCode);
         }
       } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)) {
-        const totpResult = await verifyTotpTokenWithStep(effectiveTotpSecret, normalizedTwoFactorToken);
+        const totpResult = await verifyTotpTokenWithStep(
+          effectiveTotpSecret,
+          normalizedTwoFactorToken
+        );
         if (!totpResult.valid) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier, clientIdentifier);
+          return recordFailedTwoFactorAndBuildResponse(
+            rateLimit,
+            loginIdentifier,
+            clientIdentifier
+          );
         }
         // 防重放：同一 timestep 的验证码只允许消费一次
         const usedStep = totpResult.step;
@@ -339,7 +346,11 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
           user.totpLastUsedStep !== undefined &&
           usedStep <= user.totpLastUsedStep
         ) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier, clientIdentifier);
+          return recordFailedTwoFactorAndBuildResponse(
+            rateLimit,
+            loginIdentifier,
+            clientIdentifier
+          );
         }
         if (usedStep !== undefined) {
           await storage.updateUserTotpLastUsedStep(user.id, usedStep);
@@ -350,7 +361,11 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
         normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_RECOVERY_CODE_ANDROID_REQUEST)
       ) {
         if (!recoveryCodeEquals(normalizedTwoFactorToken, user.totpRecoveryCode)) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier, clientIdentifier);
+          return recordFailedTwoFactorAndBuildResponse(
+            rateLimit,
+            loginIdentifier,
+            clientIdentifier
+          );
         }
         user.totpSecret = null;
         user.totpRecoveryCode = createRecoveryCode();

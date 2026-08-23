@@ -195,7 +195,10 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     return errorResponse('encryptedPrivateKey is not a valid encrypted string', 400);
   }
   if (masterPasswordHint && masterPasswordHint.length > LIMITS.input.maxPasswordHintLength) {
-    return errorResponse(`masterPasswordHint must be ${LIMITS.input.maxPasswordHintLength} characters or fewer`, 400);
+    return errorResponse(
+      `masterPasswordHint must be ${LIMITS.input.maxPasswordHintLength} characters or fewer`,
+      400
+    );
   }
   if (name && name.length > LIMITS.input.maxNameLength) {
     return errorResponse(`Name must be ${LIMITS.input.maxNameLength} characters or fewer`, 400);

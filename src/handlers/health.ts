@@ -13,10 +13,7 @@ interface HealthStatus {
   };
 }
 
-export async function handleHealthCheck(
-  request: Request,
-  env: Env
-): Promise<Response> {
+export async function handleHealthCheck(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const detailed = url.searchParams.get('detailed') === 'true';
 
@@ -48,8 +45,7 @@ export async function handleHealthCheck(
     }
   }
 
-  const statusCode = status.status === 'healthy' ? 200 :
-                     status.status === 'degraded' ? 200 : 503;
+  const statusCode = status.status === 'healthy' ? 200 : status.status === 'degraded' ? 200 : 503;
 
   return jsonResponse(status, statusCode);
 }
