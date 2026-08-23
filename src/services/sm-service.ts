@@ -1,7 +1,7 @@
 // Secrets Manager Service
 // 核心业务逻辑
 
-import { encrypt, decrypt } from '../utils/crypto';
+import { decryptFast, encryptFast } from '../utils/crypto';
 import type {
   CreateMachineAccountRequest,
   CreateProjectRequest,
@@ -234,8 +234,8 @@ export class SecretsManagerService {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    // 使用 AES-256-GCM 加密凭证
-    const encryptedValue = await encrypt(request.value, this.encryptionKey);
+    // 使用 AES-256-GCM 加密凭证（v2 快速路径，旧数据仍可读）
+    const encryptedValue = await encryptFast(request.value, this.encryptionKey);
 
     try {
       await this.db
@@ -318,7 +318,7 @@ export class SecretsManagerService {
 
     if (updates.value !== undefined) {
       setClauses.push('value = ?');
-      values.push(await encrypt(updates.value, this.encryptionKey));
+      values.push(await encryptFast(updates.value, this.encryptionKey));
     }
     if (updates.note !== undefined) {
       setClauses.push('note = ?');
@@ -341,8 +341,9 @@ export class SecretsManagerService {
   }
 
   // 解密 Secret 值
+  // 解密 Secret 值（自动识别 v2/旧 PBKDF2 格式）
   async decryptSecretValue(encryptedValue: string): Promise<string> {
-    return decrypt(encryptedValue, this.encryptionKey);
+    return decryptFast(encryptedValue, this.encryptionKey);
   }
 
   // ==================== Permissions ====================

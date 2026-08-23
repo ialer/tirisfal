@@ -12,6 +12,8 @@ export interface Env {
   JWT_SECRET: string;
   ENCRYPTION_KEY: string;
   TOTP_SECRET?: string;
+  /** 可选：备份运行时加密密钥；未设置时回退 JWT_SECRET（见 backup-settings-crypto.ts） */
+  BACKUP_ENCRYPTION_KEY?: string;
 }
 
 export type UserRole = 'admin' | 'user';
