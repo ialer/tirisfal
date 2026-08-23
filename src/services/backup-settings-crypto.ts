@@ -12,7 +12,10 @@ import type { Env, User } from '../types';
 const RUNTIME_SALT = 'tirisfal.backup-settings.runtime.v2';
 const RUNTIME_INFO = 'runtime';
 const PORTABLE_ALGORITHM = 'RSA-OAEP';
-const PORTABLE_HASH = 'SHA-1';
+// 新写入的 portable wrap 使用 SHA-256（SHA-1 已不建议用于新签名/加密场景）
+const PORTABLE_HASH = 'SHA-256';
+// 存量 wrap 使用 SHA-1，解密侧先试 SHA-256 再回退 SHA-1 以保持旧数据可读
+const LEGACY_PORTABLE_HASH = 'SHA-1';
 const AES_GCM_ALGORITHM = 'AES-GCM';
 const AES_GCM_IV_BYTES = 12;
 const PORTABLE_DEK_BYTES = 32;
@@ -61,6 +64,19 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * 备份运行时密钥来源：优先使用可选的 BACKUP_ENCRYPTION_KEY，
+ * 未设置时回退 JWT_SECRET（向后兼容现有部署）。
+ * 注意：切换该变量会使既有 runtime 信封失效，需重新保存备份设置。
+ */
+function getRuntimeSecret(env: Env): string {
+  const dedicated = env.BACKUP_ENCRYPTION_KEY;
+  if (typeof dedicated === 'string' && dedicated.trim().length > 0) {
+    return dedicated;
+  }
+  return env.JWT_SECRET;
+}
+
 async function deriveRuntimeKey(secret: string): Promise<CryptoKey> {
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(secret), 'HKDF', false, [
@@ -103,13 +119,46 @@ async function decryptAesGcm(
   );
 }
 
-async function importPortablePublicKey(publicKeyBase64: string): Promise<CryptoKey> {
+async function importRsaKey(
+  format: 'spki' | 'pkcs8',
+  keyBytes: Uint8Array,
+  hash: string,
+  usages: string[]
+): Promise<CryptoKey> {
   return crypto.subtle.importKey(
-    'spki',
-    base64ToBytes(publicKeyBase64),
-    { name: PORTABLE_ALGORITHM, hash: PORTABLE_HASH },
+    format,
+    keyBytes as unknown as BufferSource,
+    { name: PORTABLE_ALGORITHM, hash },
     false,
-    ['encrypt']
+    usages as unknown as Parameters<typeof crypto.subtle.importKey>[4]
+  );
+}
+
+async function importPortablePublicKey(publicKeyBase64: string): Promise<CryptoKey> {
+  return importRsaKey('spki', base64ToBytes(publicKeyBase64), PORTABLE_HASH, ['encrypt']);
+}
+
+/**
+ * 用管理员私钥解开 portable DEK。
+ * 先按当前格式（SHA-256）尝试，失败则回退旧格式（SHA-1），保证存量备份设置仍可恢复。
+ */
+export async function unwrapPortableDek(
+  wrappedKeyBase64: string,
+  privateKeyPkcs8: Uint8Array
+): Promise<Uint8Array> {
+  const wrapped = base64ToBytes(wrappedKeyBase64);
+  for (const hash of [PORTABLE_HASH, LEGACY_PORTABLE_HASH]) {
+    try {
+      const privateKey = await importRsaKey('pkcs8', privateKeyPkcs8, hash, ['decrypt']);
+      return new Uint8Array(
+        await crypto.subtle.decrypt({ name: PORTABLE_ALGORITHM }, privateKey, wrapped)
+      );
+    } catch {
+      // 尝试下一个 hash（SHA-256 失败则回退 SHA-1）
+    }
+  }
+  throw new Error(
+    'Failed to unwrap portable backup settings key with any supported OAEP hash'
   );
 }
 
@@ -191,7 +240,7 @@ export async function encryptBackupSettingsEnvelope(
     );
   }
 
-  const runtimeKey = await deriveRuntimeKey(env.JWT_SECRET);
+  const runtimeKey = await deriveRuntimeKey(getRuntimeSecret(env));
   const runtime = await encryptAesGcm(encoder.encode(plaintext), runtimeKey);
 
   const portableDek = crypto.getRandomValues(new Uint8Array(PORTABLE_DEK_BYTES));
@@ -237,7 +286,7 @@ export async function decryptBackupSettingsRuntime(raw: string, env: Env): Promi
   if (!envelope) {
     throw new Error('Backup settings envelope is invalid');
   }
-  const runtimeKey = await deriveRuntimeKey(env.JWT_SECRET);
+  const runtimeKey = await deriveRuntimeKey(getRuntimeSecret(env));
   const plaintext = await decryptAesGcm(
     base64ToBytes(envelope.runtime.ciphertext),
     base64ToBytes(envelope.runtime.iv),

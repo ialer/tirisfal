@@ -3,18 +3,10 @@ import type { AdminBackupSettings, BackupSettingsPortablePayload } from './api/b
 import type { Profile, SessionState } from './types';
 
 const PORTABLE_ALGORITHM = 'RSA-OAEP';
-const PORTABLE_HASH = 'SHA-1';
+// 服务端新写入的 wrap 使用 SHA-256；存量 wrap 为 SHA-1。
+// 解密时先试 SHA-256 再回退 SHA-1，保证新旧备份设置都可恢复。
+const PORTABLE_HASHES = ['SHA-256', 'SHA-1'];
 const AES_GCM_ALGORITHM = 'AES-GCM';
-
-async function importPortablePrivateKey(pkcs8: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'pkcs8',
-    toBufferSource(pkcs8),
-    { name: PORTABLE_ALGORITHM, hash: PORTABLE_HASH },
-    false,
-    ['decrypt']
-  );
-}
 
 async function importPortableAesKey(keyBytes: Uint8Array): Promise<CryptoKey> {
   return crypto.subtle.importKey('raw', toBufferSource(keyBytes), { name: AES_GCM_ALGORITHM }, false, ['decrypt']);
@@ -45,14 +37,31 @@ export async function decryptPortableBackupSettings(
     base64ToBytes(session.symEncKey),
     base64ToBytes(session.symMacKey)
   );
-  const privateKey = await importPortablePrivateKey(privateKeyBytes);
-  const portableDek = new Uint8Array(
-    await crypto.subtle.decrypt(
-      { name: PORTABLE_ALGORITHM },
-      privateKey,
-      toBufferSource(base64ToBytes(wrap.wrappedKey))
-    )
-  );
+  let portableDek: Uint8Array | null = null;
+  for (const hash of PORTABLE_HASHES) {
+    try {
+      const privateKey = await crypto.subtle.importKey(
+        'pkcs8',
+        toBufferSource(privateKeyBytes),
+        { name: PORTABLE_ALGORITHM, hash },
+        false,
+        ['decrypt']
+      );
+      portableDek = new Uint8Array(
+        await crypto.subtle.decrypt(
+          { name: PORTABLE_ALGORITHM },
+          privateKey,
+          toBufferSource(base64ToBytes(wrap.wrappedKey))
+        )
+      );
+      break;
+    } catch {
+      // 尝试下一个 hash（SHA-256 失败则回退 SHA-1）
+    }
+  }
+  if (!portableDek) {
+    throw new Error('Failed to unwrap portable backup settings key with any supported OAEP hash');
+  }
   const aesKey = await importPortableAesKey(portableDek);
   const plaintext = new Uint8Array(
     await crypto.subtle.decrypt(
