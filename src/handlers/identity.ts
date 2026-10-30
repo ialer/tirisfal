@@ -177,7 +177,7 @@ async function recordFailedLoginAndBuildResponse(
   }
   if (result.locked) {
     return identityErrorResponse(
-      `Too many failed login attempts. Account locked for ${Math.ceil(result.retryAfterSeconds! / 60)} minutes.`,
+      'Too many failed login attempts. Try again later.',
       'TooManyRequests',
       429
     );
@@ -196,7 +196,7 @@ async function recordFailedTwoFactorAndBuildResponse(
   }
   if (failed.locked) {
     return identityErrorResponse(
-      `Too many failed login attempts. Account locked for ${Math.ceil(failed.retryAfterSeconds! / 60)} minutes.`,
+      'Too many failed login attempts. Try again later.',
       'TooManyRequests',
       429
     );
@@ -261,7 +261,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const loginCheck = await rateLimit.checkLoginAttempt(loginIdentifier);
     if (!loginCheck.allowed) {
       return identityErrorResponse(
-        `Too many failed login attempts. Try again in ${Math.ceil(loginCheck.retryAfterSeconds! / 60)} minutes.`,
+        'Too many failed login attempts. Try again later.',
         'TooManyRequests',
         429
       );
@@ -482,7 +482,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const loginCheck = await rateLimit.checkLoginAttempt(loginIdentifier);
     if (!loginCheck.allowed) {
       return identityErrorResponse(
-        `Too many failed login attempts. Try again in ${Math.ceil(loginCheck.retryAfterSeconds! / 60)} minutes.`,
+        'Too many failed login attempts. Try again later.',
         'TooManyRequests',
         429
       );

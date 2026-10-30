@@ -34,20 +34,27 @@ function validateKdfParams(
   kdfParallelism?: number | undefined
 ): string | null {
   const type = kdfType ?? 0;
+  // 只接受 Bitwarden 定义的两种 KDF：未知类型会绕过下面的强度检查，必须拒绝
+  if (type !== 0 && type !== 1) {
+    return 'Unsupported KDF type';
+  }
+  const isPositiveInt = (v: unknown): v is number =>
+    typeof v === 'number' && Number.isInteger(v) && v > 0;
+
   if (type === 0) {
-    // PBKDF2-SHA256：最少 100,000 次迭代
-    if (typeof kdfIterations === 'number' && kdfIterations < 100_000) {
+    // PBKDF2-SHA256：最少 100,000 次迭代（省略时由调用方回落默认值）
+    if (kdfIterations !== undefined && (!isPositiveInt(kdfIterations) || kdfIterations < 100_000)) {
       return 'PBKDF2 iterations must be at least 100000';
     }
-  } else if (type === 1) {
+  } else {
     // Argon2id：迭代次数 >= 2，内存 >= 16 MiB，并行度 >= 1
-    if (typeof kdfIterations === 'number' && kdfIterations < 2) {
+    if (kdfIterations !== undefined && (!isPositiveInt(kdfIterations) || kdfIterations < 2)) {
       return 'Argon2id iterations must be at least 2';
     }
-    if (typeof kdfMemory === 'number' && kdfMemory < 16) {
+    if (kdfMemory !== undefined && (!isPositiveInt(kdfMemory) || kdfMemory < 16)) {
       return 'Argon2id memory must be at least 16 MiB';
     }
-    if (typeof kdfParallelism === 'number' && kdfParallelism < 1) {
+    if (kdfParallelism !== undefined && (!isPositiveInt(kdfParallelism) || kdfParallelism < 1)) {
       return 'Argon2id parallelism must be at least 1';
     }
   }

@@ -280,4 +280,53 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
       expect(getClientIp(req)).toBe('1.2.3.4');
     });
   });
+
+  describe('POST /api/secrets（note 参数校验）', () => {
+    const base = { name: 'N', value: 'v', project_id: 'p1' };
+
+    it('note 非字符串时返回 400', async () => {
+      mockServiceInstance.getProject.mockResolvedValue({ id: 'p1', user_id: USER_ID });
+      const resp = await handleSecrets(
+        makeJsonRequest('POST', '/api/secrets', { ...base, note: { a: 1 } }),
+        ENV,
+        '/api/secrets',
+        'POST',
+        USER_ID,
+        ENV.ENCRYPTION_KEY,
+        undefined
+      );
+      expect(resp.status).toBe(400);
+      expect(mockServiceInstance.createSecret).not.toHaveBeenCalled();
+    });
+
+    it('note 超过 1000 字符时返回 400', async () => {
+      mockServiceInstance.getProject.mockResolvedValue({ id: 'p1', user_id: USER_ID });
+      const resp = await handleSecrets(
+        makeJsonRequest('POST', '/api/secrets', { ...base, note: 'x'.repeat(1001) }),
+        ENV,
+        '/api/secrets',
+        'POST',
+        USER_ID,
+        ENV.ENCRYPTION_KEY,
+        undefined
+      );
+      expect(resp.status).toBe(400);
+      expect(mockServiceInstance.createSecret).not.toHaveBeenCalled();
+    });
+
+    it('note 正常字符串时创建成功', async () => {
+      mockServiceInstance.getProject.mockResolvedValue({ id: 'p1', user_id: USER_ID });
+      mockServiceInstance.createSecret.mockResolvedValue({ id: 's1' });
+      const resp = await handleSecrets(
+        makeJsonRequest('POST', '/api/secrets', { ...base, note: 'ok' }),
+        ENV,
+        '/api/secrets',
+        'POST',
+        USER_ID,
+        ENV.ENCRYPTION_KEY,
+        undefined
+      );
+      expect(resp.status).toBe(201);
+    });
+  });
 });
