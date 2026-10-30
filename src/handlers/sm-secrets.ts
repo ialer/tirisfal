@@ -314,16 +314,22 @@ export async function handleSecrets(
       }))
     );
 
-    await smService.logSecretAccess(
-      machineAccountId || null,
-      userId,
-      `batch:${filtered.length}`,
-      'read_batch',
-      getClientIp(request),
-      request.headers.get('User-Agent'),
-      undefined,
-      projectId,
-      environment
+    // 审计日志必须按真实 secret_id 记录：secret_access_logs.secret_id 有外键约束，
+    // 传 "batch:N" 这类合成值会触发 FOREIGN KEY 失败，导致整个批量读取返回 500。
+    await Promise.all(
+      filtered.map((s) =>
+        smService.logSecretAccess(
+          machineAccountId || null,
+          userId,
+          s.id,
+          'read_batch',
+          getClientIp(request),
+          request.headers.get('User-Agent'),
+          undefined,
+          projectId,
+          environment
+        )
+      )
     );
     return jsonResponse({ data });
   }

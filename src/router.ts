@@ -77,6 +77,12 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if (encryptionKeyUnsafeReason(env))
       return errorResponse('ENCRYPTION_KEY 未设置或强度不足', 500);
 
+    // Secrets Manager 路由必须早于用户 JWT 校验：
+    // 它同时支持 Machine Account Token 与 User Token 两种认证（agent 走前者），
+    // 若先做 JWT 校验，机器账号请求会在这里被 401 掉，SM API 实际不可用。
+    const smResponse = await handleSmRoute(request, env, path, method);
+    if (smResponse) return smResponse;
+
     // 验证访问令牌
     const auth = new AuthService(env);
     const verified = await auth.verifyAccessTokenWithUser(request.headers.get('Authorization'));
@@ -100,10 +106,6 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       LIMITS.rateLimit.apiRequestsPerMinute
     );
     if (!apiCheck.allowed) return rateLimitResponse(apiCheck.retryAfterSeconds);
-
-    // 尝试 Secrets Manager 路由
-    const smResponse = await handleSmRoute(request, env, path, method);
-    if (smResponse) return smResponse;
 
     // 尝试已认证路由
     const authResponse = await handleAuthenticatedRoute(
