@@ -353,7 +353,16 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
           );
         }
         if (usedStep !== undefined) {
-          await storage.updateUserTotpLastUsedStep(user.id, usedStep);
+          // 原子占用 timestep：并发提交同一个 TOTP 码时只有一个请求能拿到 changes=1，
+          // 其余按重放处理（此前是无条件 UPDATE，存在 check-then-act 竞态）。
+          const claimed = await storage.updateUserTotpLastUsedStep(user.id, usedStep);
+          if (!claimed) {
+            return recordFailedTwoFactorAndBuildResponse(
+              rateLimit,
+              loginIdentifier,
+              clientIdentifier
+            );
+          }
         }
       } else if (
         normalizedTwoFactorProvider === TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE ||

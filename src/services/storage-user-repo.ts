@@ -146,14 +146,26 @@ export async function deleteUserById(db: D1Database, id: string): Promise<boolea
   return (result.meta.changes ?? 0) > 0;
 }
 
-/** 记录最近一次成功使用的 TOTP timestep（防重放） */
+/**
+ * 原子地占用 TOTP timestep（防重放）。
+ *
+ * 安全：必须是「条件更新」而不是「先读后写」。并发提交同一个 TOTP 码时，
+ * 两个请求都会读到旧的 totp_last_used_step 并通过校验；只有条件更新能让
+ * 其中一个 changes=1、另一个 changes=0，从而把后者判为重放。
+ *
+ * @returns true 表示本次调用成功占用该 timestep；false 表示已被其它请求占用（重放）。
+ */
 export async function updateUserTotpLastUsedStep(
   db: D1Database,
   userId: string,
   step: number
-): Promise<void> {
-  await db
-    .prepare('UPDATE users SET totp_last_used_step = ?, updated_at = updated_at WHERE id = ?')
-    .bind(step, userId)
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      'UPDATE users SET totp_last_used_step = ?, updated_at = updated_at ' +
+        'WHERE id = ? AND (totp_last_used_step IS NULL OR totp_last_used_step < ?)'
+    )
+    .bind(step, userId, step)
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }

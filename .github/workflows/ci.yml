@@ -68,3 +68,18 @@ jobs:
         with:
           name: dist
           path: dist/
+  security:
+    name: Security Gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: 安全门禁（IDOR SQL / 动态 SQL / 公开路由限流）
+        run: node scripts/check-security-gates.mjs
+      - name: 生产依赖漏洞（npm audit）
+        run: npm audit --omit=dev --audit-level=high
+

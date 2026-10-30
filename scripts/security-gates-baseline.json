@@ -1,0 +1,125 @@
+{
+  "note": "security gates baseline — 新增条目必须显式登记并说明为何安全",
+  "entries": [
+    {
+      "kind": "idor-sql",
+      "file": "src/services/backup-import.ts",
+      "detail": "DELETE FROM ${tableName} WHERE id = ? AND cipher_id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/sm-service.ts",
+      "detail": "SELECT * FROM machine_accounts WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/sm-service.ts",
+      "detail": "UPDATE machine_accounts SET ${setClauses.join(', ')} WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/sm-service.ts",
+      "detail": "DELETE FROM machine_accounts WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/sm-service.ts",
+      "detail": "SELECT * FROM sm_projects WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/sm-service.ts",
+      "detail": "DELETE FROM sm_projects WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/sm-service.ts",
+      "detail": "SELECT * FROM secrets WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/sm-service.ts",
+      "detail": "UPDATE secrets SET ${setClauses.join(', ')} WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/sm-service.ts",
+      "detail": "DELETE FROM secrets WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/storage-attachment-repo.ts",
+      "detail": "SELECT id, cipher_id, file_name, size, size_name, key FROM attachments WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/storage-attachment-repo.ts",
+      "detail": "DELETE FROM attachments WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/storage-attachment-repo.ts",
+      "detail": "UPDATE attachments SET cipher_id = ? WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/storage-cipher-repo.ts",
+      "detail": "SELECT ${selectCipherColumns()} FROM ciphers WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/storage-schema.ts",
+      "detail": "UPDATE users SET role = 'admin', updated_at = ? WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/storage-user-repo.ts",
+      "detail": "SELECT ${USER_SELECT_COLUMNS} FROM users WHERE id = ?"
+    },
+    {
+      "kind": "idor-sql",
+      "file": "src/services/storage-user-repo.ts",
+      "detail": "DELETE FROM users WHERE id = ?"
+    },
+    {
+      "kind": "dynamic-sql",
+      "file": "src/services/backup-import.ts",
+      "detail": "table"
+    },
+    {
+      "kind": "dynamic-sql",
+      "file": "src/services/backup-import.ts",
+      "detail": "tableName"
+    },
+    {
+      "kind": "dynamic-sql",
+      "file": "src/services/storage-cipher-repo.ts",
+      "detail": "whereDeleted"
+    },
+    {
+      "kind": "public-rate-limit",
+      "file": "src/router-public.ts",
+      "detail": "const iconMatch = path.match(/^\\/icons\\/([^/]+)\\/icon\\.png$/i);"
+    },
+    {
+      "kind": "public-rate-limit",
+      "file": "src/router-public.ts",
+      "detail": "const publicAttachmentMatch = path.match(/^\\/api\\/attachments\\/([a-f0-9-]+)\\/([a-f0-9-]+)$/i);"
+    },
+    {
+      "kind": "public-rate-limit",
+      "file": "src/router-public.ts",
+      "detail": "const publicSendUploadMatch = path.match(/^\\/api\\/sends\\/([^/]+)\\/file\\/([^/]+)\\/?$/i);"
+    },
+    {
+      "kind": "public-rate-limit",
+      "file": "src/router-public.ts",
+      "detail": "if (path === '/notifications/hub/negotiate' && method === 'POST') {"
+    },
+    {
+      "kind": "public-rate-limit",
+      "file": "src/router-public.ts",
+      "detail": "if (path === '/notifications/hub' && method === 'GET') {"
+    }
+  ]
+}

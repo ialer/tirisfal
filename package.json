@@ -25,7 +25,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage.thresholds.statements=2.5 --coverage.thresholds.branches=25 --coverage.thresholds.functions=10 --coverage.thresholds.lines=2.5",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "security:gates": "node scripts/check-security-gates.mjs"
   },
   "keywords": [
     "bitwarden",

@@ -267,8 +267,8 @@ export class StorageService {
     await saveStoredUser(this.db, this.safeBind.bind(this), user);
   }
 
-  async updateUserTotpLastUsedStep(userId: string, step: number): Promise<void> {
-    await updateStoredUserTotpLastUsedStep(this.db, userId, step);
+  async updateUserTotpLastUsedStep(userId: string, step: number): Promise<boolean> {
+    return updateStoredUserTotpLastUsedStep(this.db, userId, step);
   }
 
   async createUser(user: User): Promise<void> {

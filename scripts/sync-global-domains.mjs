@@ -73,7 +73,8 @@ function parseStringList(source) {
 
 function parseGlobalDomains(source, enumTypes) {
   const out = [];
-  const addRe = /GlobalDomains\.Add\s*\(\s*GlobalEquivalentDomainsType\.([A-Za-z_][A-Za-z0-9_]*)\s*,\s*new\s+List(?:<\s*string\s*>)?\s*\{([\s\S]*?)\}\s*\)\s*;/g;
+  const addRe =
+    /GlobalDomains\.Add\s*\(\s*GlobalEquivalentDomainsType\.([A-Za-z_][A-Za-z0-9_]*)\s*,\s*new\s+List(?:<\s*string\s*>)?\s*\{([\s\S]*?)\}\s*\)\s*;/g;
   let match;
   while ((match = addRe.exec(source)) !== null) {
     const name = match[1];
@@ -138,23 +139,20 @@ const unchangedRef = existingMeta?.ref === ref;
 const meta = {
   source: 'https://github.com/bitwarden/server',
   ref,
-  generatedAt: unchangedRules && unchangedRef && existingMeta?.generatedAt
-    ? existingMeta.generatedAt
-    : new Date().toISOString(),
+  generatedAt:
+    unchangedRules && unchangedRef && existingMeta?.generatedAt
+      ? existingMeta.generatedAt
+      : new Date().toISOString(),
   rulesCount: rules.length,
   domainsCount,
-  sourceFiles: [
-    ENUM_PATH,
-    STATIC_STORE_PATH,
-  ],
-  sourceUrls: [
-    enumUrl,
-    staticStoreUrl,
-  ],
+  sourceFiles: [ENUM_PATH, STATIC_STORE_PATH],
+  sourceUrls: [enumUrl, staticStoreUrl],
 };
 
 await mkdir(OUTPUT_DIR, { recursive: true });
 await writeFile(OUT_FILE, `${rulesJson}\n`, 'utf8');
 await writeFile(META_FILE, `${formatMetaJson(meta)}\n`, 'utf8');
 
-console.log(`Wrote ${rules.length} global domain rules (${domainsCount} domains) from bitwarden/server@${ref}.`);
+console.log(
+  `Wrote ${rules.length} global domain rules (${domainsCount} domains) from bitwarden/server@${ref}.`
+);
