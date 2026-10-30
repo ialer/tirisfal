@@ -219,7 +219,7 @@ export async function handleMachineAccounts(
     }
 
     await smService.grantProjectAccess(accountId, projectId, permission, {
-      allowed_ip: allowedIp as string[] | undefined,
+      allowed_ip: allowedIp,
       allowed_hours: allowedHours,
       max_requests_per_minute: maxRpm,
       expires_at: expiresAt,
