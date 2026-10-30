@@ -325,7 +325,13 @@ openssl rand -base64 32
 
 ## 📄 许可证
 
-本项目使用 [LGPL-3.0](LICENSE) 许可证。
+本项目核心代码采用 **LGPL-3.0-or-later**（SPDX：`LGPL-3.0-or-later`），全文见 [LICENSE](LICENSE)。
+
+LGPLv3 以 GPLv3 条款为基础，因此仓库同时附带 [LICENSE.GPL-3.0](LICENSE.GPL-3.0)。
+
+- 自用、内部部署、以 SaaS（如 Cloudflare Workers）方式对外提供服务：不触发开源义务；
+- 分发二进制 / 镜像 / 安装包：需随附源码与许可证文本；若修改了本项目，修改部分需以 LGPL-3.0 开源；
+- `sdk/` 目录下的客户端 SDK 单独采用 MIT 许可证（见各 `sdk/*/package.json`），便于第三方集成。
 
 ---
 

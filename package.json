@@ -3,7 +3,7 @@
   "version": "1.5.1",
   "description": "Tirisfal - Self-hosted password manager with Secrets Manager for AI Agents, running on Cloudflare Workers",
   "author": "SN Team",
-  "license": "LGPL-3.0",
+  "license": "LGPL-3.0-or-later",
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
