@@ -1,5 +1,19 @@
 # Secrets Manager 安全检查清单
 
+> **最近一次代码级复核：2026-10-30**
+>
+> 已修复并回归覆盖：
+> - `POST /api/secrets` 创建凭证缺少项目归属校验（IDOR）：任意已登录用户、或未获项目授权的
+>   Machine Account，都能向他人 project 写入凭证，进而投毒其他 agent 读取的密钥。
+>   修复：`src/handlers/sm-secrets.ts` 在创建前复用 `assertProjectSecretAccess`。
+>   回归：`tests/handlers/sm-secrets.test.ts` → `POST /api/secrets（创建凭证）`
+>   （他人项目 → 404、未授权 Machine Account → 403、自有项目 → 201）。
+>
+> 复核结论：`GET/PUT/DELETE /api/secrets/:id`、`by-name`、`batch` 均已做归属校验；
+> `/api/projects`、`/api/machine-accounts*` 均有 `user_id` 校验。
+> 遗留待办：`sm-service.updateSecret/deleteSecret` 的 SQL 建议补 owner 条件（纵深防御，
+> 目前依赖 handler 层校验，复用 service 的新路由容易绕过）。
+
 ## 认证与授权
 
 ### Machine Account 认证
@@ -15,8 +29,8 @@
 - [ ] Session 安全管理
 
 ### 权限控制
-- [ ] Machine Account 只能访问授权的 Project
-- [ ] 用户只能管理自己的资源
+- [x] Machine Account 只能访问授权的 Project（2026-10-30 复核：读/写/删路径均已校验，含 create 修复）
+- [x] 用户只能管理自己的资源（2026-10-30 复核：单条/批量/按名/创建均有归属校验）
 - [ ] 权限检查在 API 层执行
 
 ## 数据安全

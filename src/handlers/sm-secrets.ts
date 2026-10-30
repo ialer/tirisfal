@@ -87,6 +87,18 @@ export async function handleSecrets(
       return errorResponse('environment must be one of: prod, staging, dev, test', 400);
     }
 
+    // 项目访问权限校验（Machine Account 走项目授权校验，用户走所有权校验）
+    // 安全修复：此前 create 路径未校验 project_id 归属，任意已登录用户或未授权的
+    // Machine Account 都可向他人项目写入凭证，进而投毒其他 agent 读取的密钥。
+    const createAccessError = await assertProjectSecretAccess(
+      smService,
+      request,
+      body.project_id,
+      userId,
+      machineAccountId
+    );
+    if (createAccessError) return createAccessError;
+
     const secret = await smService.createSecret(userId, {
       name: body.name.trim(),
       value: body.value,

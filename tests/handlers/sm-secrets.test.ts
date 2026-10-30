@@ -9,6 +9,7 @@ const mockServiceInstance = {
   logSecretAccess: vi.fn(),
   getSecret: vi.fn(),
   getSecretByNameAndProject: vi.fn(),
+  createSecret: vi.fn(),
 };
 
 vi.mock('../../src/services/sm-service', () => ({
@@ -23,6 +24,14 @@ import { handleSecrets } from '../../src/handlers/sm-secrets';
 
 function makeRequest(method: string, path: string): Request {
   return new Request(`https://vault.example.com${path}`, { method });
+}
+
+function makeJsonRequest(method: string, path: string, body: unknown): Request {
+  return new Request(`https://vault.example.com${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 const ENV = { ENCRYPTION_KEY: 'test-encryption-key-1234567890123456' } as any;
@@ -178,6 +187,77 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
 
       const body = await resp.json();
       expect(body.value).toBe('new-plain');
+    });
+  });
+
+  describe('POST /api/secrets（创建凭证）', () => {
+    const body = { name: 'API_KEY', value: 'sk-test', project_id: OTHER_USER_PROJECT };
+
+    it('用户向他人项目写入凭证时返回 404（修复前可越权投毒）', async () => {
+      mockServiceInstance.getProject.mockResolvedValue({
+        id: OTHER_USER_PROJECT,
+        user_id: 'another-user',
+      });
+
+      const resp = await handleSecrets(
+        makeJsonRequest('POST', '/api/secrets', body),
+        ENV,
+        '/api/secrets',
+        'POST',
+        USER_ID,
+        ENV.ENCRYPTION_KEY,
+        undefined
+      );
+
+      expect(resp.status).toBe(404);
+      // 关键：越权请求不得触达写入
+      expect(mockServiceInstance.createSecret).not.toHaveBeenCalled();
+    });
+
+    it('Machine Account 未获项目授权时返回 403（修复前可越权写入）', async () => {
+      mockServiceInstance.validateProjectAccess.mockResolvedValue({
+        allowed: false,
+        reason: 'No access granted',
+      });
+
+      const resp = await handleSecrets(
+        makeJsonRequest('POST', '/api/secrets', body),
+        ENV,
+        '/api/secrets',
+        'POST',
+        USER_ID,
+        ENV.ENCRYPTION_KEY,
+        'machine-xyz'
+      );
+
+      expect(resp.status).toBe(403);
+      expect(mockServiceInstance.createSecret).not.toHaveBeenCalled();
+    });
+
+    it('用户向自己的项目写入时正常创建', async () => {
+      mockServiceInstance.getProject.mockResolvedValue({ id: 'p1', user_id: USER_ID });
+      mockServiceInstance.createSecret.mockResolvedValue({
+        id: 's-new',
+        name: 'API_KEY',
+        project_id: 'p1',
+      });
+
+      const resp = await handleSecrets(
+        makeJsonRequest('POST', '/api/secrets', { ...body, project_id: 'p1' }),
+        ENV,
+        '/api/secrets',
+        'POST',
+        USER_ID,
+        ENV.ENCRYPTION_KEY,
+        undefined
+      );
+
+      expect(resp.status).toBe(201);
+      expect(mockServiceInstance.createSecret).toHaveBeenCalledTimes(1);
+      expect(mockServiceInstance.createSecret).toHaveBeenCalledWith(
+        USER_ID,
+        expect.objectContaining({ project_id: 'p1', name: 'API_KEY', value: 'sk-test' })
+      );
     });
   });
 });
