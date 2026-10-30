@@ -62,11 +62,17 @@ export class SecretsManagerService {
     return account;
   }
 
-  async getMachineAccount(id: string): Promise<MachineAccount | null> {
-    const result = await this.db
-      .prepare('SELECT * FROM machine_accounts WHERE id = ?')
-      .bind(id)
-      .first<MachineAccount>();
+  async getMachineAccount(id: string, userId?: string): Promise<MachineAccount | null> {
+    // 传入 userId 时按属主过滤（纵深防御：handler 已校验，service 层不应依赖调用方）
+    const result = userId
+      ? await this.db
+          .prepare('SELECT * FROM machine_accounts WHERE id = ? AND user_id = ?')
+          .bind(id, userId)
+          .first<MachineAccount>()
+      : await this.db
+          .prepare('SELECT * FROM machine_accounts WHERE id = ?')
+          .bind(id)
+          .first<MachineAccount>();
     return result || null;
   }
 
@@ -122,14 +128,17 @@ export class SecretsManagerService {
 
   async generateAccessToken(
     machineAccountId: string,
-    expiryDays?: number
+    expiryDays?: number,
+    userId?: string
   ): Promise<MachineAccountTokenResponse> {
-    // 验证过期时间
+    // 验证过期时间：非整数（NaN/Infinity/小数）回落到默认 30 天，并限制在 1..90
     const maxDays = 90;
-    const days = Math.min(Math.max(1, expiryDays || 30), maxDays);
+    const requested =
+      typeof expiryDays === 'number' && Number.isFinite(expiryDays) ? Math.trunc(expiryDays) : 30;
+    const days = Math.min(Math.max(1, requested), maxDays);
 
     // 撤销旧 token（如果有）
-    await this.revokeAccessToken(machineAccountId);
+    await this.revokeAccessToken(machineAccountId, userId);
 
     // 生成随机 token（使用 URL-safe base64）
     const tokenBytes = new Uint8Array(32);
@@ -149,12 +158,15 @@ export class SecretsManagerService {
     // 设置过期时间
     const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
-    await this.db
-      .prepare(
-        'UPDATE machine_accounts SET access_token_hash = ?, access_token_expires_at = ?, updated_at = ? WHERE id = ?'
-      )
-      .bind(hashHex, expiresAt, new Date().toISOString(), machineAccountId)
-      .run();
+    const updateSql = userId
+      ? 'UPDATE machine_accounts SET access_token_hash = ?, access_token_expires_at = ?, updated_at = ? WHERE id = ? AND user_id = ?'
+      : 'UPDATE machine_accounts SET access_token_hash = ?, access_token_expires_at = ?, updated_at = ? WHERE id = ?';
+    const updateStmt = this.db.prepare(updateSql);
+    await (
+      userId
+        ? updateStmt.bind(hashHex, expiresAt, new Date().toISOString(), machineAccountId, userId)
+        : updateStmt.bind(hashHex, expiresAt, new Date().toISOString(), machineAccountId)
+    ).run();
 
     return {
       access_token: token,
@@ -162,13 +174,16 @@ export class SecretsManagerService {
     };
   }
 
-  async revokeAccessToken(machineAccountId: string): Promise<void> {
-    await this.db
-      .prepare(
-        'UPDATE machine_accounts SET access_token_hash = NULL, access_token_expires_at = NULL, updated_at = ? WHERE id = ?'
-      )
-      .bind(new Date().toISOString(), machineAccountId)
-      .run();
+  async revokeAccessToken(machineAccountId: string, userId?: string): Promise<void> {
+    const sql = userId
+      ? 'UPDATE machine_accounts SET access_token_hash = NULL, access_token_expires_at = NULL, updated_at = ? WHERE id = ? AND user_id = ?'
+      : 'UPDATE machine_accounts SET access_token_hash = NULL, access_token_expires_at = NULL, updated_at = ? WHERE id = ?';
+    const stmt = this.db.prepare(sql);
+    await (
+      userId
+        ? stmt.bind(new Date().toISOString(), machineAccountId, userId)
+        : stmt.bind(new Date().toISOString(), machineAccountId)
+    ).run();
   }
 
   async verifyAccessToken(token: string): Promise<MachineAccount | null> {
@@ -408,6 +423,11 @@ export class SecretsManagerService {
     }
 
     // 检查 IP 白名单
+    // 安全：配置了白名单但拿不到可信客户端 IP 时必须拒绝（fail-closed），
+    // 否则缺失 IP（非 CF 入口、Worker 间调用）即可跳过白名单。
+    if (result.allowed_ip && !clientIp) {
+      return { allowed: false, reason: 'Client IP unavailable for IP allowlist' };
+    }
     if (result.allowed_ip && clientIp) {
       try {
         const allowedIps = JSON.parse(result.allowed_ip) as string[];
@@ -513,7 +533,10 @@ export class SecretsManagerService {
       return false;
     }
 
-    // 检查 IP 白名单
+    // 检查 IP 白名单（fail-closed：拿不到可信 IP 即拒绝）
+    if (result.allowed_ip && !clientIp) {
+      return false;
+    }
     if (result.allowed_ip && clientIp) {
       try {
         const allowedIps = JSON.parse(result.allowed_ip) as string[];

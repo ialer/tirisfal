@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   decrypt,
@@ -86,5 +86,17 @@ describe('Crypto Fast Path (v2, HKDF + cached key)', () => {
     await expect(decrypt(fastEncrypted, testKey)).rejects.toThrow();
     // 新 decryptFast() 可读旧格式
     await expect(decrypt(await encrypt(plaintext, testKey), testKey)).resolves.toBe(plaintext);
+  });
+
+  it('派生密钥失败后不缓存失败结果（可重试）', async () => {
+    // 安全回归：被拒绝的 Promise 不能留在 derivedKeyCache 里，否则该 isolate 后续加解密全挂
+    const key = 'test-cache-poison-' + Date.now();
+    const spy = vi.spyOn(crypto.subtle, 'importKey');
+    spy.mockRejectedValueOnce(new Error('derive-boom'));
+    await expect(encryptFast('x', key)).rejects.toThrow('derive-boom');
+    spy.mockRestore();
+
+    const enc = await encryptFast('x', key);
+    expect(enc.startsWith(FAST_FORMAT_PREFIX)).toBe(true);
   });
 });

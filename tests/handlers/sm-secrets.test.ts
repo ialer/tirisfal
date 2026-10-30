@@ -20,7 +20,7 @@ vi.mock('../../src/services/sm-service', () => ({
   },
 }));
 
-import { handleSecrets } from '../../src/handlers/sm-secrets';
+import { getClientIp, handleSecrets } from '../../src/handlers/sm-secrets';
 
 function makeRequest(method: string, path: string): Request {
   return new Request(`https://vault.example.com${path}`, { method });
@@ -258,6 +258,26 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
         USER_ID,
         expect.objectContaining({ project_id: 'p1', name: 'API_KEY', value: 'sk-test' })
       );
+    });
+  });
+
+  describe('getClientIp（只信任 CF-Connecting-IP）', () => {
+    it('忽略可伪造的 X-Real-IP 与 X-Forwarded-For', () => {
+      const req = new Request('https://vault.example.com/api/secrets', {
+        headers: { 'X-Real-IP': '203.0.113.9', 'X-Forwarded-For': '203.0.113.9' },
+      });
+      expect(getClientIp(req)).toBeNull();
+    });
+
+    it('返回 Cloudflare 注入的 CF-Connecting-IP', () => {
+      const req = new Request('https://vault.example.com/api/secrets', {
+        headers: {
+          'CF-Connecting-IP': '1.2.3.4',
+          'X-Real-IP': '203.0.113.9',
+          'X-Forwarded-For': '203.0.113.9',
+        },
+      });
+      expect(getClientIp(req)).toBe('1.2.3.4');
     });
   });
 });

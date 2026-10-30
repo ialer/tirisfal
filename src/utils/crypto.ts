@@ -99,6 +99,13 @@ function getDerivedKey(masterKey: string): Promise<CryptoKey> {
     return crypto.subtle.importKey('raw', bits, { name: ALGORITHM }, false, ['encrypt', 'decrypt']);
   })();
 
+  // 安全：失败的派生不能留在缓存里——被拒绝的 Promise 会被后续所有请求复用，
+  // 导致同一 isolate 内加解密持续失败直到实例回收。
+  cached = cached.catch((error) => {
+    derivedKeyCache.delete(masterKey);
+    throw error;
+  });
+
   derivedKeyCache.set(masterKey, cached);
   return cached;
 }

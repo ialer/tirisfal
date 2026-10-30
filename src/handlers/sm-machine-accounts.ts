@@ -47,7 +47,7 @@ export async function handleMachineAccounts(
 
     // GET /api/machine-accounts/:id
     if (method === 'GET') {
-      const account = await smService.getMachineAccount(accountId);
+      const account = await smService.getMachineAccount(accountId, userId);
       if (!account || account.user_id !== userId) {
         return errorResponse('Not found', 404);
       }
@@ -56,7 +56,7 @@ export async function handleMachineAccounts(
 
     // PUT /api/machine-accounts/:id
     if (method === 'PUT') {
-      const account = await smService.getMachineAccount(accountId);
+      const account = await smService.getMachineAccount(accountId, userId);
       if (!account || account.user_id !== userId) {
         return errorResponse('Not found', 404);
       }
@@ -82,7 +82,7 @@ export async function handleMachineAccounts(
 
     // DELETE /api/machine-accounts/:id
     if (method === 'DELETE') {
-      const account = await smService.getMachineAccount(accountId);
+      const account = await smService.getMachineAccount(accountId, userId);
       if (!account || account.user_id !== userId) {
         return errorResponse('Not found', 404);
       }
@@ -96,7 +96,7 @@ export async function handleMachineAccounts(
   const tokenMatch = path.match(/^\/api\/machine-accounts\/([a-f0-9-]+)\/token$/);
   if (tokenMatch && method === 'POST') {
     const accountId = tokenMatch[1];
-    const account = await smService.getMachineAccount(accountId);
+    const account = await smService.getMachineAccount(accountId, userId);
 
     if (!account || account.user_id !== userId) {
       return errorResponse('Not found', 404);
@@ -114,7 +114,7 @@ export async function handleMachineAccounts(
       // 使用默认值
     }
 
-    const tokenResponse = await smService.generateAccessToken(accountId, expiryDays);
+    const tokenResponse = await smService.generateAccessToken(accountId, expiryDays, userId);
     return jsonResponse(tokenResponse);
   }
 
@@ -122,13 +122,13 @@ export async function handleMachineAccounts(
   const revokeTokenMatch = path.match(/^\/api\/machine-accounts\/([a-f0-9-]+)\/revoke-token$/);
   if (revokeTokenMatch && method === 'POST') {
     const accountId = revokeTokenMatch[1];
-    const account = await smService.getMachineAccount(accountId);
+    const account = await smService.getMachineAccount(accountId, userId);
 
     if (!account || account.user_id !== userId) {
       return errorResponse('Not found', 404);
     }
 
-    await smService.revokeAccessToken(accountId);
+    await smService.revokeAccessToken(accountId, userId);
     return jsonResponse({ success: true, message: 'Token revoked' });
   }
 

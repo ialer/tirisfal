@@ -39,9 +39,10 @@ export async function handleSmRoute(
     return errorResponse('需要客户端 IP', 403);
   }
 
-  // 首先尝试 Machine Account Token 认证
-  const machineAuth = await verifyMachineToken(request, env);
-  if (machineAuth) {
+  // 速率限制前移：认证失败同样消耗预算。
+  // 安全：此前 verifyMachineToken 在限流之前执行，失败尝试不计数，
+  // 等于给 machine token 留了不限速的暴力尝试通道（每次还会打一次 D1）。
+  {
     const rateLimit = new RateLimitService(env.DB);
     const rateLimitCheck = await rateLimit.consumeBudget(
       `${clientId}:sm-machine`,
@@ -53,7 +54,11 @@ export async function handleSmRoute(
         429
       );
     }
+  }
 
+  // 再尝试 Machine Account Token 认证
+  const machineAuth = await verifyMachineToken(request, env);
+  if (machineAuth) {
     // Machine Account 只能访问被授权的 secrets
     if (path.startsWith('/api/secrets')) {
       return handleSecrets(

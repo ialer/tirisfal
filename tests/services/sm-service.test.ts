@@ -129,4 +129,51 @@ describe('SecretsManagerService', () => {
       expect(result).toBe(true);
     });
   });
+
+  describe('getMachineAccount（按属主过滤，纵深防御）', () => {
+    it('传入 userId 时 SQL 必须带 user_id 条件', async () => {
+      mockDb.first.mockResolvedValue(null);
+      await service.getMachineAccount('m-1', 'user-123');
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE id = ? AND user_id = ?')
+      );
+      expect(mockDb.bind).toHaveBeenCalledWith('m-1', 'user-123');
+    });
+
+    it('不传 userId 时保持旧行为（内部创建流程使用）', async () => {
+      mockDb.first.mockResolvedValue(null);
+      await service.getMachineAccount('m-1');
+      expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM machine_accounts WHERE id = ?');
+    });
+  });
+
+  describe('validateProjectAccess（IP 白名单 fail-closed）', () => {
+    const row = {
+      permission: 'read',
+      allowed_ip: JSON.stringify(['1.2.3.4']),
+      allowed_hours: null,
+      max_requests_per_minute: null,
+      expires_at: null,
+    };
+
+    it('配置了白名单但拿不到客户端 IP 时必须拒绝', async () => {
+      mockDb.first.mockResolvedValue(row);
+      const result = await service.validateProjectAccess('m-1', 'p-1', undefined);
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain('IP');
+    });
+
+    it('IP 在白名单内时放行', async () => {
+      mockDb.first.mockResolvedValue(row);
+      const result = await service.validateProjectAccess('m-1', 'p-1', '1.2.3.4');
+      expect(result.allowed).toBe(true);
+    });
+
+    it('IP 不在白名单内时拒绝', async () => {
+      mockDb.first.mockResolvedValue(row);
+      const result = await service.validateProjectAccess('m-1', 'p-1', '203.0.113.9');
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain('IP not whitelisted');
+    });
+  });
 });

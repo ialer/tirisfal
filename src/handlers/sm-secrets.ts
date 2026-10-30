@@ -5,13 +5,13 @@ import type { Env } from '../types';
 import { errorResponse, jsonResponse } from '../utils/response';
 
 /** 从请求头提取客户端真实 IP（与 ratelimit 的提取逻辑保持一致） */
-function getClientIp(request: Request): string | null {
-  return (
-    request.headers.get('CF-Connecting-IP') ||
-    request.headers.get('X-Real-IP') ||
-    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
-    null
-  );
+export function getClientIp(request: Request): string | null {
+  // 安全：只信任 Cloudflare 边缘注入的 CF-Connecting-IP。
+  // X-Real-IP / X-Forwarded-For 由调用方自带，可随意伪造；一旦用于 IP 白名单判断，
+  // 就能绕过 machine_account_projects.allowed_ip（审计日志也会被污染）。
+  // 取不到真实 IP 时返回 null，由 validateProjectAccess 失效关闭（配置了白名单即拒绝）。
+  const cfIp = request.headers.get('CF-Connecting-IP');
+  return cfIp && cfIp.trim() ? cfIp.trim() : null;
 }
 
 /** 校验当前调用者（用户或 Machine Account）对项目下凭证的访问权限，失败时返回错误 Response */
