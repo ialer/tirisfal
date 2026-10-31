@@ -14,6 +14,64 @@ export function getClientIp(request: Request): string | null {
   return cfIp && cfIp.trim() ? cfIp.trim() : null;
 }
 
+/** 解析 grant 的 allowed_hosts（JSON 数组） */
+function parseAllowedHosts(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 目标主机是否在白名单内（支持 *.example.com 单层通配） */
+function hostAllowed(host: string, allowed: string[]): boolean {
+  const h = host.toLowerCase();
+  return allowed.some((entry) => {
+    const p = entry.toLowerCase().trim();
+    if (!p) return false;
+    if (p.startsWith('*.')) {
+      const suffix = p.slice(1);
+      return h.endsWith(suffix) && h.length > suffix.length;
+    }
+    return h === p;
+  });
+}
+
+const HOP_BY_HOP_HEADERS = new Set([
+  'host',
+  'content-length',
+  'connection',
+  'keep-alive',
+  'transfer-encoding',
+  'upgrade',
+  'te',
+  'trailer',
+  'proxy-authorization',
+  'proxy-connection',
+]);
+
+/**
+ * 出站目标校验（SSRF 防护）。
+ * Workers 无法自定义 DNS 解析，因此这里只做「可判定」的部分：
+ * 协议、IP 字面量、私网/本地域名、以及操作者配置的主机白名单。
+ */
+function validateOutboundTarget(url: URL, allowedHosts: string[]): string | null {
+  if (url.protocol !== 'https:') return 'Only https targets are allowed';
+  const host = url.hostname.toLowerCase();
+  if (!host) return 'Invalid target host';
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':')) {
+    return 'IP literal targets are not allowed';
+  }
+  if (/^(localhost|.*\.local|.*\.internal|.*\.localhost)$/i.test(host)) {
+    return 'Private hosts are not allowed';
+  }
+  if (!allowedHosts.length) return 'allowed_hosts is not configured for this grant';
+  if (!hostAllowed(host, allowedHosts)) return 'Target host is not in allowed_hosts';
+  return null;
+}
+
 /** 校验当前调用者（用户或 Machine Account）对项目下凭证的访问权限，失败时返回错误 Response */
 async function assertProjectSecretAccess(
   smService: SecretsManagerService,
@@ -117,6 +175,138 @@ export async function handleSecrets(
     });
 
     return jsonResponse(secret, 201);
+  }
+
+  // POST /api/secrets/use - 凭证注入代理：服务端用真值访问上游，明文不出服务端
+  if (method === 'POST' && path === '/api/secrets/use') {
+    if (!machineAccountId) {
+      return errorResponse('该接口仅限 Machine Account 调用', 403);
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse('Invalid JSON body', 400);
+    }
+
+    const projectId = typeof body.project_id === 'string' ? body.project_id : '';
+    const secretName = typeof body.name === 'string' ? body.name : '';
+    const purpose = typeof body.purpose === 'string' ? body.purpose.trim() : '';
+    const targetUrlRaw = typeof body.url === 'string' ? body.url : '';
+    const httpMethod = (typeof body.method === 'string' ? body.method : 'GET').toUpperCase();
+    const environment = typeof body.environment === 'string' ? body.environment : 'prod';
+
+    if (!projectId || !secretName || !targetUrlRaw) {
+      return errorResponse('project_id, name and url are required', 400);
+    }
+    if (!purpose) return errorResponse('purpose is required', 400);
+    if (purpose.length > 200) return errorResponse('purpose must be <= 200 characters', 400);
+    if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'].includes(httpMethod)) {
+      return errorResponse('Unsupported HTTP method', 400);
+    }
+
+    // 授权检查（复用 validateProjectAccess：IP / 时段 / 过期）
+    const access = await smService.validateProjectAccess(
+      machineAccountId,
+      projectId,
+      getClientIp(request) ?? undefined
+    );
+    if (!access.allowed) return errorResponse('Access denied: ' + (access.reason || ''), 403);
+
+    const grant = await smService.getProjectGrant(machineAccountId, projectId);
+    if (!grant) return errorResponse('Access denied', 403);
+    if ((grant.mode || 'inject') !== 'inject') {
+      return errorResponse('该授权为 reveal 模式，请使用读取接口', 403);
+    }
+
+    const allowedHosts = parseAllowedHosts(grant.allowed_hosts);
+    let target: URL;
+    try {
+      target = new URL(targetUrlRaw);
+    } catch {
+      return errorResponse('Invalid url', 400);
+    }
+    const targetError = validateOutboundTarget(target, allowedHosts);
+    if (targetError) return errorResponse(targetError, 403);
+
+    const secret = await smService.getSecretByNameAndProject(secretName, projectId, environment);
+    if (!secret) return errorResponse('Not found', 404);
+    const secretValue = await smService.decryptSecretValue(secret.value);
+
+    // 请求头：丢弃 hop-by-hop，注入凭证
+    const outHeaders = new Headers();
+    const inputHeaders =
+      body.headers && typeof body.headers === 'object'
+        ? (body.headers as Record<string, unknown>)
+        : {};
+    for (const [key, val] of Object.entries(inputHeaders)) {
+      if (typeof val !== 'string') continue;
+      if (HOP_BY_HOP_HEADERS.has(key.toLowerCase())) continue;
+      outHeaders.set(key, val);
+    }
+    const injectHeader =
+      typeof body.header === 'string' && body.header ? body.header : 'Authorization';
+    const injectPrefix = typeof body.prefix === 'string' ? body.prefix : 'Bearer ';
+    outHeaders.set(injectHeader, injectPrefix + secretValue);
+
+    const payload =
+      httpMethod === 'GET' || httpMethod === 'HEAD'
+        ? undefined
+        : typeof body.body === 'string'
+          ? body.body
+          : '';
+    if (payload && payload.length > 1024 * 1024) {
+      return errorResponse('body too large (max 1MB)', 413);
+    }
+
+    const started = Date.now();
+    let upstream: Response;
+    try {
+      upstream = await fetch(target.toString(), {
+        method: httpMethod,
+        headers: outHeaders,
+        body: payload,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      return errorResponse('Upstream request failed', 502);
+    }
+    const elapsedMs = Date.now() - started;
+
+    // 读取上游响应：截断 + 脱敏（防止上游把凭证回显出来）
+    const rawBytes = new Uint8Array(await upstream.arrayBuffer());
+    const maxBytes = 512 * 1024;
+    const truncated = rawBytes.length > maxBytes;
+    const text = new TextDecoder().decode(truncated ? rawBytes.slice(0, maxBytes) : rawBytes);
+    const redacted =
+      secretValue.length >= 8 ? text.split(secretValue).join('***REDACTED***') : text;
+
+    await smService.logSecretAccess(
+      machineAccountId,
+      null,
+      secret.id,
+      'use',
+      getClientIp(request),
+      request.headers.get('User-Agent'),
+      { status: upstream.status, method: httpMethod, truncated, elapsed_ms: elapsedMs },
+      projectId,
+      environment,
+      target.hostname,
+      purpose
+    );
+
+    return new Response(redacted, {
+      status: upstream.status,
+      headers: {
+        'Content-Type': upstream.headers.get('Content-Type') || 'text/plain; charset=utf-8',
+        'X-Tirisfal-Upstream-Status': String(upstream.status),
+        'X-Tirisfal-Truncated': truncated ? '1' : '0',
+        'X-Tirisfal-Elapsed-Ms': String(elapsedMs),
+        'Cache-Control': 'no-store',
+      },
+    });
   }
 
   // GET /api/secrets - 列出所有凭证

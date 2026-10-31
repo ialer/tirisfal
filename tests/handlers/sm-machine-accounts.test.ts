@@ -47,7 +47,11 @@ describe('machine account 项目授权（补齐产品缺口）', () => {
 
   it('POST 授权成功返回 201，并把 permission 传给 service', async () => {
     const resp = await handleMachineAccounts(
-      req('POST', path, { permission: 'read', allowed_ip: ['1.2.3.4'] }),
+      req('POST', path, {
+        permission: 'read',
+        allowed_ip: ['1.2.3.4'],
+        allowed_hosts: ['api.example.com'],
+      }),
       ENV,
       path,
       'POST',
@@ -58,8 +62,35 @@ describe('machine account 项目授权（补齐产品缺口）', () => {
       ACCOUNT_ID,
       PROJECT_ID,
       'read',
-      expect.objectContaining({ allowed_ip: ['1.2.3.4'] })
+      expect.objectContaining({
+        allowed_ip: ['1.2.3.4'],
+        allowed_hosts: ['api.example.com'],
+        mode: 'inject',
+      })
     );
+  });
+
+  it('inject 模式缺少 allowed_hosts 返回 400', async () => {
+    const resp = await handleMachineAccounts(
+      req('POST', path, { permission: 'read' }),
+      ENV,
+      path,
+      'POST',
+      USER_ID
+    );
+    expect(resp.status).toBe(400);
+    expect(mockService.grantProjectAccess).not.toHaveBeenCalled();
+  });
+
+  it('reveal 模式可不配 allowed_hosts', async () => {
+    const resp = await handleMachineAccounts(
+      req('POST', path, { permission: 'read', mode: 'reveal' }),
+      ENV,
+      path,
+      'POST',
+      USER_ID
+    );
+    expect(resp.status).toBe(201);
   });
 
   it('他人的机器账号返回 404（不暴露存在性）', async () => {

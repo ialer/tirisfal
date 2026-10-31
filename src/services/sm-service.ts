@@ -372,14 +372,16 @@ export class SecretsManagerService {
       allowed_hours?: { start: number; end: number };
       max_requests_per_minute?: number;
       expires_at?: string;
+      mode?: 'inject' | 'reveal';
+      allowed_hosts?: string[];
     }
   ): Promise<void> {
     const now = new Date().toISOString();
     await this.db
       .prepare(
         `INSERT OR REPLACE INTO machine_account_projects
-         (machine_account_id, project_id, permission, allowed_ip, allowed_hours, max_requests_per_minute, expires_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+         (machine_account_id, project_id, permission, allowed_ip, allowed_hours, max_requests_per_minute, expires_at, created_at, mode, allowed_hosts)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         machineAccountId,
@@ -389,7 +391,9 @@ export class SecretsManagerService {
         options?.allowed_hours ? JSON.stringify(options.allowed_hours) : null,
         options?.max_requests_per_minute || null,
         options?.expires_at || null,
-        now
+        now,
+        options?.mode || 'inject',
+        options?.allowed_hosts ? JSON.stringify(options.allowed_hosts) : null
       )
       .run();
   }
@@ -496,6 +500,38 @@ export class SecretsManagerService {
     return result.meta.changes > 0;
   }
 
+  /** 读取单条授权记录（含 inject 模式与目标主机白名单） */
+  async getProjectGrant(
+    machineAccountId: string,
+    projectId: string
+  ): Promise<{
+    project_id: string;
+    permission: string;
+    allowed_ip: string | null;
+    allowed_hours: string | null;
+    max_requests_per_minute: number | null;
+    expires_at: string | null;
+    mode: string;
+    allowed_hosts: string | null;
+  } | null> {
+    const row = await this.db
+      .prepare(
+        'SELECT * FROM machine_account_projects WHERE machine_account_id = ? AND project_id = ?'
+      )
+      .bind(machineAccountId, projectId)
+      .first<{
+        project_id: string;
+        permission: string;
+        allowed_ip: string | null;
+        allowed_hours: string | null;
+        max_requests_per_minute: number | null;
+        expires_at: string | null;
+        mode: string;
+        allowed_hosts: string | null;
+      }>();
+    return row || null;
+  }
+
   async getProjectAccess(
     machineAccountId: string
   ): Promise<{ project_id: string; permission: string }[]> {
@@ -562,7 +598,9 @@ export class SecretsManagerService {
     userAgent: string | null,
     metadata?: Record<string, unknown>,
     projectId?: string,
-    environment?: string
+    environment?: string,
+    host?: string,
+    purpose?: string
   ): Promise<void> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -583,8 +621,8 @@ export class SecretsManagerService {
     await this.db
       .prepare(
         `INSERT INTO secret_access_logs
-         (id, machine_account_id, user_id, secret_id, action, ip_address, user_agent, metadata, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, machine_account_id, user_id, secret_id, action, ip_address, user_agent, metadata, created_at, host, purpose)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -595,7 +633,9 @@ export class SecretsManagerService {
         sanitizedIp,
         sanitizedUserAgent,
         JSON.stringify(fullMetadata),
-        now
+        now,
+        host || null,
+        purpose ? purpose.substring(0, 200) : null
       )
       .run();
   }

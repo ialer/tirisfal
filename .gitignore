@@ -46,3 +46,7 @@ AGENTS.md
 settings.json
 .claude/
 Tirisfal-compat/
+
+# core dumps
+core
+core.*

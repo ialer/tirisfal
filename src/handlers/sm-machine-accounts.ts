@@ -218,11 +218,41 @@ export async function handleMachineAccounts(
       expiresAt = v;
     }
 
+    let mode: 'inject' | 'reveal' = 'inject';
+    if (body.mode !== undefined) {
+      if (body.mode !== 'inject' && body.mode !== 'reveal') {
+        return errorResponse('mode must be one of: inject, reveal', 400);
+      }
+      mode = body.mode;
+    }
+
+    let allowedHosts: string[] | undefined;
+    if (body.allowed_hosts !== undefined) {
+      const v = body.allowed_hosts;
+      if (
+        !Array.isArray(v) ||
+        v.length === 0 ||
+        v.length > 20 ||
+        !v.every((h) => typeof h === 'string' && /^(\*\.)?[a-z0-9.-]+$/i.test(h) && h.length <= 253)
+      ) {
+        return errorResponse(
+          'allowed_hosts must be 1..20 hostnames (optionally *.example.com)',
+          400
+        );
+      }
+      allowedHosts = v as string[];
+    }
+    if (mode === 'inject' && !allowedHosts) {
+      return errorResponse('allowed_hosts is required for inject mode', 400);
+    }
+
     await smService.grantProjectAccess(accountId, projectId, permission, {
       allowed_ip: allowedIp,
       allowed_hours: allowedHours,
       max_requests_per_minute: maxRpm,
       expires_at: expiresAt,
+      mode,
+      allowed_hosts: allowedHosts,
     });
 
     return jsonResponse(
