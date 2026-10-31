@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.5.1-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.6.0-blue" alt="version">
   <img src="https://img.shields.io/badge/license-LGPL--3.0-green" alt="license">
   <img src="https://img.shields.io/badge/cloudflare-workers-orange" alt="cloudflare">
   <img src="https://img.shields.io/badge/encryption-AES--256--GCM-red" alt="encryption">
@@ -103,12 +103,46 @@ curl -X POST https://your-worker.workers.dev/api/secrets \
   -d '{"name": "API_KEY", "value": "sk-***", "project_id": "<project-id>"}'
 ```
 
-### 4️⃣ Agent 获取凭证
+### 4️⃣ Agent 接入（推荐：不落明文）
+
+**a. 授权**：把机器账号授权到项目，选择模式与目标主机白名单
 
 ```bash
-curl "https://your-worker.workers.dev/api/secrets/by-name/API_KEY?project_id=<id>&environment=prod" \
-  -H "Authorization: Bearer <machine-token>" | jq -r .value
+curl -X POST https://your-worker.workers.dev/api/machine-accounts/<account-id>/projects/<project-id> \
+  -H "Authorization: Bearer <user-token>" -H "Content-Type: application/json" \
+  -d '{"permission":"read","mode":"inject","allowed_hosts":["api.openai.com"]}'
 ```
+
+- `mode: inject`（默认）：**读接口只返回掩码**，凭证只能经注入代理使用；
+- `mode: reveal`：允许显式读取明文，建议同时设置 `reveal_limit`（默认 1 次）；
+- `allowed_hosts`：注入目标白名单，inject 模式必填。
+
+**b. 注入调用**：Agent 只拿引用，真值不出服务端
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/secrets/use \
+  -H "Authorization: Bearer <machine-token>" -H "Content-Type: application/json" \
+  -d '{
+        "project_id": "<project-id>",
+        "name": "API_KEY",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "method": "POST",
+        "purpose": "chat completion",
+        "body": "{\"model\":\"gpt-5\",\"messages\":[]}"
+      }'
+```
+
+服务端取出真值并注入 `Authorization` 头，只回上游响应；若上游把凭证回显，响应里的明文会被替换为 `***REDACTED***`。
+
+**c. 受控读取**（仅 `mode=reveal` 的授权）
+
+```bash
+curl "https://your-worker.workers.dev/api/secrets/by-name/API_KEY?project_id=<id>&reveal=1" \
+  -H "Authorization: Bearer <machine-token>"
+```
+
+不带 `reveal=1` 一律返回掩码（`sk-a****9f2c`）；每次显式 reveal 会原子消耗一次配额，超限返回 429。
+人类用户（浏览器 / 官方客户端）不受影响，始终读取明文。
 
 ---
 
@@ -127,6 +161,9 @@ curl "https://your-worker.workers.dev/api/secrets/by-name/API_KEY?project_id=<id
 | 🚦 | **D1 Atomic Rate Limiting** - 防竞态条件速率限制 |
 | 🔒 | **Constant-Time Comparison** - 防时序攻击 |
 | 🛡️ | **Project Ownership Verification** - 防跨用户访问 |
+| 🙈 | **Default Masking** - Machine Account 读取默认返回掩码 |
+| 💉 | **Credential Injection** - 凭证由服务端注入，明文不进 Agent 上下文 |
+| 🚧 | **SSRF Guard** - 目标主机白名单 + 拒绝 IP 字面量/私网 |
 
 </div>
 
@@ -167,6 +204,9 @@ curl "https://your-worker.workers.dev/api/secrets/by-name/API_KEY?project_id=<id
 | `DELETE` | `/api/machine-accounts/:id` | 删除机器账号 |
 | `POST` | `/api/machine-accounts/:id/token` | 生成访问令牌 |
 | `POST` | `/api/machine-accounts/:id/revoke-token` | 撤销访问令牌 |
+| `POST` | `/api/machine-accounts/:id/projects/:projectId` | 授权项目（mode / allowed_hosts / reveal_limit） |
+| `DELETE` | `/api/machine-accounts/:id/projects/:projectId` | 撤销项目授权 |
+| `GET` | `/api/machine-accounts/:id/projects` | 列出已授权项目 |
 
 ### Projects
 
@@ -187,6 +227,7 @@ curl "https://your-worker.workers.dev/api/secrets/by-name/API_KEY?project_id=<id
 | `PUT` | `/api/secrets/:id` | 更新凭证 |
 | `DELETE` | `/api/secrets/:id` | 删除凭证 |
 | `GET` | `/api/secrets/by-name/:name` | 通过名称获取凭证 |
+| `POST` | `/api/secrets/use` | 注入代理：用凭证替调用方访问白名单上游（Machine Account） |
 
 ---
 

@@ -374,14 +374,15 @@ export class SecretsManagerService {
       expires_at?: string;
       mode?: 'inject' | 'reveal';
       allowed_hosts?: string[];
+      reveal_limit?: number | null;
     }
   ): Promise<void> {
     const now = new Date().toISOString();
     await this.db
       .prepare(
         `INSERT OR REPLACE INTO machine_account_projects
-         (machine_account_id, project_id, permission, allowed_ip, allowed_hours, max_requests_per_minute, expires_at, created_at, mode, allowed_hosts)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (machine_account_id, project_id, permission, allowed_ip, allowed_hours, max_requests_per_minute, expires_at, created_at, mode, allowed_hosts, reveal_limit, reveal_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
       )
       .bind(
         machineAccountId,
@@ -393,7 +394,8 @@ export class SecretsManagerService {
         options?.expires_at || null,
         now,
         options?.mode || 'inject',
-        options?.allowed_hosts ? JSON.stringify(options.allowed_hosts) : null
+        options?.allowed_hosts ? JSON.stringify(options.allowed_hosts) : null,
+        options?.reveal_limit ?? null
       )
       .run();
   }
@@ -513,6 +515,8 @@ export class SecretsManagerService {
     expires_at: string | null;
     mode: string;
     allowed_hosts: string | null;
+    reveal_limit: number | null;
+    reveal_count: number;
   } | null> {
     const row = await this.db
       .prepare(
@@ -528,8 +532,26 @@ export class SecretsManagerService {
         expires_at: string | null;
         mode: string;
         allowed_hosts: string | null;
+        reveal_limit: number | null;
+        reveal_count: number;
       }>();
     return row || null;
+  }
+
+  /**
+   * 原子消耗一次 reveal 配额（条件更新，并发安全）。
+   * @returns false 表示配额已用尽
+   */
+  async consumeReveal(machineAccountId: string, projectId: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        'UPDATE machine_account_projects SET reveal_count = reveal_count + 1 ' +
+          'WHERE machine_account_id = ? AND project_id = ? ' +
+          'AND (reveal_limit IS NULL OR reveal_count < reveal_limit)'
+      )
+      .bind(machineAccountId, projectId)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
   }
 
   async getProjectAccess(

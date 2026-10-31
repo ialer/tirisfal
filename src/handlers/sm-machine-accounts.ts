@@ -246,6 +246,18 @@ export async function handleMachineAccounts(
       return errorResponse('allowed_hosts is required for inject mode', 400);
     }
 
+    let revealLimit: number | null | undefined;
+    if (body.reveal_limit !== undefined) {
+      const v = body.reveal_limit;
+      if (v !== null && (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 1000)) {
+        return errorResponse('reveal_limit must be null or an integer within 0..1000', 400);
+      }
+      revealLimit = v;
+    } else if (mode === 'reveal') {
+      // reveal 模式默认一次性，必须显式放宽
+      revealLimit = 1;
+    }
+
     await smService.grantProjectAccess(accountId, projectId, permission, {
       allowed_ip: allowedIp,
       allowed_hours: allowedHours,
@@ -253,6 +265,7 @@ export async function handleMachineAccounts(
       expires_at: expiresAt,
       mode,
       allowed_hosts: allowedHosts,
+      reveal_limit: revealLimit,
     });
 
     return jsonResponse(

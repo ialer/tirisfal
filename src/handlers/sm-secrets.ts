@@ -72,6 +72,51 @@ function validateOutboundTarget(url: URL, allowedHosts: string[]): string | null
   return null;
 }
 
+/** 掩码：保留前 4 后 4，短值整体打码 */
+function maskSecretValue(value: string): string {
+  if (!value) return '';
+  if (value.length < 12) return '****';
+  return value.slice(0, 4) + '****' + value.slice(-4);
+}
+
+interface SecretReadResult {
+  value: string;
+  revealed: boolean;
+  response?: Response;
+}
+
+/**
+ * 解析一次凭证读取结果（P2）。
+ * - 人类用户（无 machineAccountId）：始终明文
+ * - Machine Account：默认掩码；仅 allowReveal + grant.mode='reveal' + ?reveal=1
+ *   才返回明文，且原子消耗一次 reveal 配额
+ */
+async function readSecretValue(
+  smService: SecretsManagerService,
+  request: Request,
+  encryptedValue: string,
+  projectId: string,
+  machineAccountId: string | undefined,
+  allowReveal: boolean
+): Promise<SecretReadResult> {
+  const plaintext = await smService.decryptSecretValue(encryptedValue);
+  if (!machineAccountId) return { value: plaintext, revealed: true };
+
+  const masked: SecretReadResult = { value: maskSecretValue(plaintext), revealed: false };
+  const wantReveal = allowReveal && new URL(request.url).searchParams.get('reveal') === '1';
+  if (!wantReveal) return masked;
+
+  const grant = await smService.getProjectGrant(machineAccountId, projectId);
+  if (!grant || grant.mode !== 'reveal') {
+    return { ...masked, response: errorResponse('该授权为 inject 模式，不支持 reveal', 403) };
+  }
+  const consumed = await smService.consumeReveal(machineAccountId, projectId);
+  if (!consumed) {
+    return { ...masked, response: errorResponse('reveal 配额已用尽', 429) };
+  }
+  return { value: plaintext, revealed: true };
+}
+
 /** 校验当前调用者（用户或 Machine Account）对项目下凭证的访问权限，失败时返回错误 Response */
 async function assertProjectSecretAccess(
   smService: SecretsManagerService,
@@ -332,10 +377,17 @@ export async function handleSecrets(
     const secrets = await smService.getSecretsByProject(projectId, environment || undefined);
     // 解密每个 secret 的 value
     const decryptedSecrets = await Promise.all(
-      secrets.map(async (s: any) => ({
-        ...s,
-        value: await smService.decryptSecretValue(s.value),
-      }))
+      secrets.map(async (s: any) => {
+        const read = await readSecretValue(
+          smService,
+          request,
+          s.value,
+          projectId,
+          machineAccountId,
+          false
+        );
+        return { ...s, value: read.value };
+      })
     );
     return jsonResponse({ data: decryptedSecrets });
   }
@@ -368,8 +420,16 @@ export async function handleSecrets(
         return errorResponse('Not found', 404);
       }
 
-      // 解密值
-      const decryptedValue = await smService.decryptSecretValue(secret.value);
+      const read = await readSecretValue(
+        smService,
+        request,
+        secret.value,
+        secret.project_id,
+        machineAccountId,
+        true
+      );
+      if (read.response) return read.response;
+      const decryptedValue = read.value;
 
       // 记录访问日志
       const clientIp =
@@ -381,7 +441,7 @@ export async function handleSecrets(
         machineAccountId || null,
         userId,
         secret.id,
-        'read',
+        read.revealed ? 'reveal' : 'read',
         clientIp,
         request.headers.get('User-Agent'),
         undefined,
@@ -429,9 +489,17 @@ export async function handleSecrets(
       });
       if (!updated) return errorResponse('Not found', 404);
       // 返回前解密 value，与 GET 行为保持一致（避免调用方拿到密文）
+      const updatedRead = await readSecretValue(
+        smService,
+        request,
+        updated.value,
+        updated.project_id,
+        machineAccountId,
+        false
+      );
       return jsonResponse({
         ...updated,
-        value: await smService.decryptSecretValue(updated.value),
+        value: updatedRead.value,
       });
     }
 
@@ -499,7 +567,9 @@ export async function handleSecrets(
     const data = await Promise.all(
       filtered.map(async (s) => ({
         name: s.name,
-        value: await smService.decryptSecretValue(s.value),
+        value: (
+          await readSecretValue(smService, request, s.value, projectId, machineAccountId, false)
+        ).value,
         environment: s.environment ?? 'prod',
       }))
     );
@@ -561,8 +631,16 @@ export async function handleSecrets(
       return errorResponse('Not found', 404);
     }
 
-    // 解密值
-    const decryptedValue = await smService.decryptSecretValue(secret.value);
+    const read = await readSecretValue(
+      smService,
+      request,
+      secret.value,
+      projectId,
+      machineAccountId,
+      true
+    );
+    if (read.response) return read.response;
+    const decryptedValue = read.value;
 
     // 记录访问日志
     const clientIp = getClientIp(request);
@@ -570,7 +648,7 @@ export async function handleSecrets(
       machineAccountId || null,
       userId,
       secret.id,
-      'read',
+      read.revealed ? 'reveal' : 'read',
       clientIp,
       request.headers.get('User-Agent'),
       undefined,
