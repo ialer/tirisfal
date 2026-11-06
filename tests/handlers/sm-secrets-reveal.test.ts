@@ -6,6 +6,7 @@ const mockService = {
   getProjectGrant: vi.fn(),
   getSecretByNameAndProject: vi.fn(),
   decryptSecretValue: vi.fn(),
+  decryptAndUpgradeSecretValue: vi.fn(),
   consumeReveal: vi.fn(),
   logSecretAccess: vi.fn(),
 };
@@ -25,11 +26,11 @@ const USER_ID = 'user-1';
 const ACCOUNT_ID = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
 const PROJECT_ID = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
 const SECRET_VALUE = 'sk-live-abcdef123456';
-const MASKED = SECRET_VALUE.slice(0, 4) + '****' + SECRET_VALUE.slice(-4);
+const MASKED = `${SECRET_VALUE.slice(0, 4)}****${SECRET_VALUE.slice(-4)}`;
 
 function call(query: string, machineAccountId: string | null) {
   const path = '/api/secrets/by-name/API_KEY';
-  const url = 'https://vault.example.com' + path + '?project_id=' + PROJECT_ID + query;
+  const url = `https://vault.example.com${path}?project_id=${PROJECT_ID}${query}`;
   return handleSecrets(
     new Request(url),
     ENV,
@@ -64,6 +65,7 @@ describe('凭证读取默认掩码 + 一次性 reveal（P2）', () => {
       project_id: PROJECT_ID,
     });
     mockService.decryptSecretValue.mockResolvedValue(SECRET_VALUE);
+    mockService.decryptAndUpgradeSecretValue.mockResolvedValue(SECRET_VALUE);
     mockService.consumeReveal.mockResolvedValue(true);
     mockService.logSecretAccess.mockResolvedValue(undefined);
   });

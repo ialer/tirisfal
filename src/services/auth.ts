@@ -232,8 +232,9 @@ export class AuthService {
 
     const payload = await verifyJWT(parts[1], this.env.JWT_SECRET);
     if (!payload) return null;
-    // 类型区分：短期文件/上传令牌不得用作访问令牌（存量无 typ 的旧访问令牌放行）
-    if (payload.typ && payload.typ !== 'access') return null;
+    // 类型区分：verifyJWT 已强制 typ === 'access'，此处保留一层防御，
+    // 覆盖后续有人放宽 verifyJWT 校验的情况。
+    if (payload.typ !== 'access') return null;
 
     let user = await this.getCachedUser(payload.sub);
     if (!user || user.status !== 'active' || payload.sstamp !== user.securityStamp) {

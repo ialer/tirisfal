@@ -11,7 +11,7 @@ import type {
   SecretAccessLog,
   SmProject,
 } from '../types/sm';
-import { decryptFast, encryptFast } from '../utils/crypto';
+import { decryptFast, encryptFast, isLegacyCiphertext } from '../utils/crypto';
 
 export class SecretsManagerService {
   private db: D1Database;
@@ -355,10 +355,39 @@ export class SecretsManagerService {
     return result.meta.changes > 0;
   }
 
-  // 解密 Secret 值
-  // 解密 Secret 值（自动识别 v2/旧 PBKDF2 格式）
+  // 解密 Secret 值（自动识别 v3 / v2 / 旧 PBKDF2 格式）
   async decryptSecretValue(encryptedValue: string): Promise<string> {
     return decryptFast(encryptedValue, this.encryptionKey);
+  }
+
+  /**
+   * 读取凭证值，并把存量格式（v2 固定 salt / PBKDF2-100k）透明升级为 v3。
+   *
+   * 迁移时机放在读取路径：旧密文只会在被使用时升级，不需要停机批处理；
+   * 升级失败不影响本次读取（返回明文，下次访问再试）。
+   */
+  async decryptAndUpgradeSecretValue(secret: {
+    id: string;
+    value: string;
+    user_id?: string;
+    project_id?: string;
+  }): Promise<string> {
+    const plaintext = await this.decryptSecretValue(secret.value);
+    if (!isLegacyCiphertext(secret.value)) return plaintext;
+    // 升级写回必须带归属条件（id + user_id + project_id），缺一不写，
+    // 避免仅凭 id 更新到别人的记录上。
+    if (!secret.user_id || !secret.project_id) return plaintext;
+
+    try {
+      const upgraded = await encryptFast(plaintext, this.encryptionKey);
+      await this.db
+        .prepare('UPDATE secrets SET value = ? WHERE id = ? AND user_id = ? AND project_id = ?')
+        .bind(upgraded, secret.id, secret.user_id, secret.project_id)
+        .run();
+    } catch {
+      // 升级是尽力而为：写失败时保留旧密文，本次仍返回正确明文
+    }
+    return plaintext;
   }
 
   // ==================== Permissions ====================

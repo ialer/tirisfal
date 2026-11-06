@@ -9,3 +9,10 @@ JWT_SECRET=Enter-your-JWT-key-here-at-least-32-characters
 # Generate one with: openssl rand -base64 32
 # This key is used to encrypt/decrypt secrets in the database
 ENCRYPTION_KEY=Enter-your-encryption-key-here-at-least-32-characters
+# 可选：出站目标逐次 DNS 解析校验（凭证注入代理）
+# 1 = 开启：每次注入前用 DoH 解析目标主机，任一 A/AAAA 落在私网/保留网段即拒绝；
+#           解析服务不可用时失败关闭（403）。
+# 0/未设置 = 只做主机名与 allowed_hosts 静态校验。
+# 云端部署建议开启（Cloudflare 默认已禁止向 RFC1918 出站，这里是纵深防御）；
+# 自建部署且确实需要访问内网服务时保持关闭，改用出口防火墙限制目标。
+# OUTBOUND_DNS_GUARD=1
