@@ -1,6 +1,15 @@
 import { LIMITS } from '../config/limits';
 import type { JWTPayload } from '../types';
 
+/**
+ * 访问令牌受众（aud）。签发与校验必须一致，防止同一密钥签出的其它用途令牌
+ * 被当作访问令牌使用。
+ */
+export const JWT_AUDIENCE = 'tirisfal-api';
+
+/** 允许的时钟偏移（秒）：仅用于 iat 的未来时间容忍 */
+const CLOCK_SKEW_SECONDS = 60;
+
 const hmacKeyCache = new Map<string, Promise<CryptoKey>>();
 const HMAC_KEY_CACHE_MAX_SIZE = 100;
 
@@ -55,7 +64,10 @@ function getHmacKey(secret: string): Promise<CryptoKey> {
  * @returns JWT 令牌字符串
  */
 export async function createJWT(
-  payload: Omit<JWTPayload, 'iat' | 'exp' | 'iss' | 'premium' | 'email_verified' | 'amr'>,
+  payload: Omit<
+    JWTPayload,
+    'iat' | 'exp' | 'iss' | 'premium' | 'email_verified' | 'amr' | 'typ' | 'aud'
+  >,
   secret: string,
   expiresIn: number = LIMITS.auth.accessTokenTtlSeconds
 ): Promise<string> {
@@ -65,6 +77,7 @@ export async function createJWT(
   const fullPayload: JWTPayload = {
     ...payload,
     typ: 'access', // 令牌用途区分，防止跨类令牌混用
+    aud: JWT_AUDIENCE, // 受众绑定
     email_verified: true, // 移动客户端必需
     amr: ['Application'], // 认证方法引用 - 移动客户端必需
     iat: now,
@@ -101,6 +114,13 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
     const [headerB64, payloadB64, signatureB64] = parts;
     const encoder = new TextEncoder();
 
+    // 头部校验：只接受 HS256。签名算法由服务端固定，这里显式拒绝异常头部，
+    // 避免今后引入多算法时出现算法混淆。
+    const header = JSON.parse(new TextDecoder().decode(base64UrlDecode(headerB64))) as {
+      alg?: unknown;
+    };
+    if (header?.alg !== 'HS256') return null;
+
     const key = await getHmacKey(secret);
 
     const data = `${headerB64}.${payloadB64}`;
@@ -109,13 +129,17 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
     const valid = await crypto.subtle.verify('HMAC', key, signature, encoder.encode(data));
     if (!valid) return null;
 
-    const payload: JWTPayload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64)));
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as JWTPayload;
 
-    // 签发者校验：拒绝异源令牌
+    // 签发者 / 受众 / 用途三方绑定：拒绝异源、异受众、异类令牌
     if (payload.iss !== 'tirisfal') return null;
+    if (payload.aud !== JWT_AUDIENCE) return null;
+    if (payload.typ !== 'access') return null;
+    if (typeof payload.sub !== 'string' || !payload.sub) return null;
 
     const now = Math.floor(Date.now() / 1000);
-    if (payload.exp < now) return null;
+    if (typeof payload.exp !== 'number' || payload.exp <= now) return null;
+    if (typeof payload.iat !== 'number' || payload.iat > now + CLOCK_SKEW_SECONDS) return null;
 
     return payload;
   } catch {

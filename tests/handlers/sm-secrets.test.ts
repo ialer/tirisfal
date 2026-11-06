@@ -6,6 +6,7 @@ const mockServiceInstance = {
   validateProjectAccess: vi.fn(),
   getSecretsByProject: vi.fn(),
   decryptSecretValue: vi.fn(),
+  decryptAndUpgradeSecretValue: vi.fn(),
   logSecretAccess: vi.fn(),
   getSecret: vi.fn(),
   getSecretByNameAndProject: vi.fn(),
@@ -42,7 +43,7 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockServiceInstance.logSecretAccess.mockResolvedValue(undefined);
-    mockServiceInstance.decryptSecretValue.mockResolvedValue('decrypted');
+    mockServiceInstance.decryptAndUpgradeSecretValue.mockResolvedValue('decrypted');
   });
 
   describe('GET /api/secrets（列表）', () => {
@@ -65,7 +66,7 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
       expect(resp.status).toBe(403);
       // 关键：不得触达凭证查询与解密
       expect(mockServiceInstance.getSecretsByProject).not.toHaveBeenCalled();
-      expect(mockServiceInstance.decryptSecretValue).not.toHaveBeenCalled();
+      expect(mockServiceInstance.decryptAndUpgradeSecretValue).not.toHaveBeenCalled();
     });
 
     it('Machine Account 有项目授权时可正常列出', async () => {
@@ -172,7 +173,7 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
         id: 's1',
         value: 'new-cipher',
       });
-      mockServiceInstance.decryptSecretValue.mockResolvedValue('new-plain');
+      mockServiceInstance.decryptAndUpgradeSecretValue.mockResolvedValue('new-plain');
 
       const resp = await handleSecrets(
         makeRequest('PUT', '/api/secrets/s1'),

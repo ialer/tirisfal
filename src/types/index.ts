@@ -14,6 +14,11 @@ export interface Env {
   TOTP_SECRET?: string;
   /** 可选：备份运行时加密密钥；未设置时回退 JWT_SECRET（见 backup-settings-crypto.ts） */
   BACKUP_ENCRYPTION_KEY?: string;
+  /**
+   * 可选：出站目标逐次 DNS 解析校验。'1' 开启（推荐云端部署）；
+   * 未设置时只做主机名/白名单静态校验，DNS rebinding 风险由部署侧出口策略兜底。
+   */
+  OUTBOUND_DNS_GUARD?: string;
 }
 
 export type UserRole = 'admin' | 'user';
@@ -359,9 +364,11 @@ export interface JWTPayload {
   iat: number;
   exp: number;
   iss: string;
+  /** 受众（aud）。签发时固定为 'tirisfal-api'，校验时强制比对 */
+  aud: string;
   premium: boolean;
-  /** 令牌用途；存量令牌无此字段时按 access 处理 */
-  typ?: 'access';
+  /** 令牌用途；访问令牌固定为 'access'，校验时强制比对 */
+  typ: 'access';
 }
 
 /** 用户解密选项类型（用于移动客户端兼容性） */

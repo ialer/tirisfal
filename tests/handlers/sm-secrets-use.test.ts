@@ -5,6 +5,7 @@ const mockService = {
   getProjectGrant: vi.fn(),
   getSecretByNameAndProject: vi.fn(),
   decryptSecretValue: vi.fn(),
+  decryptAndUpgradeSecretValue: vi.fn(),
   logSecretAccess: vi.fn(),
 };
 
@@ -24,7 +25,11 @@ const ACCOUNT_ID = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
 const PROJECT_ID = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
 const SECRET_VALUE = 'sk-live-abcdef123456';
 
-function call(body: unknown, machineAccountId: string | null = ACCOUNT_ID) {
+function call(
+  body: unknown,
+  machineAccountId: string | null = ACCOUNT_ID,
+  env: Record<string, unknown> = ENV
+) {
   const req = new Request('https://vault.example.com/api/secrets/use', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -32,7 +37,7 @@ function call(body: unknown, machineAccountId: string | null = ACCOUNT_ID) {
   });
   return handleSecrets(
     req,
-    ENV,
+    env as any,
     '/api/secrets/use',
     'POST',
     USER_ID,
@@ -64,6 +69,7 @@ describe('POST /api/secrets/use（凭证注入代理）', () => {
     });
     mockService.getSecretByNameAndProject.mockResolvedValue({ id: 's1', value: 'cipher' });
     mockService.decryptSecretValue.mockResolvedValue(SECRET_VALUE);
+    mockService.decryptAndUpgradeSecretValue.mockResolvedValue(SECRET_VALUE);
     mockService.logSecretAccess.mockResolvedValue(undefined);
   });
 
@@ -132,7 +138,7 @@ describe('POST /api/secrets/use（凭证注入代理）', () => {
 
     const init = fetchMock.mock.calls[0][1];
     const sent = (init.headers as Headers).get('Authorization');
-    expect(sent).toBe('Bearer ' + SECRET_VALUE);
+    expect(sent).toBe(`Bearer ${SECRET_VALUE}`);
 
     const text = await resp.text();
     expect(text).not.toContain(SECRET_VALUE);
@@ -145,5 +151,60 @@ describe('POST /api/secrets/use（凭证注入代理）', () => {
     expect(auditArgs[8]).toBe('prod');
     expect(auditArgs[9]).toBe('api.example.com');
     expect(auditArgs[10]).toBe('unit-test');
+  });
+
+  it('短凭证（<8 字符）也必须被脱敏', async () => {
+    mockService.decryptAndUpgradeSecretValue.mockResolvedValue('abc');
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => {
+      const headers = init.headers as Headers;
+      return new Response(`key=${headers.get('Authorization')}`, { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const resp = await call(baseBody);
+    const text = await resp.text();
+    expect(text).not.toContain('abc');
+    expect(text).toContain('***REDACTED***');
+  });
+
+  it('尾部根点主机名规范化后仍按白名单校验', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('ok', { status: 200 })))
+    );
+    const resp = await call({ ...baseBody, url: 'https://api.example.com./v1/echo' });
+    expect(resp.status).toBe(200);
+  });
+
+  it('通配白名单不再匹配多级子域', async () => {
+    mockService.getProjectGrant.mockResolvedValue({
+      ...(await mockService.getProjectGrant()),
+      allowed_hosts: JSON.stringify(['*.example.com']),
+    });
+    const resp = await call({ ...baseBody, url: 'https://a.b.example.com/x' });
+    expect(resp.status).toBe(403);
+  });
+
+  it('URL 内嵌凭证直接拒绝', async () => {
+    const resp = await call({ ...baseBody, url: 'https://user:pass@api.example.com/x' });
+    expect(resp.status).toBe(403);
+  });
+
+  it('开启 OUTBOUND_DNS_GUARD 后，解析到内网地址的目标被拒绝且不发起上游请求', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      const type = new URL(String(url)).searchParams.get('type');
+      return new Response(
+        JSON.stringify({ Answer: type === 'A' ? [{ type: 1, data: '10.126.126.1' }] : [] }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const resp = await call(baseBody, ACCOUNT_ID, {
+      ...ENV,
+      OUTBOUND_DNS_GUARD: '1',
+    });
+    expect(resp.status).toBe(403);
+    expect(fetchMock).toHaveBeenCalledTimes(2); // 只查了 A / AAAA，没有打上游
   });
 });

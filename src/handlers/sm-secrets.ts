@@ -2,6 +2,14 @@
 
 import { SecretsManagerService } from '../services/sm-service';
 import type { Env } from '../types';
+import {
+  checkHostResolution,
+  hostAllowed,
+  isIpLiteralHost,
+  isPrivateHostname,
+  normalizeHostname,
+  redactSecret,
+} from '../utils/outbound-guard';
 import { errorResponse, jsonResponse } from '../utils/response';
 
 /** 从请求头提取客户端真实 IP（与 ratelimit 的提取逻辑保持一致） */
@@ -25,20 +33,6 @@ function parseAllowedHosts(raw: string | null): string[] {
   }
 }
 
-/** 目标主机是否在白名单内（支持 *.example.com 单层通配） */
-function hostAllowed(host: string, allowed: string[]): boolean {
-  const h = host.toLowerCase();
-  return allowed.some((entry) => {
-    const p = entry.toLowerCase().trim();
-    if (!p) return false;
-    if (p.startsWith('*.')) {
-      const suffix = p.slice(1);
-      return h.endsWith(suffix) && h.length > suffix.length;
-    }
-    return h === p;
-  });
-}
-
 const HOP_BY_HOP_HEADERS = new Set([
   'host',
   'content-length',
@@ -53,30 +47,47 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 
 /**
- * 出站目标校验（SSRF 防护）。
- * Workers 无法自定义 DNS 解析，因此这里只做「可判定」的部分：
- * 协议、IP 字面量、私网/本地域名、以及操作者配置的主机白名单。
+ * 出站目标静态校验（SSRF 防护第一层）。
+ *
+ * 只做「不联网就能判定」的部分：协议、URL 内嵌凭证、IP 字面量（含
+ * 2130706433 / 0x7f000001 / 127.1 等被 WHATWG URL 归一后的形式）、私网/本地
+ * 域名、以及操作者配置的主机白名单（通配仅单层）。
+ *
+ * 注意：静态校验无法防 DNS rebinding——白名单域名可以在校验之后解析到内网。
+ * 需要逐次解析校验时开启 OUTBOUND_DNS_GUARD=1（见 assertOutboundTarget）。
  */
 function validateOutboundTarget(url: URL, allowedHosts: string[]): string | null {
   if (url.protocol !== 'https:') return 'Only https targets are allowed';
-  const host = url.hostname.toLowerCase();
+  if (url.username || url.password) return 'Target url must not embed credentials';
+  const host = normalizeHostname(url.hostname);
   if (!host) return 'Invalid target host';
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':')) {
-    return 'IP literal targets are not allowed';
-  }
-  if (/^(localhost|.*\.local|.*\.internal|.*\.localhost)$/i.test(host)) {
-    return 'Private hosts are not allowed';
-  }
+  if (isIpLiteralHost(host)) return 'IP literal targets are not allowed';
+  if (isPrivateHostname(host)) return 'Private hosts are not allowed';
   if (!allowedHosts.length) return 'allowed_hosts is not configured for this grant';
   if (!hostAllowed(host, allowedHosts)) return 'Target host is not in allowed_hosts';
   return null;
+}
+
+/**
+ * 出站目标完整校验：静态校验 + （可选）逐次 DNS 解析校验。
+ * OUTBOUND_DNS_GUARD=1 时解析不可用即失败关闭。
+ */
+async function assertOutboundTarget(
+  url: URL,
+  allowedHosts: string[],
+  env: Env
+): Promise<string | null> {
+  const staticError = validateOutboundTarget(url, allowedHosts);
+  if (staticError) return staticError;
+  if (env.OUTBOUND_DNS_GUARD !== '1') return null;
+  return checkHostResolution(url.hostname);
 }
 
 /** 掩码：保留前 4 后 4，短值整体打码 */
 function maskSecretValue(value: string): string {
   if (!value) return '';
   if (value.length < 12) return '****';
-  return value.slice(0, 4) + '****' + value.slice(-4);
+  return `${value.slice(0, 4)}****${value.slice(-4)}`;
 }
 
 interface SecretReadResult {
@@ -94,12 +105,12 @@ interface SecretReadResult {
 async function readSecretValue(
   smService: SecretsManagerService,
   request: Request,
-  encryptedValue: string,
+  secret: { id: string; value: string; user_id?: string; project_id?: string },
   projectId: string,
   machineAccountId: string | undefined,
   allowReveal: boolean
 ): Promise<SecretReadResult> {
-  const plaintext = await smService.decryptSecretValue(encryptedValue);
+  const plaintext = await smService.decryptAndUpgradeSecretValue(secret);
   if (!machineAccountId) return { value: plaintext, revealed: true };
 
   const masked: SecretReadResult = { value: maskSecretValue(plaintext), revealed: false };
@@ -257,7 +268,7 @@ export async function handleSecrets(
       projectId,
       getClientIp(request) ?? undefined
     );
-    if (!access.allowed) return errorResponse('Access denied: ' + (access.reason || ''), 403);
+    if (!access.allowed) return errorResponse(`Access denied: ${access.reason || ''}`, 403);
 
     const grant = await smService.getProjectGrant(machineAccountId, projectId);
     if (!grant) return errorResponse('Access denied', 403);
@@ -272,12 +283,12 @@ export async function handleSecrets(
     } catch {
       return errorResponse('Invalid url', 400);
     }
-    const targetError = validateOutboundTarget(target, allowedHosts);
+    const targetError = await assertOutboundTarget(target, allowedHosts, env);
     if (targetError) return errorResponse(targetError, 403);
 
     const secret = await smService.getSecretByNameAndProject(secretName, projectId, environment);
     if (!secret) return errorResponse('Not found', 404);
-    const secretValue = await smService.decryptSecretValue(secret.value);
+    const secretValue = await smService.decryptAndUpgradeSecretValue(secret);
 
     // 请求头：丢弃 hop-by-hop，注入凭证
     const outHeaders = new Headers();
@@ -325,8 +336,9 @@ export async function handleSecrets(
     const maxBytes = 512 * 1024;
     const truncated = rawBytes.length > maxBytes;
     const text = new TextDecoder().decode(truncated ? rawBytes.slice(0, maxBytes) : rawBytes);
-    const redacted =
-      secretValue.length >= 8 ? text.split(secretValue).join('***REDACTED***') : text;
+    // 任何长度的凭证都必须脱敏：旧实现只处理 length >= 8 的值，短凭证会原样回显。
+    // redactSecret 同时覆盖 URL 编码 / base64 / base64url 变体。
+    const redacted = redactSecret(text, secretValue);
 
     await smService.logSecretAccess(
       machineAccountId,
@@ -381,7 +393,7 @@ export async function handleSecrets(
         const read = await readSecretValue(
           smService,
           request,
-          s.value,
+          s,
           projectId,
           machineAccountId,
           false
@@ -423,7 +435,7 @@ export async function handleSecrets(
       const read = await readSecretValue(
         smService,
         request,
-        secret.value,
+        secret,
         secret.project_id,
         machineAccountId,
         true
@@ -492,7 +504,7 @@ export async function handleSecrets(
       const updatedRead = await readSecretValue(
         smService,
         request,
-        updated.value,
+        updated,
         updated.project_id,
         machineAccountId,
         false
@@ -567,9 +579,8 @@ export async function handleSecrets(
     const data = await Promise.all(
       filtered.map(async (s) => ({
         name: s.name,
-        value: (
-          await readSecretValue(smService, request, s.value, projectId, machineAccountId, false)
-        ).value,
+        value: (await readSecretValue(smService, request, s, projectId, machineAccountId, false))
+          .value,
         environment: s.environment ?? 'prod',
       }))
     );
@@ -634,7 +645,7 @@ export async function handleSecrets(
     const read = await readSecretValue(
       smService,
       request,
-      secret.value,
+      secret,
       projectId,
       machineAccountId,
       true
