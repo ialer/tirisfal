@@ -15,6 +15,7 @@ import {
   getSafeJwtSecret,
   parseDirectUploadPayload,
 } from '../utils/direct-upload';
+import { buildFileDownloadResponse } from '../utils/file-download';
 import {
   createAttachmentUploadToken,
   createFileDownloadToken,
@@ -402,13 +403,8 @@ export async function handlePublicDownloadAttachment(
     return errorResponse('Invalid or expired token', 401);
   }
 
-  return new Response(object.body, {
-    headers: {
-      'Content-Type': object.contentType || 'application/octet-stream',
-      'Content-Length': String(object.size),
-      'Cache-Control': 'private, no-cache',
-    },
-  });
+  // 安全：上传时的 MIME 由客户端控制，统一走强制下载语义（见 utils/file-download）
+  return buildFileDownloadResponse({ body: object.body, size: object.size });
 }
 
 // [DELETE] /api/ciphers/{cipherId}/attachment/{attachmentId}

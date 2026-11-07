@@ -421,6 +421,37 @@ function prepareImportPayloadForTarget(
   return result;
 }
 
+/**
+ * users 表的 NOT NULL 列（迁移 0001）。恢复前显式校验，避免 schema 演进后
+ * 导出/导入字段集漂移，最终以 "NOT NULL constraint failed" 这种不可读错误失败。
+ */
+export const USER_REQUIRED_COLUMNS = [
+  'id',
+  'email',
+  'master_password_hash',
+  'key',
+  'kdf_type',
+  'kdf_iterations',
+  'security_stamp',
+  'created_at',
+  'updated_at',
+] as const;
+
+export function assertRequiredColumns(
+  table: string,
+  rows: SqlRow[],
+  required: readonly string[]
+): void {
+  for (const [index, row] of rows.entries()) {
+    const missing = required.filter((column) => row[column] === undefined || row[column] === null);
+    if (missing.length) {
+      throw new Error(
+        `Backup restore aborted: table "${table}" row #${index} is missing required columns: ${missing.join(', ')}`
+      );
+    }
+  }
+}
+
 function buildInsertStatements(
   db: D1Database,
   table: string,
@@ -669,6 +700,7 @@ async function importBackupRows(
     tableName('config'),
     buildInsertStatements(db, tableName('config'), ['key', 'value'], payload.config || [], true)
   );
+  assertRequiredColumns('users', payload.users || [], USER_REQUIRED_COLUMNS);
   await runInsertBatch(
     db,
     tableName('users'),

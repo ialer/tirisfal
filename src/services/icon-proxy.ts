@@ -1,6 +1,18 @@
 import { LIMITS } from '../config/limits';
 
 const ICON_UPSTREAM_TIMEOUT_MS = 2500;
+/** 图标体积上限：超过直接回退默认图标，避免把上游大文件代理给浏览器 */
+const ICON_MAX_BYTES = 256 * 1024;
+/** 只允许位图类型；SVG 可以由脚本/外部实体承载，不作为上游图标透传 */
+const ALLOWED_ICON_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+]);
 const DEFAULT_GLOBE_ICON_SHA256 =
   'aaa64871332ad5b7d28fe8874efb19c2d9cc2f1e6de75d52b080b438225a0783';
 const DEFAULT_GLOBE_ICON_BYTES = 500;
@@ -46,19 +58,50 @@ async function fetchIcon(source: { url: string; headers?: HeadersInit }): Promis
   }
 }
 
-async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+async function sha256Hex(bytes: BufferSource): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 function iconResponse(body: BodyInit | null, contentType: string | null): Response {
+  const safeType = contentType && ALLOWED_ICON_TYPES.has(contentType) ? contentType : 'image/png';
   return new Response(body, {
     status: 200,
     headers: {
-      'Content-Type': contentType || 'image/png',
+      'Content-Type': safeType,
+      'X-Content-Type-Options': 'nosniff',
       'Cache-Control': `public, max-age=${LIMITS.cache.iconTtlSeconds}, immutable`,
     },
   });
+}
+
+/** 读取上游响应但限制体积：超过上限返回 null（调用方回退默认图标） */
+async function readLimited(resp: Response, maxBytes: number): Promise<Uint8Array | null> {
+  const declared = Number(resp.headers.get('Content-Length') || '');
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
+  if (!resp.body) return null;
+
+  const reader = resp.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 function defaultIconResponse(): Response {
@@ -101,27 +144,23 @@ export async function handleWebsiteIcon(
     try {
       const resp = await fetchIcon(source);
       if (!resp.ok) continue;
-      const ct = String(resp.headers.get('Content-Type') || '').toLowerCase();
-      if (!ct.startsWith('image/')) continue;
-      if (!source.rejectImage) return iconResponse(resp.body, resp.headers.get('Content-Type'));
+      const rawType = String(resp.headers.get('Content-Type') || '')
+        .split(';')[0]
+        .trim()
+        .toLowerCase();
+      // 只接受位图；SVG/HTML 等一律丢弃（防同源脚本与 SSRF 内容回显）
+      if (!ALLOWED_ICON_TYPES.has(rawType)) continue;
 
-      const contentLength = Number(resp.headers.get('Content-Length') || '');
+      const bytes = await readLimited(resp, ICON_MAX_BYTES);
+      if (!bytes || bytes.byteLength === 0) continue;
       if (
-        Number.isFinite(contentLength) &&
-        contentLength > 0 &&
-        contentLength !== source.rejectImage.byteLength
-      ) {
-        return iconResponse(resp.body, resp.headers.get('Content-Type'));
-      }
-
-      const bytes = await resp.arrayBuffer();
-      if (bytes.byteLength === 0) continue;
-      if (
+        source.rejectImage &&
         bytes.byteLength === source.rejectImage.byteLength &&
         (await sha256Hex(bytes)) === source.rejectImage.sha256
-      )
+      ) {
         continue;
-      return iconResponse(bytes, resp.headers.get('Content-Type'));
+      }
+      return iconResponse(bytes, rawType);
     } catch {
       continue;
     }

@@ -6,12 +6,9 @@ import {
 } from '../services/blob-store';
 import { StorageService } from '../services/storage';
 import { type Env, type Invite, SendType, type User } from '../types';
+import { isAdminUser } from '../utils/authz';
 import { errorResponse, jsonResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
-
-function isAdmin(user: User): boolean {
-  return user.role === 'admin' && user.status === 'active';
-}
 
 function randomHex(bytes: number): string {
   const data = crypto.getRandomValues(new Uint8Array(bytes));
@@ -65,7 +62,7 @@ export async function handleAdminListUsers(
   actorUser: User
 ): Promise<Response> {
   void request;
-  if (!isAdmin(actorUser)) {
+  if (!isAdminUser(actorUser)) {
     return errorResponse('Forbidden', 403);
   }
 
@@ -94,7 +91,7 @@ export async function handleAdminCreateInvite(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) {
+  if (!isAdminUser(actorUser)) {
     return errorResponse('Forbidden', 403);
   }
 
@@ -135,7 +132,7 @@ export async function handleAdminListInvites(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) {
+  if (!isAdminUser(actorUser)) {
     return errorResponse('Forbidden', 403);
   }
 
@@ -157,7 +154,7 @@ export async function handleAdminRevokeInvite(
   actorUser: User,
   code: string
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) {
+  if (!isAdminUser(actorUser)) {
     return errorResponse('Forbidden', 403);
   }
 
@@ -178,7 +175,7 @@ export async function handleAdminDeleteAllInvites(
   actorUser: User
 ): Promise<Response> {
   void request;
-  if (!isAdmin(actorUser)) {
+  if (!isAdminUser(actorUser)) {
     return errorResponse('Forbidden', 403);
   }
 
@@ -198,7 +195,7 @@ export async function handleAdminSetUserStatus(
   actorUser: User,
   targetUserId: string
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) {
+  if (!isAdminUser(actorUser)) {
     return errorResponse('Forbidden', 403);
   }
 
@@ -254,7 +251,7 @@ export async function handleAdminDeleteUser(
   targetUserId: string
 ): Promise<Response> {
   void request;
-  if (!isAdmin(actorUser)) {
+  if (!isAdminUser(actorUser)) {
     return errorResponse('Forbidden', 403);
   }
   if (targetUserId === actorUser.id) {

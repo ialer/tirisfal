@@ -1,11 +1,13 @@
 // Health Check Handler
 
+import { APP_VERSION } from '../../shared/app-version';
 import type { Env } from '../types';
 import { jsonResponse } from '../utils/response';
 
 interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
+  /** 应用版本（shared/app-version.ts），不是 Bitwarden 兼容版本 */
   version: string;
   services: {
     database: 'ok' | 'error';
@@ -13,14 +15,11 @@ interface HealthStatus {
   };
 }
 
-export async function handleHealthCheck(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const detailed = url.searchParams.get('detailed') === 'true';
-
+export async function handleHealthCheck(_request: Request, env: Env): Promise<Response> {
   const status: HealthStatus = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '1.0',
+    version: APP_VERSION,
     services: {
       database: 'ok',
       storage: env.ATTACHMENTS ? 'ok' : 'disabled',
@@ -35,8 +34,8 @@ export async function handleHealthCheck(request: Request, env: Env): Promise<Res
     status.status = 'unhealthy';
   }
 
-  // 检查 R2 连接（如果启用）
-  if (env.ATTACHMENTS && detailed) {
+  // 检查对象存储（如果启用）：始终探测，否则存储挂了 health 仍然报 healthy
+  if (env.ATTACHMENTS) {
     try {
       await env.ATTACHMENTS.head('health-check');
     } catch {

@@ -10,6 +10,19 @@ const CONFIG = {
   API_WINDOW_SECONDS: LIMITS.rateLimit.apiWindowSeconds,
 };
 
+/**
+ * 固定窗口计数器 UPSERT：
+ * - 同一窗口：count + 1
+ * - 窗口滚动：count 重置为 1，并推进 window_start
+ * 导出的目的是让回归测试直接验证 SQL 语义（换窗必须重置）。
+ */
+export const RATE_LIMIT_UPSERT_SQL =
+  'INSERT INTO rate_limits(key, count, window_start, expires_at) VALUES(?, 1, ?, ?) ' +
+  'ON CONFLICT(key) DO UPDATE SET ' +
+  'count = CASE WHEN rate_limits.window_start = excluded.window_start THEN rate_limits.count + 1 ELSE 1 END, ' +
+  'window_start = excluded.window_start, ' +
+  'expires_at = excluded.expires_at';
+
 export class RateLimitService {
   private static loginIpTableReady = false;
   private static rateLimitTableReady = false;
@@ -185,7 +198,9 @@ export class RateLimitService {
   }
 
   // 基于 D1 的固定窗口速率限制器，使用原子操作
-  // 使用 UPSERT 防止并发请求间的竞态条件
+  // 使用 UPSERT 防止并发请求间的竞态条件。
+  // 关键：换窗时必须重置计数（CASE WHEN），不能依赖 DO UPDATE 的 WHERE——
+  // 后者在窗口变化时整行不更新，新窗口查询取不到行，导致限流永久失效。
   private async consumeFixedWindowBudget(
     identifier: string,
     maxRequests: number,
@@ -199,14 +214,7 @@ export class RateLimitService {
     const ttl = Math.max(1, windowEnd - nowSec);
 
     // 原子递增，使用 UPSERT 防止竞态条件
-    await this.db
-      .prepare(
-        'INSERT INTO rate_limits(key, count, window_start, expires_at) VALUES(?, 1, ?, ?) ' +
-          'ON CONFLICT(key) DO UPDATE SET count = count + 1, expires_at = excluded.expires_at ' +
-          'WHERE window_start = excluded.window_start'
-      )
-      .bind(identifier, windowStart, windowEnd)
-      .run();
+    await this.db.prepare(RATE_LIMIT_UPSERT_SQL).bind(identifier, windowStart, windowEnd).run();
 
     const row = await this.db
       .prepare('SELECT count FROM rate_limits WHERE key = ? AND window_start = ?')
@@ -243,165 +251,4 @@ export class RateLimitService {
   ): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
     return this.consumeFixedWindowBudget(identifier, maxRequests, windowSeconds);
   }
-}
-
-function parseIpv4Octets(input: string): number[] | null {
-  const parts = input.split('.');
-  if (parts.length !== 4) return null;
-
-  const octets: number[] = [];
-  for (const part of parts) {
-    if (!/^\d{1,3}$/.test(part)) return null;
-    const value = Number(part);
-    if (!Number.isInteger(value) || value < 0 || value > 255) return null;
-    octets.push(value);
-  }
-  return octets;
-}
-
-function parseIpv6Hextets(input: string): number[] | null {
-  let value = input.trim().toLowerCase();
-  if (!value) return null;
-
-  if (value.startsWith('[') && value.endsWith(']')) {
-    value = value.slice(1, -1);
-  }
-  const zoneIndex = value.indexOf('%');
-  if (zoneIndex >= 0) {
-    value = value.slice(0, zoneIndex);
-  }
-  if (!value.includes(':')) return null;
-
-  // 处理 IPv4 映射尾部（如 ::ffff:192.0.2.1）
-  if (value.includes('.')) {
-    const lastColon = value.lastIndexOf(':');
-    if (lastColon < 0) return null;
-    const ipv4Tail = value.slice(lastColon + 1);
-    const octets = parseIpv4Octets(ipv4Tail);
-    if (!octets) return null;
-    const high = ((octets[0] << 8) | octets[1]).toString(16);
-    const low = ((octets[2] << 8) | octets[3]).toString(16);
-    value = `${value.slice(0, lastColon)}:${high}:${low}`;
-  }
-
-  const doubleColon = value.indexOf('::');
-  if (doubleColon !== value.lastIndexOf('::')) return null;
-
-  const parsePart = (part: string): number | null => {
-    if (!/^[0-9a-f]{1,4}$/.test(part)) return null;
-    const n = parseInt(part, 16);
-    return Number.isNaN(n) ? null : n;
-  };
-
-  const parseParts = (parts: string[]): number[] | null => {
-    const out: number[] = [];
-    for (const p of parts) {
-      if (!p) return null;
-      const n = parsePart(p);
-      if (n === null) return null;
-      out.push(n);
-    }
-    return out;
-  };
-
-  if (doubleColon >= 0) {
-    const [headRaw, tailRaw] = value.split('::');
-    const head = headRaw ? headRaw.split(':') : [];
-    const tail = tailRaw ? tailRaw.split(':') : [];
-
-    const headNums = parseParts(head);
-    const tailNums = parseParts(tail);
-    if (!headNums || !tailNums) return null;
-
-    const missing = 8 - (headNums.length + tailNums.length);
-    if (missing < 1) return null;
-
-    return [...headNums, ...new Array<number>(missing).fill(0), ...tailNums];
-  }
-
-  const all = parseParts(value.split(':'));
-  if (!all || all.length !== 8) return null;
-  return all;
-}
-
-function normalizeClientIpForRateLimit(rawIp: string): string | null {
-  const input = rawIp.trim();
-  if (!input) return null;
-
-  const ipv4 = parseIpv4Octets(input);
-  if (ipv4) {
-    return `ip4:${ipv4.join('.')}`;
-  }
-
-  const ipv6 = parseIpv6Hextets(input);
-  if (!ipv6) return null;
-
-  // 处理 IPv4 映射/兼容的 IPv6 作为 IPv4 标识
-  // 示例：::ffff:192.0.2.1, ::192.0.2.1
-  if (
-    ipv6[0] === 0 &&
-    ipv6[1] === 0 &&
-    ipv6[2] === 0 &&
-    ipv6[3] === 0 &&
-    ipv6[4] === 0 &&
-    (ipv6[5] === 0xffff || ipv6[5] === 0)
-  ) {
-    const octets = [ipv6[6] >> 8, ipv6[6] & 0xff, ipv6[7] >> 8, ipv6[7] & 0xff];
-    return `ip4:${octets.join('.')}`;
-  }
-
-  // 折叠为 /64 以减少通过 IPv6 地址轮换的暴力破解绕过
-  const prefix64 = ipv6
-    .slice(0, 4)
-    .map((part) => part.toString(16).padStart(4, '0'))
-    .join(':');
-  return `ip6:${prefix64}`;
-}
-
-function isLocalRequest(request: Request): boolean {
-  const isLoopbackHost = (host: string | null): boolean => {
-    if (!host) return false;
-    const normalized = host.split(':')[0].trim().toLowerCase();
-    return (
-      normalized === 'localhost' ||
-      normalized.endsWith('.localhost') ||
-      normalized === '127.0.0.1' ||
-      normalized === '0.0.0.0' ||
-      normalized === '::1' ||
-      normalized === '[::1]'
-    );
-  };
-
-  try {
-    if (isLoopbackHost(new URL(request.url).hostname)) return true;
-  } catch {
-    // Ignore malformed URL and fall back to Host header check.
-  }
-
-  return isLoopbackHost(request.headers.get('Host'));
-}
-
-export function getClientIdentifier(request: Request): string | null {
-  // 生产环境运行在 Cloudflare 上，CF-Connecting-IP 由边缘强制注入、不可被客户端伪造。
-  // 仅信任它作为限流/锁定键的来源；X-Real-IP / X-Forwarded-For 可被任意伪造，
-  // 一旦采信即允许攻击者轮换伪造头绕过所有限流。
-  const cfIp = normalizeClientIpForRateLimit(request.headers.get('CF-Connecting-IP') || '');
-  if (cfIp) return cfIp;
-
-  // 本地开发（wrangler dev / localhost）没有 CF 头，才回退到代理头，便于联调。
-  if (isLocalRequest(request)) {
-    const candidates: Array<string | null> = [
-      request.headers.get('X-Real-IP'),
-      request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || null,
-    ];
-    for (const raw of candidates) {
-      if (!raw) continue;
-      const normalized = normalizeClientIpForRateLimit(raw);
-      if (normalized) return normalized;
-    }
-    return 'ip4:127.0.0.1';
-  }
-
-  // 非本地且无 CF 头：视为无法定位客户端，交由调用方拒绝。
-  return null;
 }

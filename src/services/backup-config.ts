@@ -453,6 +453,30 @@ export async function loadBackupSettings(
   }
 }
 
+/** 目的地里是否包含凭据（S3 secret / WebDAV 口令） */
+export function backupSettingsHasCredentials(settings: BackupSettings): boolean {
+  return (settings.destinations || []).some((record) => {
+    const cfg = record.destination as unknown as Record<string, unknown>;
+    if (record.type === 's3') return Boolean(cfg.accessKeyId || cfg.secretAccessKey);
+    return Boolean(cfg.username || cfg.password);
+  });
+}
+
+/**
+ * 没有管理员公钥时禁止把含凭据的备份设置落库。
+ * 旧行为是「降级为明文 JSON 写入 config 表」，等于把 S3/WebDAV 口令明文存进数据库。
+ */
+export function assertPortableEncryptionAvailable(
+  settings: BackupSettings,
+  hasPortableAdmins: boolean
+): void {
+  if (hasPortableAdmins) return;
+  if (!backupSettingsHasCredentials(settings)) return;
+  throw new Error(
+    '备份目的地包含凭据，但当前没有可用于加密的管理员公钥；请先让管理员重新登录生成密钥，或删除目的地后再保存'
+  );
+}
+
 export async function saveBackupSettings(
   storage: StorageService,
   env: Env,
@@ -466,7 +490,9 @@ export async function saveBackupSettings(
       typeof user.publicKey === 'string' &&
       user.publicKey.trim().length > 0
   );
+  assertPortableEncryptionAvailable(settings, hasPortableAdmins);
   if (!hasPortableAdmins) {
+    // 只有「无凭据」的设置才允许明文落库（默认设置、仅时间表）
     await storage.setConfigValue(BACKUP_SETTINGS_CONFIG_KEY, serializeBackupSettings(settings));
     return;
   }
@@ -511,6 +537,7 @@ export async function normalizeImportedBackupSettingsValue(
           typeof user.publicKey === 'string' &&
           user.publicKey.trim().length > 0
       );
+      assertPortableEncryptionAvailable(settings, hasPortableAdmins);
       if (!hasPortableAdmins) {
         return serializeBackupSettings(settings);
       }
@@ -528,6 +555,7 @@ export async function normalizeImportedBackupSettingsValue(
       typeof user.publicKey === 'string' &&
       user.publicKey.trim().length > 0
   );
+  assertPortableEncryptionAvailable(settings, hasPortableAdmins);
   if (!hasPortableAdmins) {
     return serializeBackupSettings(settings);
   }

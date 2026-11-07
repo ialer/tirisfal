@@ -1,8 +1,9 @@
 import { LIMITS } from '../config/limits';
 import { AuthService } from '../services/auth';
-import { getClientIdentifier, RateLimitService } from '../services/ratelimit';
+import { RateLimitService } from '../services/ratelimit';
 import { StorageService } from '../services/storage';
 import { DEFAULT_DEV_SECRET, type Env, type ProfileResponse, type User } from '../types';
+import { getClientIdentifier } from '../utils/client-ip';
 import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { errorResponse, jsonResponse } from '../utils/response';
 import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
@@ -310,7 +311,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
 // [POST] /api/accounts/password-hint
 export async function handleGetPasswordHint(request: Request, env: Env): Promise<Response> {
   const storage = new StorageService(env.DB);
-  const clientIdentifier = getClientIdentifier(request);
+  const clientIdentifier = getClientIdentifier(request, env);
   if (!clientIdentifier) {
     return errorResponse('Client IP is required', 403);
   }
@@ -785,7 +786,7 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
   const recoveryCode = normalizeRecoveryCodeInput(
     String(body.recoveryCode || body.twoFactorToken || body.recovery_code || '')
   );
-  const clientIdentifier = getClientIdentifier(request);
+  const clientIdentifier = getClientIdentifier(request, env);
   if (!clientIdentifier) {
     return errorResponse('Client IP is required', 403);
   }

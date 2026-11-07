@@ -2,6 +2,7 @@
 
 import { SecretsManagerService } from '../services/sm-service';
 import type { Env } from '../types';
+import { getClientIpAddress } from '../utils/client-ip';
 import {
   checkHostResolution,
   hostAllowed,
@@ -12,15 +13,8 @@ import {
 } from '../utils/outbound-guard';
 import { errorResponse, jsonResponse } from '../utils/response';
 
-/** 从请求头提取客户端真实 IP（与 ratelimit 的提取逻辑保持一致） */
-export function getClientIp(request: Request): string | null {
-  // 安全：只信任 Cloudflare 边缘注入的 CF-Connecting-IP。
-  // X-Real-IP / X-Forwarded-For 由调用方自带，可随意伪造；一旦用于 IP 白名单判断，
-  // 就能绕过 machine_account_projects.allowed_ip（审计日志也会被污染）。
-  // 取不到真实 IP 时返回 null，由 validateProjectAccess 失效关闭（配置了白名单即拒绝）。
-  const cfIp = request.headers.get('CF-Connecting-IP');
-  return cfIp && cfIp.trim() ? cfIp.trim() : null;
-}
+// 客户端 IP 解析统一走 src/utils/client-ip：云端信任 CF 头，自托管容器额外要求
+// 反代共享密钥（PROXY_SHARED_SECRET），避免直连 worker 端口伪造 IP 绕过 allowed_ip。
 
 /** 解析 grant 的 allowed_hosts（JSON 数组） */
 function parseAllowedHosts(raw: string | null): string[] {
@@ -132,6 +126,7 @@ async function readSecretValue(
 async function assertProjectSecretAccess(
   smService: SecretsManagerService,
   request: Request,
+  env: Env,
   projectId: string,
   userId: string,
   machineAccountId?: string
@@ -140,7 +135,7 @@ async function assertProjectSecretAccess(
     const accessCheck = await smService.validateProjectAccess(
       machineAccountId,
       projectId,
-      getClientIp(request) || undefined
+      getClientIpAddress(request, env) || undefined
     );
     if (!accessCheck.allowed) {
       return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
@@ -216,6 +211,7 @@ export async function handleSecrets(
     const createAccessError = await assertProjectSecretAccess(
       smService,
       request,
+      env,
       body.project_id,
       userId,
       machineAccountId
@@ -266,7 +262,7 @@ export async function handleSecrets(
     const access = await smService.validateProjectAccess(
       machineAccountId,
       projectId,
-      getClientIp(request) ?? undefined
+      getClientIpAddress(request, env) ?? undefined
     );
     if (!access.allowed) return errorResponse(`Access denied: ${access.reason || ''}`, 403);
 
@@ -345,7 +341,7 @@ export async function handleSecrets(
       null,
       secret.id,
       'use',
-      getClientIp(request),
+      getClientIpAddress(request, env),
       request.headers.get('User-Agent'),
       { status: upstream.status, method: httpMethod, truncated, elapsed_ms: elapsedMs },
       projectId,
@@ -380,6 +376,7 @@ export async function handleSecrets(
     const listAccessError = await assertProjectSecretAccess(
       smService,
       request,
+      env,
       projectId,
       userId,
       machineAccountId
@@ -418,7 +415,7 @@ export async function handleSecrets(
 
       // Machine Account 权限验证
       if (machineAccountId) {
-        const clientIp = getClientIp(request);
+        const clientIp = getClientIpAddress(request, env);
         const accessCheck = await smService.validateProjectAccess(
           machineAccountId,
           secret.project_id,
@@ -476,7 +473,7 @@ export async function handleSecrets(
 
       // Machine Account 权限验证
       if (machineAccountId) {
-        const clientIp = getClientIp(request);
+        const clientIp = getClientIpAddress(request, env);
         const accessCheck = await smService.validateProjectAccess(
           machineAccountId,
           secret.project_id,
@@ -524,7 +521,7 @@ export async function handleSecrets(
 
       // Machine Account 权限验证
       if (machineAccountId) {
-        const clientIp = getClientIp(request);
+        const clientIp = getClientIpAddress(request, env);
         const accessCheck = await smService.validateProjectAccess(
           machineAccountId,
           secret.project_id,
@@ -568,6 +565,7 @@ export async function handleSecrets(
     const accessError = await assertProjectSecretAccess(
       smService,
       request,
+      env,
       projectId,
       userId,
       machineAccountId
@@ -594,7 +592,7 @@ export async function handleSecrets(
           userId,
           s.id,
           'read_batch',
-          getClientIp(request),
+          getClientIpAddress(request, env),
           request.headers.get('User-Agent'),
           undefined,
           projectId,
@@ -631,6 +629,7 @@ export async function handleSecrets(
     const byNameAccessError = await assertProjectSecretAccess(
       smService,
       request,
+      env,
       projectId,
       userId,
       machineAccountId
@@ -654,7 +653,7 @@ export async function handleSecrets(
     const decryptedValue = read.value;
 
     // 记录访问日志
-    const clientIp = getClientIp(request);
+    const clientIp = getClientIpAddress(request, env);
     await smService.logSecretAccess(
       machineAccountId || null,
       userId,

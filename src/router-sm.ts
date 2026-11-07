@@ -5,9 +5,10 @@ import { handleMachineAccounts } from './handlers/sm-machine-accounts';
 import { handleProjects } from './handlers/sm-projects';
 import { handleSecrets } from './handlers/sm-secrets';
 import { AuthService } from './services/auth';
-import { getClientIdentifier, RateLimitService } from './services/ratelimit';
+import { RateLimitService } from './services/ratelimit';
 import { SecretsManagerService } from './services/sm-service';
 import type { Env } from './types';
+import { getClientIdentifier } from './utils/client-ip';
 import { errorResponse } from './utils/response';
 
 /**
@@ -34,7 +35,7 @@ export async function handleSmRoute(
     return errorResponse('未授权', 401);
   }
 
-  const clientId = getClientIdentifier(request);
+  const clientId = getClientIdentifier(request, env);
   if (!clientId) {
     return errorResponse('需要客户端 IP', 403);
   }
