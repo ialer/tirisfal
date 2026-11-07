@@ -14,7 +14,15 @@ interface SqliteDb {
 
 // Vite 不解析 node: 前缀的内置模块，用 createRequire 拿 node:sqlite
 const nodeRequire = createRequire(import.meta.url);
-const { DatabaseSync } = nodeRequire('node:sqlite') as {
+const sqliteAvailable = (() => {
+  try {
+    nodeRequire('node:sqlite');
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const { DatabaseSync } = (sqliteAvailable ? nodeRequire('node:sqlite') : {}) as {
   DatabaseSync: new (path: string) => SqliteDb;
 };
 
@@ -39,7 +47,7 @@ function hit(db: SqliteDb, key: string, windowStart: number, windowEnd: number):
   return row?.count ?? 1;
 }
 
-describe('rate limit · 固定窗口换窗重置', () => {
+describe.skipIf(!sqliteAvailable)('rate limit · 固定窗口换窗重置（需要 node:sqlite）', () => {
   it('同一窗口内递增', () => {
     const db = setup();
     expect(hit(db, 'ip:1', 100, 160)).toBe(1);
