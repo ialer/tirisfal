@@ -1,0 +1,86 @@
+# tirisfal 自托管编排：worker 容器 + 可选 Caddy（内网 TLS）+ 可选 cloudflared（公网隧道）
+# 用法：
+#   cd docker && cp -n env.example .env
+#   mkdir -p secrets && cp secrets/dev.vars.example secrets/dev.vars && chmod 600 secrets/dev.vars   # 填密钥
+#   docker compose --profile proxy up -d --build                      # 内网 TLS
+#   docker compose --profile proxy --profile tunnel up -d             # 内网 + 公网隧道
+name: tirisfal
+
+services:
+  tirisfal:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: ${TIRISFAL_IMAGE:-ghcr.io/ialer/tirisfal:local}
+    container_name: tirisfal
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - tirisfal-data:/data
+      # 密钥走文件挂载，绝不走 environment/env_file（docker inspect 会回显）
+      - ./secrets/dev.vars:/run/secrets/dev.vars:ro
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      CLIENT_IP_HEADER: CF-Connecting-IP
+      # 可选加固：与本文件下方 caddy 的 PROXY_SHARED_SECRET 值保持一致
+      # PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:-}
+    networks:
+      - edge
+    expose:
+      - "8787"
+
+  # 内网入口：MagicDNS / 虚拟 IP → Caddy(内部 CA) → worker
+  caddy:
+    profiles: ["proxy"]
+    image: caddy:2-alpine
+    container_name: tirisfal-caddy
+    restart: unless-stopped
+    depends_on:
+      - tirisfal
+    ports:
+      # 只绑虚拟网 IP（不绑 0.0.0.0），团队偏好：服务只暴露在 EasyTier 内网
+      - "${TIRISFAL_BIND_IP:-100.100.1.1}:${TIRISFAL_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      TIRISFAL_HOST: ${TIRISFAL_HOST:-tirisfal.local}
+    networks:
+      - edge
+
+  # 公网入口：Cloudflare Tunnel（回源到 caddy:80，由 CF 边缘终止 TLS 并注入客户端 IP）
+  cloudflared:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:latest
+    container_name: tirisfal-tunnel
+    restart: unless-stopped
+    depends_on:
+      - caddy
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN_FILE: /run/secrets/cf_tunnel_token
+    volumes:
+      - ./secrets/cf_tunnel_token:/run/secrets/cf_tunnel_token:ro
+    networks:
+      # edge 用于回源到 caddy；egress 提供出网能力（edge 是 internal 网络，没有默认路由）
+      - edge
+      - egress
+
+volumes:
+  tirisfal-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  # 内部网络：worker 只在这里，不直接对外
+  edge:
+    internal: true
+  # 出网网络：仅 cloudflared 使用（拉取 CF 边缘连接）
+  egress: {}

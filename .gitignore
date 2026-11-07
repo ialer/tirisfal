@@ -50,3 +50,10 @@ Tirisfal-compat/
 # core dumps
 core
 core.*
+# 容器部署的本地密钥与变量（绝不入库）
+docker/secrets/dev.vars
+docker/secrets/cf_tunnel_token
+docker/secrets/proxy_secret
+docker/.env
+# 测试覆盖率产物
+coverage/
