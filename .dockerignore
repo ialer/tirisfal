@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.github
+coverage
+*.patch
+security-fix.patch
+docs
+sdk
+tests
+*.md
+.dev.vars
+docker/secrets

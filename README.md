@@ -147,6 +147,7 @@ curl "https://your-worker.workers.dev/api/secrets/by-name/API_KEY?project_id=<id
 ---
 
 > 部署、密钥、备份、Agent 接入 SOP 与回滚流程见 [docs/OPERATIONS.md](docs/OPERATIONS.md)。
+> 自托管容器（Docker Compose + 内网 TLS + Cloudflare Tunnel）见 [docs/DOCKER.md](docs/DOCKER.md)。
 
 ## 🔐 安全特性
 

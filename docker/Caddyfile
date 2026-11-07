@@ -1,0 +1,31 @@
+# tirisfal 内网入口
+# 443：内网 MagicDNS / 虚拟 IP，TLS 由 Caddy 内部 CA 签发
+#  80：Cloudflare Tunnel 回源（CF 边缘已终止 TLS 并注入 CF-Connecting-IP）
+{
+	admin off
+	# 内部 CA 证书保存在 caddy-data 卷；导出根证书见 docs/DOCKER.md
+}
+
+https://{$TIRISFAL_HOST:tirisfal.local} {
+	tls internal
+	encode zstd gzip
+	# /__scheduled 只应容器内触发，禁止从任何入口转发
+	@internal path /__*
+	respond @internal "not found" 404
+	reverse_proxy tirisfal:8787 {
+		# 覆盖客户端自带值，避免伪造 IP 绕过限流与 allowed_ip
+		header_up CF-Connecting-IP {remote_host}
+		header_up X-Real-IP {remote_host}
+		header_up Host {host}
+	}
+}
+
+:80 {
+	encode zstd gzip
+	@internal path /__*
+	respond @internal "not found" 404
+	reverse_proxy tirisfal:8787 {
+		# 隧道回源：CF 边缘注入的 CF-Connecting-IP 原样透传，不覆盖
+		header_up Host {host}
+	}
+}
