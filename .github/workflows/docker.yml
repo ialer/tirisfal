@@ -31,6 +31,8 @@ jobs:
           mkdir -p docker/secrets
           printf 'JWT_SECRET=%s\nENCRYPTION_KEY=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -base64 32)" > docker/secrets/dev.vars
           chmod 600 docker/secrets/dev.vars
+          # 容器以 uid 10001 运行，runner 创建的文件属主是 1001，必须改属主否则 entrypoint 读不到
+          sudo chown 10001:10001 docker/secrets/dev.vars
           docker run -d --name tirisfal-ci -p 8787:8787 -v "$PWD/docker/secrets/dev.vars:/run/secrets/dev.vars:ro" tirisfal:ci
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8787/api/health | grep -q '"status":"healthy"'; then break; fi
