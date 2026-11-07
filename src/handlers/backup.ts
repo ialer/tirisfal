@@ -43,12 +43,9 @@ import {
 import { getBlobObject } from '../services/blob-store';
 import { StorageService } from '../services/storage';
 import type { Env, User } from '../types';
+import { isAdminUser } from '../utils/authz';
 import { errorResponse, jsonResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
-
-function isAdmin(user: User): boolean {
-  return user.role === 'admin' && user.status === 'active';
-}
 
 async function writeAuditLog(
   storage: StorageService,
@@ -597,7 +594,7 @@ export async function handleGetAdminBackupSettings(
   actorUser: User
 ): Promise<Response> {
   void request;
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   const storage = new StorageService(env.DB);
   try {
@@ -616,7 +613,7 @@ export async function handleUpdateAdminBackupSettings(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   let body: BackupSettingsInput;
   try {
@@ -659,7 +656,7 @@ export async function handleGetAdminBackupSettingsRepairState(
   actorUser: User
 ): Promise<Response> {
   void request;
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   const storage = new StorageService(env.DB);
   try {
@@ -682,7 +679,7 @@ export async function handleRepairAdminBackupSettings(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   let body: BackupSettingsInput;
   try {
@@ -724,7 +721,7 @@ export async function handleRunAdminConfiguredBackup(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   try {
     let body: { destinationId?: string } | null = null;
@@ -791,7 +788,7 @@ export async function handleListAdminRemoteBackups(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   const storage = new StorageService(env.DB);
   try {
@@ -821,7 +818,7 @@ export async function handleDownloadAdminRemoteBackup(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   const storage = new StorageService(env.DB);
   try {
@@ -854,7 +851,7 @@ export async function handleInspectAdminRemoteBackup(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   const storage = new StorageService(env.DB);
   try {
@@ -890,7 +887,7 @@ export async function handleDeleteAdminRemoteBackup(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   const storage = new StorageService(env.DB);
   try {
@@ -920,7 +917,7 @@ export async function handleRestoreAdminRemoteBackup(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   let body: {
     destinationId?: string;
@@ -1026,7 +1023,7 @@ export async function handleAdminExportBackup(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   const storage = new StorageService(env.DB);
   const targetDeviceIdentifier =
@@ -1110,7 +1107,7 @@ export async function handleDownloadAdminBackupAttachment(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   try {
     const url = new URL(request.url);
@@ -1140,7 +1137,7 @@ export async function handleAdminImportBackup(
   env: Env,
   actorUser: User
 ): Promise<Response> {
-  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+  if (!isAdminUser(actorUser)) return errorResponse('Forbidden', 403);
 
   let formData: FormData;
   try {

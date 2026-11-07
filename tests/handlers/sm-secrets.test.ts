@@ -21,7 +21,8 @@ vi.mock('../../src/services/sm-service', () => ({
   },
 }));
 
-import { getClientIp, handleSecrets } from '../../src/handlers/sm-secrets';
+import { handleSecrets } from '../../src/handlers/sm-secrets';
+import { getClientIpAddress } from '../../src/utils/client-ip';
 
 function makeRequest(method: string, path: string): Request {
   return new Request(`https://vault.example.com${path}`, { method });
@@ -262,12 +263,12 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
     });
   });
 
-  describe('getClientIp（只信任 CF-Connecting-IP）', () => {
+  describe('getClientIpAddress（只信任可信代理注入的 IP 头）', () => {
     it('忽略可伪造的 X-Real-IP 与 X-Forwarded-For', () => {
       const req = new Request('https://vault.example.com/api/secrets', {
         headers: { 'X-Real-IP': '203.0.113.9', 'X-Forwarded-For': '203.0.113.9' },
       });
-      expect(getClientIp(req)).toBeNull();
+      expect(getClientIpAddress(req)).toBeNull();
     });
 
     it('返回 Cloudflare 注入的 CF-Connecting-IP', () => {
@@ -278,7 +279,7 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
           'X-Forwarded-For': '203.0.113.9',
         },
       });
-      expect(getClientIp(req)).toBe('1.2.3.4');
+      expect(getClientIpAddress(req)).toBe('1.2.3.4');
     });
   });
 

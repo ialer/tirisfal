@@ -1,6 +1,7 @@
 import { LIMITS } from '../config/limits';
 import type { Env, JWTPayload, User } from '../types';
 import { createJWT, createRefreshToken, verifyJWT } from '../utils/jwt';
+import { constantTimeEquals } from '../utils/secure-compare';
 import { StorageService } from './storage';
 
 // 服务端第二层哈希迭代次数
@@ -24,6 +25,24 @@ interface CachedDeviceEntry {
 export interface VerifiedAccessContext {
   payload: JWTPayload;
   user: User;
+}
+
+/**
+ * 判断一次刷新请求是否为「已轮换令牌的非法重用」。
+ *
+ * - 未标记轮换：不是重用
+ * - 处于宽限窗口内：允许（吸收多端并发刷新）
+ * - 超出宽限且属于某个家族：是重用，应撤销整个家族
+ * - 无家族（历史令牌）：无法撤销，按普通令牌处理
+ */
+export function isRotatedTokenReuse(
+  record: { rotatedAt: number | null; familyId: string | null },
+  nowMs: number,
+  graceMs: number
+): boolean {
+  if (record.rotatedAt == null) return false;
+  if (!record.familyId) return false;
+  return nowMs - record.rotatedAt > graceMs;
 }
 
 export class AuthService {
@@ -275,14 +294,17 @@ export class AuthService {
     const record = await this.storage.getRefreshTokenRecord(refreshToken);
     if (!record?.userId) return null;
 
-    // 重用检测：已轮换令牌在宽限期外再次出现，视为盗用信号，撤销整个家族
-    const overlapGraceMs = LIMITS.auth.refreshTokenOverlapGraceMs;
+    // 重用检测：已轮换令牌在宽限期外再次出现，视为盗用信号，撤销整个家族。
+    // 前提是旧令牌在轮换后仍被保留（refreshTokenReuseRetentionMs），否则到期即删、
+    // 检测永远走不到。
     if (
-      record.rotatedAt != null &&
-      Date.now() - record.rotatedAt > overlapGraceMs &&
-      record.familyId
+      isRotatedTokenReuse(
+        { rotatedAt: record.rotatedAt ?? null, familyId: record.familyId ?? null },
+        Date.now(),
+        LIMITS.auth.refreshTokenOverlapGraceMs
+      )
     ) {
-      await this.storage.revokeRefreshTokenFamily(record.userId, record.familyId);
+      await this.storage.revokeRefreshTokenFamily(record.userId, record.familyId as string);
       return null;
     }
 

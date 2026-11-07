@@ -110,7 +110,21 @@ export function applyCors(request: Request, response: Response): Response {
   headers.set('X-Frame-Options', 'DENY');
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  headers.set('Content-Security-Policy', "frame-ancestors 'none'; img-src 'self' data:");
+  // 与 webapp/index.html 的 meta CSP 叠加生效：不允许任何第三方源
+  headers.set(
+    'Content-Security-Policy',
+    [
+      "frame-ancestors 'none'",
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "form-action 'self'",
+      "base-uri 'self'",
+    ].join('; ')
+  );
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -136,25 +150,22 @@ export function jsonResponse(
 }
 
 /**
- * 错误响应辅助函数
- * 生产环境不暴露内部错误详情
+ * 错误响应辅助函数。
+ *
+ * 语义：
+ * - 4xx：客户端错误，message 本来就是给调用方的（字段校验、权限原因等），原样透出；
+ * - 5xx：默认统一文案，避免泄漏内部错误；确实安全的文案用 exposeInternals=true 显式放行。
+ *
+ * 旧实现按状态码无条件替换全部文案，导致 405 个调用点的具体提示全是死代码。
  */
 export function errorResponse(
   message: string,
   status: number = 400,
   exposeInternals: boolean = false
 ): Response {
-  // 生产环境只暴露安全的错误信息
-  const safeMessages: Record<number, string> = {
-    400: '请求无效',
-    401: '未授权',
-    403: '禁止访问',
-    404: '未找到',
-    429: '请求过于频繁',
-    500: '服务器内部错误',
-  };
-
-  const responseMessage = exposeInternals ? message : safeMessages[status] || message;
+  const isServerError = status >= 500;
+  const fallback = isServerError ? '服务器内部错误' : '请求无效';
+  const responseMessage = isServerError && !exposeInternals ? fallback : message || fallback;
 
   return jsonResponse(
     {

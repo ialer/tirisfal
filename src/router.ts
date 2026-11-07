@@ -4,8 +4,9 @@ import { handleAuthenticatedRoute } from './router-authenticated';
 import { handlePublicRoute } from './router-public';
 import { handleSmRoute } from './router-sm';
 import { AuthService } from './services/auth';
-import { getClientIdentifier, RateLimitService } from './services/ratelimit';
+import { RateLimitService } from './services/ratelimit';
 import { DEFAULT_DEV_SECRET, type Env } from './types';
+import { getClientIdentifier } from './utils/client-ip';
 import { errorResponse, handleCors, jsonResponse, rateLimitResponse } from './utils/response';
 
 /** 检查 JWT 密钥是否不安全 */
@@ -33,7 +34,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   const url = new URL(request.url);
   const path = url.pathname;
   const method = request.method;
-  const clientId = getClientIdentifier(request);
+  const clientId = getClientIdentifier(request, env);
 
   /** 执行公开接口速率限制 */
   async function enforcePublicRateLimit(
@@ -52,14 +53,20 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   if (path === '/health' || path === '/api/health') return handleHealthCheck(request, env);
 
   try {
-    // 文件上传接口豁免 body 大小限制
-    const isLargeUpload =
-      /^\/api\/ciphers\/[a-f0-9-]+\/attachment\/[a-f0-9-]+$/i.test(path) ||
-      /^\/api\/sends\/[a-f0-9-]+\/file\/[a-f0-9-]+$/i.test(path) ||
-      path === '/api/admin/backup/import';
-    if (!isLargeUpload) {
-      const contentLength = parseInt(request.headers.get('Content-Length') || '0', 10);
-      if (contentLength > LIMITS.request.maxBodyBytes) return errorResponse('请求体过大', 413);
+    const contentLength = parseInt(request.headers.get('Content-Length') || '0', 10);
+    // 备份恢复：允许超过 JSON 上限，但仍要卡归档体积（否则请求体先被读进内存）
+    if (path === '/api/admin/backup/import') {
+      if (contentLength > LIMITS.request.maxBackupArchiveBytes) {
+        return errorResponse('备份归档过大', 413);
+      }
+    } else {
+      // 文件上传接口豁免 body 大小限制
+      const isLargeUpload =
+        /^\/api\/ciphers\/[a-f0-9-]+\/attachment\/[a-f0-9-]+$/i.test(path) ||
+        /^\/api\/sends\/[a-f0-9-]+\/file\/[a-f0-9-]+$/i.test(path);
+      if (!isLargeUpload && contentLength > LIMITS.request.maxBodyBytes) {
+        return errorResponse('请求体过大', 413);
+      }
     }
 
     // 尝试公开路由

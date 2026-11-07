@@ -136,6 +136,11 @@ export async function handlePublicRoute(
   // 网站图标代理
   const iconMatch = path.match(/^\/icons\/([^/]+)\/icon\.png$/i);
   if (iconMatch && method === 'GET') {
+    const blocked = await enforcePublicRateLimit(
+      'public-read',
+      LIMITS.rateLimit.publicReadRequestsPerMinute
+    );
+    if (blocked) return blocked;
     const fallbackMode =
       new URL(request.url).searchParams.get('fallback') === '404' ? 'not-found' : 'default';
     return handleWebsiteIcon(iconMatch[1], fallbackMode);

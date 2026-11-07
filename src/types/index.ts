@@ -15,6 +15,16 @@ export interface Env {
   /** 可选：备份运行时加密密钥；未设置时回退 JWT_SECRET（见 backup-settings-crypto.ts） */
   BACKUP_ENCRYPTION_KEY?: string;
   /**
+   * 可选：客户端 IP 头名。默认 CF-Connecting-IP；自托管容器里由反代注入。
+   * 见 src/utils/client-ip.ts
+   */
+  CLIENT_IP_HEADER?: string;
+  /**
+   * 可选：反代共享密钥。设置后，只有携带匹配 X-Tirisfal-Proxy 头的请求才被信任，
+   * 用来防止直连 worker 端口伪造客户端 IP（绕过限流与 allowed_ip）。
+   */
+  PROXY_SHARED_SECRET?: string;
+  /**
    * 可选：出站目标逐次 DNS 解析校验。'1' 开启（推荐云端部署）；
    * 未设置时只做主机名/白名单静态校验，DNS rebinding 风险由部署侧出口策略兜底。
    */

@@ -4,8 +4,11 @@ export const LIMITS = {
     accessTokenTtlSeconds: 7200,
     // 刷新令牌有效期（毫秒）
     refreshTokenTtlMs: 30 * 24 * 60 * 60 * 1000,
-    // 刷新令牌轮换后的旧令牌宽限窗口（毫秒）
+    // 刷新令牌轮换后的旧令牌宽限窗口（毫秒）：窗口内允许并发刷新重复使用
     refreshTokenOverlapGraceMs: 60 * 1000,
+    // 已轮换令牌的保留时长（毫秒）：必须远大于宽限窗口，否则旧令牌到期即被删除，
+    // 「重用即撤销家族」的检测永远走不到（见 auth.refreshAccessToken）。
+    refreshTokenReuseRetentionMs: 7 * 24 * 60 * 60 * 1000,
     // 刷新令牌随机字节长度
     refreshTokenRandomBytes: 32,
     // 附件下载令牌有效期（秒）
@@ -119,6 +122,8 @@ export const LIMITS = {
   request: {
     // JSON 接口请求 body 大小上限（字节），文件上传接口除外
     maxBodyBytes: 25 * 1024 * 1024,
+    // 备份归档上传上限（字节）：与 backup-archive 的解压前上限保持一致
+    maxBackupArchiveBytes: 64 * 1024 * 1024,
   },
   compatibility: {
     // /config.version 与 /api/version 的统一版本号来源

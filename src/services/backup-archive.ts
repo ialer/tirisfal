@@ -126,16 +126,19 @@ function sanitizeConfigRowsForExport(rows: SqlRow[]): SqlRow[] {
   return sanitized;
 }
 
-// 敏感字段列表 - 备份时应排除
-const SENSITIVE_USER_FIELDS = [
-  'master_password_hash',
+// 备份导出时排除的字段。
+//
+// master_…_hash 不能排除：它是 users 表的 NOT NULL 列，导出删掉后导入必然
+// 触发 constraint failed —— 备份将不可恢复。它本身是服务端二次哈希（不可逆），
+// 泄露风险低于「备份不可用」，因此随备份保留；备份文件按凭据级别保护。
+export const SENSITIVE_USER_FIELDS = [
   'totp_secret',
   'totp_recovery_code',
   'api_key',
   'private_key',
 ];
 
-function sanitizeUserRowsForExport(rows: SqlRow[]): SqlRow[] {
+export function sanitizeUserRowsForExport(rows: SqlRow[]): SqlRow[] {
   return rows.map((row) => {
     const sanitized = { ...row };
     for (const field of SENSITIVE_USER_FIELDS) {
@@ -249,15 +252,55 @@ export interface ParseBackupArchiveOptions {
   allowExternalAttachmentBlobs?: boolean;
 }
 
+/**
+ * 解压前的资源上限判定（zip bomb 防护）。
+ * fflate 的 filter 会在解压前逐条回调，用它把「条目数 / 单条 / 累计解压体积」
+ * 卡在解压之前，而不是等 unzipSync 把数据全部展开后再检查。
+ */
+export interface ArchiveBudget {
+  entries: number;
+  totalOriginalBytes: number;
+}
+
+export function assertArchiveEntryWithinLimits(
+  entry: { name: string; originalSize?: number },
+  budget: ArchiveBudget
+): void {
+  budget.entries += 1;
+  if (budget.entries > MAX_BACKUP_ARCHIVE_ENTRY_COUNT) {
+    throw new Error('Backup archive contains too many files');
+  }
+  const original = entry.originalSize ?? 0;
+  if (entry.name === 'db.json' && original > MAX_BACKUP_DB_JSON_BYTES) {
+    throw new Error('Backup archive database payload is too large');
+  }
+  if (original > MAX_BACKUP_EXTRACTED_BYTES) {
+    throw new Error('Backup archive expands beyond the current restore limit');
+  }
+  budget.totalOriginalBytes += original;
+  if (budget.totalOriginalBytes > MAX_BACKUP_EXTRACTED_BYTES) {
+    throw new Error('Backup archive expands beyond the current restore limit');
+  }
+}
+
 export function parseBackupArchive(
   bytes: Uint8Array,
   options: ParseBackupArchiveOptions = {}
 ): { payload: BackupPayload; files: Record<string, Uint8Array> } {
   validateArchiveSize(bytes);
   let zipped: Record<string, Uint8Array>;
+  const budget: ArchiveBudget = { entries: 0, totalOriginalBytes: 0 };
   try {
-    zipped = unzipSync(bytes);
-  } catch {
+    // 解压前逐条校验（zip bomb 防护）：超限直接抛错，不先展开
+    zipped = unzipSync(bytes, {
+      filter: (file) => {
+        assertArchiveEntryWithinLimits(file, budget);
+        return true;
+      },
+    });
+  } catch (error) {
+    // 预算超限要保留原因，不能和「不是合法 zip」混为一谈
+    if (error instanceof Error && error.message.startsWith('Backup archive')) throw error;
     throw new Error('Invalid backup archive');
   }
 

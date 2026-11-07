@@ -1,14 +1,16 @@
 import { LIMITS } from '../config/limits';
 import { AuthService } from '../services/auth';
-import { getClientIdentifier, RateLimitService } from '../services/ratelimit';
+import { RateLimitService } from '../services/ratelimit';
 import { StorageService } from '../services/storage';
+import { buildUserTokenResponse } from '../services/token-response';
 import type { Env, TokenResponse } from '../types';
+import { getClientIdentifier } from '../utils/client-ip';
 import { readAuthRequestDeviceInfo } from '../utils/device';
 import { createRefreshToken } from '../utils/jwt';
 import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { errorResponse, identityErrorResponse, jsonResponse } from '../utils/response';
+import { constantTimeEquals } from '../utils/secure-compare';
 import { isTotpEnabled, verifyTotpTokenWithStep } from '../utils/totp';
-import { buildAccountKeys, buildUserDecryptionOptions } from '../utils/user-decryption';
 import { generateUUID } from '../utils/uuid';
 import { issueSendAccessToken } from './sends';
 
@@ -43,26 +45,6 @@ function parseCookieValue(request: Request, name: string): string | null {
     return value ? decodeURIComponent(value) : null;
   }
   return null;
-}
-
-function constantTimeEquals(a: string, b: string): boolean {
-  const encA = new TextEncoder().encode(a);
-  const encB = new TextEncoder().encode(b);
-
-  // 使用较长的长度进行比较，避免时序泄漏
-  const maxLength = Math.max(encA.length, encB.length);
-  let diff = 0;
-
-  for (let i = 0; i < maxLength; i++) {
-    const byteA = i < encA.length ? encA[i] : 0;
-    const byteB = i < encB.length ? encB[i] : 0;
-    diff |= byteA ^ byteB;
-  }
-
-  // 额外检查长度是否相同
-  diff |= encA.length ^ encB.length;
-
-  return diff === 0;
 }
 
 function buildRefreshCookie(request: Request, refreshToken: string, maxAgeSeconds: number): string {
@@ -224,7 +206,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
   }
 
   const grantType = body.grant_type;
-  const clientIdentifier = getClientIdentifier(request);
+  const clientIdentifier = getClientIdentifier(request, env);
   if (!clientIdentifier) {
     return identityErrorResponse('Client IP is required', 'invalid_request', 403);
   }
@@ -419,34 +401,11 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
     const accessToken = await auth.generateAccessToken(user, deviceSession);
     const refreshToken = await auth.generateRefreshToken(user.id, deviceSession);
-    const accountKeys = buildAccountKeys(user);
-    const userDecryptionOptions = buildUserDecryptionOptions(user);
-
-    const response: TokenResponse = {
-      access_token: accessToken,
-      expires_in: LIMITS.auth.accessTokenTtlSeconds,
-      token_type: 'Bearer',
-      ...(shouldUseWebSession(request) ? { web_session: true } : { refresh_token: refreshToken }),
-      ...(trustedTwoFactorTokenToReturn ? { TwoFactorToken: trustedTwoFactorTokenToReturn } : {}),
-      Key: user.key,
-      PrivateKey: user.privateKey,
-      AccountKeys: accountKeys,
-      accountKeys: accountKeys,
-      Kdf: user.kdfType,
-      KdfIterations: user.kdfIterations,
-      KdfMemory: user.kdfMemory,
-      KdfParallelism: user.kdfParallelism,
-      ForcePasswordReset: false,
-      ResetMasterPassword: false,
-      MasterPasswordPolicy: {
-        Object: 'masterPasswordPolicy',
-      },
-      ApiUseKeyConnector: false,
-      scope: 'api offline_access',
-      unofficialServer: true,
-      UserDecryptionOptions: userDecryptionOptions,
-      userDecryptionOptions: userDecryptionOptions,
-    };
+    const response = buildUserTokenResponse(user, accessToken, {
+      webSession: shouldUseWebSession(request),
+      refreshToken: refreshToken,
+      twoFactorToken: trustedTwoFactorTokenToReturn,
+    });
 
     const baseResponse = jsonResponse(response);
     return shouldUseWebSession(request)
@@ -535,33 +494,10 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
     const accessToken = await auth.generateAccessToken(user, deviceSession);
     const refreshToken = await auth.generateRefreshToken(user.id, deviceSession);
-    const accountKeys = buildAccountKeys(user);
-    const userDecryptionOptions = buildUserDecryptionOptions(user);
-
-    const response: TokenResponse = {
-      access_token: accessToken,
-      expires_in: LIMITS.auth.accessTokenTtlSeconds,
-      token_type: 'Bearer',
-      ...(shouldUseWebSession(request) ? { web_session: true } : { refresh_token: refreshToken }),
-      Key: user.key,
-      PrivateKey: user.privateKey,
-      AccountKeys: accountKeys,
-      accountKeys: accountKeys,
-      Kdf: user.kdfType,
-      KdfIterations: user.kdfIterations,
-      KdfMemory: user.kdfMemory,
-      KdfParallelism: user.kdfParallelism,
-      ForcePasswordReset: false,
-      ResetMasterPassword: false,
-      MasterPasswordPolicy: {
-        Object: 'masterPasswordPolicy',
-      },
-      ApiUseKeyConnector: false,
-      scope: 'api offline_access',
-      unofficialServer: true,
-      UserDecryptionOptions: userDecryptionOptions,
-      userDecryptionOptions: userDecryptionOptions,
-    };
+    const response = buildUserTokenResponse(user, accessToken, {
+      webSession: shouldUseWebSession(request),
+      refreshToken: refreshToken,
+    });
 
     const baseResponse = jsonResponse(response);
     return shouldUseWebSession(request)
@@ -654,11 +590,12 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
         : invalidResponse;
     }
 
-    // Keep a short overlap window for old refresh token to absorb
-    // concurrent refresh requests from multiple client contexts.
+    // 旧令牌不设 60s 过期：那样到期即被删除，重用检测永远不可达。
+    // 保留到「轮换后 N 天」或原到期时间（取较小者），宽限窗口内允许并发刷新，
+    // 超出宽限再次使用才会命中家族撤销。
     await storage.constrainRefreshTokenExpiry(
       refreshToken,
-      Date.now() + LIMITS.auth.refreshTokenOverlapGraceMs
+      Date.now() + LIMITS.auth.refreshTokenReuseRetentionMs
     );
     // 标记旧令牌已被换发：宽限期外再次使用将触发家族撤销（重用检测）
     await storage.markRefreshTokenRotated(refreshToken);
@@ -670,35 +607,10 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     // 新令牌继承旧令牌的轮换家族（存量无家族则从本次轮换起建立新家族）
     const nextFamilyId = familyId ?? generateUUID();
     const newRefreshToken = await auth.generateRefreshToken(user.id, device, nextFamilyId);
-    const accountKeys = buildAccountKeys(user);
-    const userDecryptionOptions = buildUserDecryptionOptions(user);
-
-    const response: TokenResponse = {
-      access_token: accessToken,
-      expires_in: LIMITS.auth.accessTokenTtlSeconds,
-      token_type: 'Bearer',
-      ...(shouldUseWebSession(request)
-        ? { web_session: true }
-        : { refresh_token: newRefreshToken }),
-      Key: user.key,
-      PrivateKey: user.privateKey,
-      AccountKeys: accountKeys,
-      accountKeys: accountKeys,
-      Kdf: user.kdfType,
-      KdfIterations: user.kdfIterations,
-      KdfMemory: user.kdfMemory,
-      KdfParallelism: user.kdfParallelism,
-      ForcePasswordReset: false,
-      ResetMasterPassword: false,
-      MasterPasswordPolicy: {
-        Object: 'masterPasswordPolicy',
-      },
-      ApiUseKeyConnector: false,
-      scope: 'api offline_access',
-      unofficialServer: true,
-      UserDecryptionOptions: userDecryptionOptions,
-      userDecryptionOptions: userDecryptionOptions,
-    };
+    const response = buildUserTokenResponse(user, accessToken, {
+      webSession: shouldUseWebSession(request),
+      refreshToken: newRefreshToken,
+    });
 
     const baseResponse = jsonResponse(response);
     return shouldUseWebSession(request)

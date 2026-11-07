@@ -2,6 +2,7 @@
  * Tirisfal — 自托管密码管理器
  * https://github.com/ialer/tirisfal
  */
+import { isWorkerHandledPath } from './config/paths';
 import { NotificationsHub } from './durable/notifications-hub';
 import { runScheduledBackupIfDue } from './handlers/backup';
 import { handleRequest } from './router';
@@ -24,18 +25,7 @@ function normalizeRequestUrl(request: Request): Request {
   return new Request(url.toString(), request);
 }
 
-function isWorkerHandledPath(path: string): boolean {
-  return (
-    path.startsWith('/api/') ||
-    path.startsWith('/identity/') ||
-    path.startsWith('/icons/') ||
-    path.startsWith('/notifications/') ||
-    path.startsWith('/.well-known/') ||
-    path === '/config' ||
-    path === '/api/config' ||
-    path === '/api/version'
-  );
-}
+// 受管路径清单统一在 config/paths.ts（单来源，避免与 router 各自维护）
 
 function addSearchIndexHeaders(request: Request, response: Response): Response {
   const url = new URL(request.url);

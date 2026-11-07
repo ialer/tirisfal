@@ -1,8 +1,10 @@
 import { LIMITS } from '../config/limits';
 import { getBlobObject, getSendFileObjectKey } from '../services/blob-store';
-import { getClientIdentifier, RateLimitService } from '../services/ratelimit';
+import { RateLimitService } from '../services/ratelimit';
 import { StorageService } from '../services/storage';
 import { type Env, SendType } from '../types';
+import { getClientIdentifier } from '../utils/client-ip';
+import { buildFileDownloadResponse } from '../utils/file-download';
 import {
   createSendAccessToken,
   createSendFileDownloadToken,
@@ -56,7 +58,7 @@ export async function handleAccessSend(
   let sendPasswordLimitIpKey: string | null = null;
   let sendPasswordRateLimit: RateLimitService | null = null;
   if (send.passwordHash) {
-    const clientIdentifier = getClientIdentifier(request);
+    const clientIdentifier = getClientIdentifier(request, env);
     if (!clientIdentifier) {
       return errorResponse('Client IP is required', 403);
     }
@@ -134,7 +136,7 @@ export async function handleAccessSendFile(
   let sendPasswordLimitIpKey: string | null = null;
   let sendPasswordRateLimit: RateLimitService | null = null;
   if (send.passwordHash) {
-    const clientIdentifier = getClientIdentifier(request);
+    const clientIdentifier = getClientIdentifier(request, env);
     if (!clientIdentifier) {
       return errorResponse('Client IP is required', 403);
     }
@@ -301,13 +303,8 @@ export async function handleDownloadSendFile(
     return errorResponse('Invalid or expired token', 401);
   }
 
-  return new Response(object.body, {
-    headers: {
-      'Content-Type': object.contentType || 'application/octet-stream',
-      'Content-Length': String(object.size),
-      'Cache-Control': 'private, no-cache',
-    },
-  });
+  // 安全：上传时的 MIME 由客户端控制，统一走强制下载语义（见 utils/file-download）
+  return buildFileDownloadResponse({ body: object.body, size: object.size });
 }
 
 export async function issueSendAccessToken(

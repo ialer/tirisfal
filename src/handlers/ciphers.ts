@@ -1086,11 +1086,17 @@ export async function handleBulkPermanentDeleteCiphers(
     return new Response(null, { status: 204 });
   }
 
-  await deleteAllAttachmentsForCiphers(env, ownedIds);
-
+  // 顺序：先删数据库行、再清对象存储。
+  // 反过来一旦 DB 删除失败，就会留下「行还在、blob 已没」的坏引用（下载 500）；
+  // 先删行最多留下孤儿对象，可由清理任务回收，不会破坏数据一致性。
   const revisionDate = await storage.bulkDeleteCiphers(ownedIds, userId);
   if (revisionDate) {
     notifyVaultSyncForRequest(request, env, userId, revisionDate);
+  }
+  try {
+    await deleteAllAttachmentsForCiphers(env, ownedIds);
+  } catch (error) {
+    console.error('Attachment blob cleanup failed (orphans only):', error);
   }
 
   return new Response(null, { status: 204 });
