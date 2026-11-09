@@ -7,6 +7,7 @@ import { getClientIdentifier } from '../utils/client-ip';
 import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { errorResponse, jsonResponse } from '../utils/response';
 import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
+import { encryptTotpSecret } from '../utils/totp-secret';
 import { buildAccountKeys } from '../utils/user-decryption';
 import { generateUUID } from '../utils/uuid';
 
@@ -655,7 +656,8 @@ export async function handleSetTotpStatus(
     if (!verified) {
       return errorResponse('Invalid TOTP token', 400);
     }
-    user.totpSecret = normalizedSecret;
+    // TOTP 密钥加密落库（TOTP_SECRET 优先，未设回退 ENCRYPTION_KEY）
+    user.totpSecret = await encryptTotpSecret(env, normalizedSecret);
     if (!user.totpRecoveryCode) {
       user.totpRecoveryCode = createRecoveryCode();
     }
