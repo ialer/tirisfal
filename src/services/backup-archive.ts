@@ -65,6 +65,11 @@ export interface BackupPayload {
     folders: SqlRow[];
     ciphers: SqlRow[];
     attachments: SqlRow[];
+    /** Secrets Manager：机器账号（不含 token 哈希）、项目、凭证、授权 */
+    machine_accounts: SqlRow[];
+    sm_projects: SqlRow[];
+    secrets: SqlRow[];
+    machine_account_projects: SqlRow[];
   };
 }
 
@@ -383,6 +388,11 @@ export function validateBackupPayloadContents(
   const folderRows = ensureRowArray(payload.db.folders, 'folders');
   const cipherRows = ensureRowArray(payload.db.ciphers, 'ciphers');
   const attachmentRows = ensureRowArray(payload.db.attachments, 'attachments');
+  // SM 表为可选（旧备份没有）：存在时必须是数组
+  ensureRowArray(payload.db.machine_accounts || [], 'machine_accounts');
+  ensureRowArray(payload.db.sm_projects || [], 'sm_projects');
+  ensureRowArray(payload.db.secrets || [], 'secrets');
+  ensureRowArray(payload.db.machine_account_projects || [], 'machine_account_projects');
   const externalAttachmentKeys = new Set<string>(
     options.allowExternalAttachmentBlobs
       ? (payload.manifest.attachmentBlobs || []).map(
@@ -490,6 +500,10 @@ export async function buildBackupArchive(
     folderRows,
     cipherRows,
     attachmentRows,
+    machineAccountRows,
+    smProjectRows,
+    smSecretRows,
+    smGrantRows,
   ] = await Promise.all([
     queryRows(env.DB, 'SELECT key, value FROM config ORDER BY key ASC'),
     queryRows(
@@ -512,6 +526,23 @@ export async function buildBackupArchive(
     queryRows(
       env.DB,
       'SELECT id, cipher_id, file_name, size, size_name, key FROM attachments ORDER BY cipher_id ASC, id ASC'
+    ),
+    // 机器账号只导出元数据：token 哈希不落备份，恢复后必须重新签发
+    queryRows(
+      env.DB,
+      'SELECT id, name, description, user_id, status, created_at, updated_at FROM machine_accounts ORDER BY created_at ASC'
+    ),
+    queryRows(
+      env.DB,
+      'SELECT id, name, description, user_id, created_at, updated_at FROM sm_projects ORDER BY created_at ASC'
+    ),
+    queryRows(
+      env.DB,
+      'SELECT id, name, value, project_id, environment, note, user_id, created_at, updated_at FROM secrets ORDER BY created_at ASC'
+    ),
+    queryRows(
+      env.DB,
+      'SELECT machine_account_id, project_id, permission, allowed_ip, allowed_hours, max_requests_per_minute, expires_at, created_at, mode, allowed_hosts, reveal_limit, reveal_count FROM machine_account_projects ORDER BY machine_account_id ASC, project_id ASC'
     ),
   ]);
   const exportedConfigRows = sanitizeConfigRowsForExport(configRows);
@@ -540,6 +571,10 @@ export async function buildBackupArchive(
       folders: folderRows.length,
       ciphers: cipherRows.length,
       attachments: exportedAttachmentRows.length,
+      machine_accounts: machineAccountRows.length,
+      sm_projects: smProjectRows.length,
+      secrets: smSecretRows.length,
+      machine_account_projects: smGrantRows.length,
     },
     includes: {
       attachments: includeAttachments,
@@ -567,6 +602,10 @@ export async function buildBackupArchive(
           folders: folderRows,
           ciphers: cipherRows,
           attachments: exportedAttachmentRows,
+          machine_accounts: machineAccountRows,
+          sm_projects: smProjectRows,
+          secrets: smSecretRows,
+          machine_account_projects: smGrantRows,
         },
         null,
         BACKUP_JSON_INDENT

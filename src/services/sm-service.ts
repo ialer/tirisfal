@@ -11,7 +11,9 @@ import type {
   SecretAccessLog,
   SmProject,
 } from '../types/sm';
+import { normalizeClientIp } from '../utils/client-ip';
 import { decryptFast, encryptFast, isLegacyCiphertext } from '../utils/crypto';
+import { RATE_LIMIT_UPSERT_SQL } from './ratelimit';
 
 export class SecretsManagerService {
   private db: D1Database;
@@ -432,7 +434,8 @@ export class SecretsManagerService {
   async validateProjectAccess(
     machineAccountId: string,
     projectId: string,
-    clientIp?: string
+    clientIp?: string,
+    requiredPermission: 'read' | 'write' = 'read'
   ): Promise<{ allowed: boolean; reason?: string }> {
     const result = await this.db
       .prepare(
@@ -450,6 +453,12 @@ export class SecretsManagerService {
 
     if (!result) {
       return { allowed: false, reason: 'No access granted' };
+    }
+
+    // 权限位：permission 之前只存不校验，read 授权可写入凭证。
+    // 写操作必须显式要求 'write'。
+    if (requiredPermission === 'write' && result.permission !== 'write') {
+      return { allowed: false, reason: 'Write permission required' };
     }
 
     // 检查过期
@@ -491,22 +500,19 @@ export class SecretsManagerService {
     }
 
     // 检查请求频率限制（使用 D1 原子操作）
-    if (result.max_requests_per_minute && clientIp) {
+    // fail-closed：配置了限额但拿不到可信 IP 时拒绝，避免「没有 IP 就不限流」
+    if (result.max_requests_per_minute && !clientIp) {
+      return { allowed: false, reason: 'Client IP unavailable for rate limit' };
+    }
+    if (result.max_requests_per_minute) {
       const windowSeconds = 60;
       const nowSec = Math.floor(Date.now() / 1000);
       const windowStart = nowSec - (nowSec % windowSeconds);
       const windowEnd = windowStart + windowSeconds;
       const rateLimitKey = `sm:${machineAccountId}:${projectId}`;
 
-      // 原子递增
-      await this.db
-        .prepare(
-          'INSERT INTO rate_limits(key, count, window_start, expires_at) VALUES(?, 1, ?, ?) ' +
-            'ON CONFLICT(key) DO UPDATE SET count = count + 1, expires_at = excluded.expires_at ' +
-            'WHERE window_start = excluded.window_start'
-        )
-        .bind(rateLimitKey, windowStart, windowEnd)
-        .run();
+      // 原子递增（与 ratelimit.ts 共用同一份换窗重置 SQL）
+      await this.db.prepare(RATE_LIMIT_UPSERT_SQL).bind(rateLimitKey, windowStart, windowEnd).run();
 
       const row = await this.db
         .prepare('SELECT count FROM rate_limits WHERE key = ? AND window_start = ?')
@@ -656,8 +662,8 @@ export class SecretsManagerService {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    // 清理 IP（移除端口）
-    const sanitizedIp = ipAddress?.split(':')[0] || null;
+    // 规整 IP：IPv4 去端口、IPv6 保留完整形式（split(':') 会把 IPv6 截成第一段）
+    const sanitizedIp = normalizeClientIp(ipAddress)?.plain ?? null;
 
     // 截断 User-Agent 防止滥用
     const sanitizedUserAgent = userAgent?.substring(0, 255) || null;

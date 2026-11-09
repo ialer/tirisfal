@@ -27,6 +27,42 @@ function parseAllowedHosts(raw: string | null): string[] {
   }
 }
 
+/** 上游响应上限：超出即截断，且读取过程就受限（不先整体读入内存） */
+const MAX_UPSTREAM_RESPONSE_BYTES = 512 * 1024;
+
+export async function readUpstreamLimited(
+  response: Response,
+  maxBytes: number
+): Promise<{ bytes: Uint8Array; truncated: boolean }> {
+  if (!response.body) return { bytes: new Uint8Array(0), truncated: false };
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let truncated = false;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    if (total + value.byteLength > maxBytes) {
+      chunks.push(value.subarray(0, maxBytes - total));
+      total = maxBytes;
+      truncated = true;
+      await reader.cancel().catch(() => undefined);
+      break;
+    }
+    chunks.push(value);
+    total += value.byteLength;
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { bytes: out, truncated };
+}
+
 const HOP_BY_HOP_HEADERS = new Set([
   'host',
   'content-length',
@@ -129,13 +165,15 @@ async function assertProjectSecretAccess(
   env: Env,
   projectId: string,
   userId: string,
-  machineAccountId?: string
+  machineAccountId?: string,
+  requiredPermission: 'read' | 'write' = 'read'
 ): Promise<Response | null> {
   if (machineAccountId) {
     const accessCheck = await smService.validateProjectAccess(
       machineAccountId,
       projectId,
-      getClientIpAddress(request, env) || undefined
+      getClientIpAddress(request, env) || undefined,
+      requiredPermission
     );
     if (!accessCheck.allowed) {
       return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
@@ -214,7 +252,8 @@ export async function handleSecrets(
       env,
       body.project_id,
       userId,
-      machineAccountId
+      machineAccountId,
+      'write'
     );
     if (createAccessError) return createAccessError;
 
@@ -327,11 +366,12 @@ export async function handleSecrets(
     }
     const elapsedMs = Date.now() - started;
 
-    // 读取上游响应：截断 + 脱敏（防止上游把凭证回显出来）
-    const rawBytes = new Uint8Array(await upstream.arrayBuffer());
-    const maxBytes = 512 * 1024;
-    const truncated = rawBytes.length > maxBytes;
-    const text = new TextDecoder().decode(truncated ? rawBytes.slice(0, maxBytes) : rawBytes);
+    // 读取上游响应：流式限额 + 脱敏（不先整体读入内存，避免白名单主机的大响应打满 isolate）
+    const { bytes: rawBytes, truncated } = await readUpstreamLimited(
+      upstream,
+      MAX_UPSTREAM_RESPONSE_BYTES
+    );
+    const text = new TextDecoder().decode(rawBytes);
     // 任何长度的凭证都必须脱敏：旧实现只处理 length >= 8 的值，短凭证会原样回显。
     // redactSecret 同时覆盖 URL 编码 / base64 / base64url 变体。
     const redacted = redactSecret(text, secretValue);
@@ -398,6 +438,22 @@ export async function handleSecrets(
         return { ...s, value: read.value };
       })
     );
+    // 列表也是读取：按真实 secret_id 记审计（此前完全没有日志）
+    await Promise.all(
+      secrets.map((s) =>
+        smService.logSecretAccess(
+          machineAccountId || null,
+          userId,
+          s.id,
+          'read_batch',
+          getClientIpAddress(request, env),
+          request.headers.get('User-Agent'),
+          undefined,
+          projectId,
+          environment || undefined
+        )
+      )
+    );
     return jsonResponse({ data: decryptedSecrets });
   }
 
@@ -440,12 +496,8 @@ export async function handleSecrets(
       if (read.response) return read.response;
       const decryptedValue = read.value;
 
-      // 记录访问日志
-      const clientIp =
-        request.headers.get('CF-Connecting-IP') ||
-        request.headers.get('X-Real-IP') ||
-        request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
-        null;
+      // 记录访问日志（IP 必须走统一信任链，不能直读可伪造的代理头）
+      const clientIp = getClientIpAddress(request, env);
       await smService.logSecretAccess(
         machineAccountId || null,
         userId,
@@ -477,7 +529,8 @@ export async function handleSecrets(
         const accessCheck = await smService.validateProjectAccess(
           machineAccountId,
           secret.project_id,
-          clientIp || undefined
+          clientIp || undefined,
+          'write'
         );
         if (!accessCheck.allowed) {
           return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
@@ -525,7 +578,8 @@ export async function handleSecrets(
         const accessCheck = await smService.validateProjectAccess(
           machineAccountId,
           secret.project_id,
-          clientIp || undefined
+          clientIp || undefined,
+          'write'
         );
         if (!accessCheck.allowed) {
           return errorResponse(`Access denied: ${accessCheck.reason}`, 403);
