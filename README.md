@@ -146,6 +146,7 @@ curl -X POST $API/api/machine-accounts/<id>/projects/<project-id> \
 
 - **密码库零知识**：客户端 PBKDF2-600k；服务端只做二次哈希校验
 - **凭证加密**：v3 格式，每条密文独立 salt + HKDF-SHA-256（派生密钥不跨记录复用）；存量 v2/PBKDF2 密文读取时透明升级
+- **TOTP 密钥**：同样以 v3 加密落库（`TOTP_SECRET` 优先，未设回退 `ENCRYPTION_KEY`）；存量明文在下次成功验证后透明升级
 - **注入代理**：仅 https、拒绝 IP 字面量/私网/内网域名、`allowed_hosts` 单层通配、可选逐次 DoH 解析校验（`OUTBOUND_DNS_GUARD=1`）
 - **响应脱敏**：任意长度凭证，覆盖原文/URL 编码/base64/base64url 变体；上游响应流式读取，超 512KB 截断
 - **下载安全**：附件/Send 强制 `octet-stream` + `Content-Disposition: attachment` + sandbox CSP，杜绝同源 XSS
@@ -172,15 +173,15 @@ AI Agent ──machine token──▶ /api/secrets/use ──▶ 白名单上游
 
 ## 配置
 
-| 变量 | 必填 | 说明 |
-|---|:---:|---|
-| `JWT_SECRET` | ✅ | 访问令牌签名（≥32 字符） |
-| `ENCRYPTION_KEY` | ✅ | 凭证加密（使用后不可更换） |
-| `TOTP_SECRET` | ❌ | TOTP 加密密钥 |
-| `BACKUP_ENCRYPTION_KEY` | ❌ | 备份运行时密钥，未设回退 `JWT_SECRET` |
-| `CLIENT_IP_HEADER` | ❌ | 客户端 IP 头名，默认 `CF-Connecting-IP` |
-| `PROXY_SHARED_SECRET` | ❌ | 反代共享密钥，开启后直连伪造无效 |
-| `OUTBOUND_DNS_GUARD` | ❌ | `1` 开启注入目标逐次 DNS 解析校验 |
+| 变量 | 要求 | 说明 |
+|---|---|---|
+| `JWT_SECRET` | **必填** | 访问令牌签名（≥32 字符） |
+| `ENCRYPTION_KEY` | **必填** | 凭证 / TOTP 密钥 / 备份设置的默认加密密钥；使用后不可更换 |
+| `TOTP_SECRET` | 可选 | TOTP 密钥独立加密密钥；未设时回退 `ENCRYPTION_KEY`。轮换它会让已加密的 TOTP 密钥无法解密 |
+| `BACKUP_ENCRYPTION_KEY` | 可选 | 备份运行时密钥；未设时回退 `JWT_SECRET` |
+| `CLIENT_IP_HEADER` | 可选 | 客户端 IP 头名；默认 `CF-Connecting-IP` |
+| `PROXY_SHARED_SECRET` | 可选 | 反代共享密钥；设置后直连 worker 无法伪造客户端 IP |
+| `OUTBOUND_DNS_GUARD` | 可选 | `1` 开启注入目标逐次 DNS 解析校验；默认关闭 |
 
 ---
 
