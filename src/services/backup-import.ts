@@ -31,11 +31,20 @@ type BackupTableName =
   | 'user_revisions'
   | 'folders'
   | 'ciphers'
-  | 'attachments';
+  | 'attachments'
+  | 'machine_accounts'
+  | 'sm_projects'
+  | 'secrets'
+  | 'machine_account_projects';
 
 const BACKUP_TABLES: BackupTableName[] = [
   'config',
   'users',
+  // SM 表：父表在前，满足外键顺序（users → machine_accounts/sm_projects → secrets/grants）
+  'machine_accounts',
+  'sm_projects',
+  'secrets',
+  'machine_account_projects',
   'domain_settings',
   'user_revisions',
   'folders',
@@ -186,6 +195,10 @@ function buildResetImportTargetStatements(db: D1Database): D1PreparedStatement[]
     'DELETE FROM folders',
     'DELETE FROM domain_settings',
     'DELETE FROM user_revisions',
+    'DELETE FROM machine_account_projects',
+    'DELETE FROM secrets',
+    'DELETE FROM sm_projects',
+    'DELETE FROM machine_accounts',
     'DELETE FROM users',
     'DELETE FROM config',
   ].map((sql) => db.prepare(sql));
@@ -326,6 +339,10 @@ async function importPreparedBackupRows(
       archived_at: row.archived_at ?? null,
     })),
     attachments: cloneRows(payload.attachments || []),
+    machine_accounts: cloneRows(payload.machine_accounts || []),
+    sm_projects: cloneRows(payload.sm_projects || []),
+    secrets: cloneRows(payload.secrets || []),
+    machine_account_projects: cloneRows(payload.machine_account_projects || []),
   };
   await importBackupRows(db, preparedDb, true);
   return preparedDb;
@@ -732,6 +749,70 @@ async function importBackupRows(
       payload.users || []
     )
   );
+  // Secrets Manager：机器账号 token 哈希不在备份里，恢复后需重新签发
+  await runInsertBatch(
+    db,
+    tableName('machine_accounts'),
+    buildInsertStatements(
+      db,
+      tableName('machine_accounts'),
+      ['id', 'name', 'description', 'user_id', 'status', 'created_at', 'updated_at'],
+      payload.machine_accounts || []
+    )
+  );
+  await runInsertBatch(
+    db,
+    tableName('sm_projects'),
+    buildInsertStatements(
+      db,
+      tableName('sm_projects'),
+      ['id', 'name', 'description', 'user_id', 'created_at', 'updated_at'],
+      payload.sm_projects || []
+    )
+  );
+  await runInsertBatch(
+    db,
+    tableName('secrets'),
+    buildInsertStatements(
+      db,
+      tableName('secrets'),
+      [
+        'id',
+        'name',
+        'value',
+        'project_id',
+        'environment',
+        'note',
+        'user_id',
+        'created_at',
+        'updated_at',
+      ],
+      payload.secrets || []
+    )
+  );
+  await runInsertBatch(
+    db,
+    tableName('machine_account_projects'),
+    buildInsertStatements(
+      db,
+      tableName('machine_account_projects'),
+      [
+        'machine_account_id',
+        'project_id',
+        'permission',
+        'allowed_ip',
+        'allowed_hours',
+        'max_requests_per_minute',
+        'expires_at',
+        'created_at',
+        'mode',
+        'allowed_hosts',
+        'reveal_limit',
+        'reveal_count',
+      ],
+      payload.machine_account_projects || []
+    )
+  );
   await runInsertBatch(
     db,
     tableName('user_revisions'),
@@ -858,6 +939,10 @@ export async function importBackupArchiveBytes(
       folders: (db.folders || []).length,
       ciphers: (db.ciphers || []).length,
       attachments: (db.attachments || []).length,
+      machine_accounts: (db.machine_accounts || []).length,
+      sm_projects: (db.sm_projects || []).length,
+      secrets: (db.secrets || []).length,
+      machine_account_projects: (db.machine_account_projects || []).length,
     });
 
     await progress?.({
@@ -884,6 +969,10 @@ export async function importBackupArchiveBytes(
       folders: (db.folders || []).length,
       ciphers: (db.ciphers || []).length,
       attachments: restored.restoredAttachments.length,
+      machine_accounts: (db.machine_accounts || []).length,
+      sm_projects: (db.sm_projects || []).length,
+      secrets: (db.secrets || []).length,
+      machine_account_projects: (db.machine_account_projects || []).length,
     });
     await progress?.({
       source: 'local',
@@ -1011,6 +1100,10 @@ export async function importRemoteBackupArchiveBytes(
       folders: (db.folders || []).length,
       ciphers: (db.ciphers || []).length,
       attachments: (db.attachments || []).length,
+      machine_accounts: (db.machine_accounts || []).length,
+      sm_projects: (db.sm_projects || []).length,
+      secrets: (db.secrets || []).length,
+      machine_account_projects: (db.machine_account_projects || []).length,
     });
 
     await progress?.({
@@ -1042,6 +1135,10 @@ export async function importRemoteBackupArchiveBytes(
       folders: (db.folders || []).length,
       ciphers: (db.ciphers || []).length,
       attachments: restored.restoredAttachments.length,
+      machine_accounts: (db.machine_accounts || []).length,
+      sm_projects: (db.sm_projects || []).length,
+      secrets: (db.secrets || []).length,
+      machine_account_projects: (db.machine_account_projects || []).length,
     });
     await progress?.({
       source: 'remote',
