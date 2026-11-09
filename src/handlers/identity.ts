@@ -11,6 +11,11 @@ import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { errorResponse, identityErrorResponse, jsonResponse } from '../utils/response';
 import { constantTimeEquals } from '../utils/secure-compare';
 import { isTotpEnabled, verifyTotpTokenWithStep } from '../utils/totp';
+import {
+  decryptTotpSecret,
+  encryptTotpSecret,
+  isLegacyPlaintextTotpSecret,
+} from '../utils/totp-secret';
 import { generateUUID } from '../utils/uuid';
 import { issueSendAccessToken } from './sends';
 
@@ -277,7 +282,8 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
     // Optional 2FA: enabled only by per-user secret.
     let trustedTwoFactorTokenToReturn: string | undefined;
-    const effectiveTotpSecret = resolveTotpSecret(user.totpSecret);
+    const decryptedTotpSecret = await decryptTotpSecret(env, user.totpSecret);
+    const effectiveTotpSecret = resolveTotpSecret(decryptedTotpSecret);
     if (effectiveTotpSecret) {
       const canUseRecoveryCode = !!user.totpRecoveryCode;
       const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
@@ -333,6 +339,13 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
             loginIdentifier,
             clientIdentifier
           );
+        }
+        // 存量明文密钥：验证通过后透明升级为密文
+        if (effectiveTotpSecret && isLegacyPlaintextTotpSecret(user.totpSecret)) {
+          user.totpSecret = await encryptTotpSecret(env, effectiveTotpSecret);
+          user.updatedAt = new Date().toISOString();
+          await storage.saveUser(user);
+          AuthService.invalidateUserCache(user.id);
         }
         if (usedStep !== undefined) {
           // 原子占用 timestep：并发提交同一个 TOTP 码时只有一个请求能拿到 changes=1，
