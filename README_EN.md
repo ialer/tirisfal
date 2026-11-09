@@ -169,15 +169,15 @@ AI agent ──machine token──▶ /api/secrets/use ──▶ allow-listed up
 
 ## Configuration
 
-| Variable | Required | Description |
-|---|:---:|---|
-| `JWT_SECRET` | ✅ | Access-token signing (≥32 chars) |
-| `ENCRYPTION_KEY` | ✅ | Secret encryption (immutable once used) |
-| `TOTP_SECRET` | ❌ | TOTP encryption key |
-| `BACKUP_ENCRYPTION_KEY` | ❌ | Backup runtime key; falls back to `JWT_SECRET` |
-| `CLIENT_IP_HEADER` | ❌ | Client IP header, default `CF-Connecting-IP` |
-| `PROXY_SHARED_SECRET` | ❌ | Proxy shared secret; blocks direct-to-worker spoofing |
-| `OUTBOUND_DNS_GUARD` | ❌ | `1` enables per-request DNS resolution checks |
+| Variable | Requirement | Description |
+|---|---|---|
+| `JWT_SECRET` | **required** | Access-token signing (≥32 chars) |
+| `ENCRYPTION_KEY` | **required** | Default key for secrets / TOTP secrets / backup settings; immutable once used |
+| `TOTP_SECRET` | optional | Dedicated key for TOTP secrets; falls back to `ENCRYPTION_KEY`. Rotating it makes existing encrypted TOTP secrets unreadable |
+| `BACKUP_ENCRYPTION_KEY` | optional | Backup runtime key; falls back to `JWT_SECRET` |
+| `CLIENT_IP_HEADER` | optional | Client IP header, default `CF-Connecting-IP` |
+| `PROXY_SHARED_SECRET` | optional | Proxy shared secret; blocks direct-to-worker spoofing |
+| `OUTBOUND_DNS_GUARD` | optional | `1` enables per-request DNS resolution checks (off by default) |
 
 ---
 
