@@ -907,6 +907,17 @@ const es: Record<string, string> = {
   "txt_nav_layout_grouped_smart": "Grupos inteligentes",
   "txt_nav_layout_grouped_smart_desc": "Abrir grupos activos cuando haga falta",
   "txt_remove_domain": "Quitar dominio"
+,
+  "agent_proposals_tab": "Pendientes",
+  "agent_proposals_hint": "Las credenciales generadas por agentes aparecen aquí; al confirmar, el navegador las cifra en la bóveda.",
+  "agent_proposals_empty": "No hay elementos pendientes",
+  "agent_proposals_name": "Nombre",
+  "agent_proposals_project": "Proyecto",
+  "agent_proposals_expires": "Caduca",
+  "agent_proposals_accept": "Guardar en la bóveda",
+  "agent_proposals_load_failed": "Error al cargar",
+  "agent_proposals_accept_failed": "Error al guardar",
+  "agent_proposals_locked": "Desbloquea la bóveda primero"
 };
 
 export default es;

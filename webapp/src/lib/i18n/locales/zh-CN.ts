@@ -907,6 +907,17 @@ const zhCN: Record<string, string> = {
   "txt_nav_layout_grouped_smart": "智能分组",
   "txt_nav_layout_grouped_smart_desc": "当前相关分组自动展开",
   "txt_remove_domain": "移除域名"
+,
+  "agent_proposals_tab": "待确认",
+  "agent_proposals_hint": "AI 生成的凭证会先出现在这里；确认后由浏览器加密写入密码库。",
+  "agent_proposals_empty": "暂无待确认条目",
+  "agent_proposals_name": "名称",
+  "agent_proposals_project": "项目",
+  "agent_proposals_expires": "过期时间",
+  "agent_proposals_accept": "存入密码库",
+  "agent_proposals_load_failed": "加载失败",
+  "agent_proposals_accept_failed": "存入失败",
+  "agent_proposals_locked": "请先解锁密码库"
 };
 
 export default zhCN;

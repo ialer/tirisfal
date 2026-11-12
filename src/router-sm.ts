@@ -1,6 +1,7 @@
 // Secrets Manager 路由
 
 import { LIMITS } from './config/limits';
+import { handleAgentProposals } from './handlers/agent-proposals';
 import { handleMachineAccounts } from './handlers/sm-machine-accounts';
 import { handleProjects } from './handlers/sm-projects';
 import { handleSecrets } from './handlers/sm-secrets';
@@ -25,7 +26,8 @@ export async function handleSmRoute(
     !path.startsWith('/api/sm/') &&
     !path.startsWith('/api/machine-accounts') &&
     !path.startsWith('/api/projects') &&
-    !path.startsWith('/api/secrets')
+    !path.startsWith('/api/secrets') &&
+    !path.startsWith('/api/agent-proposals')
   ) {
     return null;
   }
@@ -60,7 +62,7 @@ export async function handleSmRoute(
   // 再尝试 Machine Account Token 认证
   const machineAuth = await verifyMachineToken(request, env);
   if (machineAuth) {
-    // Machine Account 只能访问被授权的 secrets
+    // Machine Account 只能访问被授权的 secrets，以及提交待确认提议
     if (path.startsWith('/api/secrets')) {
       return handleSecrets(
         request,
@@ -71,6 +73,12 @@ export async function handleSmRoute(
         env.ENCRYPTION_KEY,
         machineAuth.machineAccountId
       );
+    }
+    if (path.startsWith('/api/agent-proposals')) {
+      return handleAgentProposals(request, env, path, method, {
+        userId: machineAuth.userId,
+        machineAccountId: machineAuth.machineAccountId,
+      });
     }
     return errorResponse('禁止：机器账号无法管理资源', 403);
   }
@@ -94,6 +102,10 @@ export async function handleSmRoute(
 
   if (path.startsWith('/api/secrets')) {
     return handleSecrets(request, env, path, method, userId, env.ENCRYPTION_KEY);
+  }
+
+  if (path.startsWith('/api/agent-proposals')) {
+    return handleAgentProposals(request, env, path, method, { userId });
   }
 
   return null;

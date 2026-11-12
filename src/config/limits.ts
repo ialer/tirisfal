@@ -129,6 +129,10 @@ export const LIMITS = {
     // /config.version 与 /api/version 的统一版本号来源
     bitwardenServerVersion: '2026.1.0',
   },
+  agentProposal: {
+    // 待人类确认的 Agent 提议保留时长（毫秒）；过期惰性清理
+    ttlMs: 30 * 24 * 60 * 60 * 1000,
+  },
   machineAccountToken: {
     // 默认过期天数
     defaultExpiryDays: 30,

@@ -167,6 +167,26 @@ AI agent ──machine token──▶ /api/secrets/use ──▶ allow-listed up
 
 ---
 
+## How AI-generated passwords reach the vault
+
+The vault is zero-knowledge: **the server has no master key and cannot encrypt vault items for an agent**, so agents cannot write `/api/ciphers` directly. tirisfal uses an "proposal → human confirm" flow:
+
+```bash
+# 1) Agent submits (requires write permission on the project)
+curl -X POST $API/api/agent-proposals \
+  -H "Authorization: Bearer <machine-token>" -H "Content-Type: application/json" \
+  -d '{"project_id":"<id>","name":"GENERATED_DB_PASS","value":"<generated value>"}'
+
+# 2) Human: Web → Secrets Manager → "Pending" → Save to vault
+#    The browser encrypts with the master key and calls /api/ciphers, then deletes the proposal
+```
+
+- Proposal values are encrypted at rest with the server `ENCRYPTION_KEY` (v3) and expire after 30 days
+- Only the **owning user** can read a proposal in plaintext; machine accounts cannot
+- Encryption happens in the browser on confirm, so zero-knowledge is preserved
+
+---
+
 ## Configuration
 
 | Variable | Requirement | Description |

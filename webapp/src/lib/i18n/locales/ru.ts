@@ -907,6 +907,17 @@ const ru: Record<string, string> = {
   "txt_nav_layout_grouped_smart": "Умные группы",
   "txt_nav_layout_grouped_smart_desc": "Открывать активные группы по необходимости",
   "txt_remove_domain": "Удалить домен"
+,
+  "agent_proposals_tab": "Ожидают",
+  "agent_proposals_hint": "Учётные данные от агентов сначала появляются здесь; при подтверждении браузер шифрует их в хранилище.",
+  "agent_proposals_empty": "Нет ожидающих записей",
+  "agent_proposals_name": "Название",
+  "agent_proposals_project": "Проект",
+  "agent_proposals_expires": "Истекает",
+  "agent_proposals_accept": "Сохранить в хранилище",
+  "agent_proposals_load_failed": "Не удалось загрузить",
+  "agent_proposals_accept_failed": "Не удалось сохранить",
+  "agent_proposals_locked": "Сначала разблокируйте хранилище"
 };
 
 export default ru;

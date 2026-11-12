@@ -527,6 +527,144 @@ export class SecretsManagerService {
     return { allowed: true };
   }
 
+  // ==================== Agent 提议入库 ====================
+
+  /**
+   * Agent 提交待人类确认的凭证（AI 生成/获取的密码）。
+   * 值用服务端密钥加密暂存；人类确认后由浏览器端用主密钥重新加密成 cipher。
+   */
+  async createAgentProposal(
+    machineAccountId: string,
+    userId: string,
+    input: {
+      project_id: string;
+      name: string;
+      value: string;
+      environment?: string;
+      note?: string;
+      ttlMs: number;
+    }
+  ): Promise<{ id: string; expires_at: string }> {
+    const id = crypto.randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + input.ttlMs).toISOString();
+    await this.db
+      .prepare(
+        `INSERT INTO agent_proposals
+         (id, user_id, project_id, machine_account_id, name, value, environment, note, status, created_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+      )
+      .bind(
+        id,
+        userId,
+        input.project_id,
+        machineAccountId,
+        input.name,
+        await encryptFast(input.value, this.encryptionKey),
+        input.environment || 'prod',
+        input.note ?? null,
+        now.toISOString(),
+        expiresAt
+      )
+      .run();
+    return { id, expires_at: expiresAt };
+  }
+
+  /** 列出属于该用户的待确认提议（不返回值） */
+  async listAgentProposals(userId: string): Promise<
+    Array<{
+      id: string;
+      project_id: string;
+      project_name: string | null;
+      machine_account_id: string | null;
+      name: string;
+      environment: string;
+      note: string | null;
+      created_at: string;
+      expires_at: string;
+    }>
+  > {
+    await this.cleanupExpiredAgentProposals();
+    const result = await this.db
+      .prepare(
+        `SELECT p.id, p.project_id, sp.name AS project_name, p.machine_account_id, p.name,
+                p.environment, p.note, p.created_at, p.expires_at
+         FROM agent_proposals p
+         LEFT JOIN sm_projects sp ON sp.id = p.project_id
+         WHERE p.user_id = ? AND p.status = 'pending'
+         ORDER BY p.created_at DESC`
+      )
+      .bind(userId)
+      .all<{
+        id: string;
+        project_id: string;
+        project_name: string | null;
+        machine_account_id: string | null;
+        name: string;
+        environment: string;
+        note: string | null;
+        created_at: string;
+        expires_at: string;
+      }>();
+    return result.results || [];
+  }
+
+  /** 读取单条提议（解密返回值；仅限属主用户） */
+  async getAgentProposal(
+    userId: string,
+    id: string
+  ): Promise<{
+    id: string;
+    name: string;
+    value: string;
+    note: string | null;
+    project_id: string;
+  } | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT id, name, value, note, project_id FROM agent_proposals
+         WHERE id = ? AND user_id = ? AND status = 'pending' AND expires_at > ?`
+      )
+      .bind(id, userId, new Date().toISOString())
+      .first<{
+        id: string;
+        name: string;
+        value: string;
+        note: string | null;
+        project_id: string;
+      }>();
+    if (!row) return null;
+    return { ...row, value: await decryptFast(row.value, this.encryptionKey) };
+  }
+
+  /** 删除（人类拒绝）或确认后清理；属主用户或创建它的机器账号都可删除 */
+  async deleteAgentProposal(
+    userId: string,
+    id: string,
+    machineAccountId?: string
+  ): Promise<boolean> {
+    const result = machineAccountId
+      ? await this.db
+          .prepare(
+            'DELETE FROM agent_proposals WHERE id = ? AND user_id = ? AND machine_account_id = ?'
+          )
+          .bind(id, userId, machineAccountId)
+          .run()
+      : await this.db
+          .prepare('DELETE FROM agent_proposals WHERE id = ? AND user_id = ?')
+          .bind(id, userId)
+          .run();
+    return Number(result.meta.changes || 0) > 0;
+  }
+
+  /** 过期清理（惰性执行，避免额外 cron） */
+  async cleanupExpiredAgentProposals(): Promise<void> {
+    await this.db
+      .prepare('DELETE FROM agent_proposals WHERE expires_at <= ?')
+      .bind(new Date().toISOString())
+      .run();
+  }
+
   async revokeProjectAccess(machineAccountId: string, projectId: string): Promise<boolean> {
     const result = await this.db
       .prepare(

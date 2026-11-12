@@ -171,6 +171,27 @@ AI Agent ──machine token──▶ /api/secrets/use ──▶ 白名单上游
 
 ---
 
+## AI 生成的密码怎么进密码库
+
+密码库是零知识的：**服务端没有主密钥，无法替 Agent 加密条目**。所以 Agent 不能直接写 `/api/ciphers`。
+tirisfal 用「提议 → 人类确认」解决：
+
+```bash
+# 1) Agent 提交（需要该项目的 write 授权）
+curl -X POST $API/api/agent-proposals \
+  -H "Authorization: Bearer <machine-token>" -H "Content-Type: application/json" \
+  -d '{"project_id":"<id>","name":"GENERATED_DB_PASS","value":"<AI 生成的值>"}'
+
+# 2) 人类：Web → Secrets Manager → 「待确认」 → 存入密码库
+#    浏览器端用主密钥加密后调用 /api/ciphers，随后自动删除提议
+```
+
+- 提议值用服务端 `ENCRYPTION_KEY`（v3）加密暂存，默认 30 天过期
+- 读取单条提议明文只允许**属主用户**；机器账号不能读取
+- 确认时加密发生在浏览器，零知识不被破坏
+
+---
+
 ## 配置
 
 | 变量 | 要求 | 说明 |
