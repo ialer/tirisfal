@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { Shield, Key, Folder, Plus, Trash2, RefreshCw, Copy, Check, Eye, EyeOff, Zap, Search } from 'lucide-preact';
+import { Shield, Key, Folder, Plus, Trash2, RefreshCw, Copy, Check, Eye, EyeOff, Search } from 'lucide-preact';
 import { t } from '@/lib/i18n';
 
 interface MachineAccount {
