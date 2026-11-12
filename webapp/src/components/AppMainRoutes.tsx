@@ -1,13 +1,39 @@
 import { lazy, Suspense } from 'preact/compat';
 import { useEffect } from 'preact/hooks';
 import { Link, Route, Switch } from 'wouter';
-import { ArrowUpDown, Cloud, Globe2, LogOut, Settings as SettingsIcon, Shield, ShieldUser } from 'lucide-preact';
+import {
+  ArrowUpDown,
+  Cloud,
+  Globe2,
+  LogOut,
+  Settings as SettingsIcon,
+  Shield,
+  ShieldUser,
+} from 'lucide-preact';
 import type { ImportAttachmentFile, ImportResultSummary } from '@/components/ImportPage';
 import LoadingState from '@/components/LoadingState';
-import type { AdminBackupImportResponse, AdminBackupRunResponse, AdminBackupSettings, RemoteBackupBrowserResponse } from '@/lib/api/backup';
+import type {
+  AdminBackupImportResponse,
+  AdminBackupRunResponse,
+  AdminBackupSettings,
+  RemoteBackupBrowserResponse,
+} from '@/lib/api/backup';
 import type { CiphersImportPayload } from '@/lib/api/vault';
 import { t } from '@/lib/i18n';
-import type { AdminInvite, AdminUser, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, VaultDraft } from '@/lib/types';
+import type {
+  AdminInvite,
+  AdminUser,
+  AuthorizedDevice,
+  Cipher,
+  CustomEquivalentDomain,
+  DomainRules,
+  Folder as VaultFolder,
+  Profile,
+  Send,
+  SendDraft,
+  SessionState,
+  VaultDraft,
+} from '@/lib/types';
 import type { ExportRequest } from '@/lib/export-formats';
 
 const VaultPage = lazy(() => import('@/components/VaultPage'));
@@ -77,7 +103,11 @@ export interface AppMainRoutesProps {
   ) => Promise<ImportResultSummary>;
   onExport: (request: ExportRequest) => Promise<void>;
   onCreateVaultItem: (draft: VaultDraft, attachments?: File[]) => Promise<void>;
-  onUpdateVaultItem: (cipher: Cipher, draft: VaultDraft, options?: { addFiles?: File[]; removeAttachmentIds?: string[] }) => Promise<void>;
+  onUpdateVaultItem: (
+    cipher: Cipher,
+    draft: VaultDraft,
+    options?: { addFiles?: File[]; removeAttachmentIds?: string[] }
+  ) => Promise<void>;
   onDeleteVaultItem: (cipher: Cipher) => Promise<void>;
   onArchiveVaultItem: (cipher: Cipher) => Promise<void>;
   onUnarchiveVaultItem: (cipher: Cipher) => Promise<void>;
@@ -104,7 +134,11 @@ export interface AppMainRoutesProps {
   onBulkDeleteSends: (ids: string[]) => Promise<void>;
   uploadingSendFileName: string;
   sendUploadPercent: number | null;
-  onChangePassword: (currentPassword: string, nextPassword: string, nextPassword2: string) => Promise<void>;
+  onChangePassword: (
+    currentPassword: string,
+    nextPassword: string,
+    nextPassword2: string
+  ) => Promise<void>;
   onSavePasswordHint: (masterPasswordHint: string) => Promise<void>;
   onEnableTotp: (secret: string, token: string) => Promise<void>;
   onOpenDisableTotp: () => void;
@@ -115,7 +149,10 @@ export interface AppMainRoutesProps {
   onSessionTimeoutActionChange: (action: 'lock' | 'logout') => void;
   onRefreshAuthorizedDevices: () => Promise<void>;
   onRefreshDomainRules: () => void;
-  onSaveDomainRules: (customEquivalentDomains: CustomEquivalentDomain[], excludedGlobalEquivalentDomains: number[]) => Promise<void>;
+  onSaveDomainRules: (
+    customEquivalentDomains: CustomEquivalentDomain[],
+    excludedGlobalEquivalentDomains: number[]
+  ) => Promise<void>;
   onRenameAuthorizedDevice: (device: AuthorizedDevice, name: string) => Promise<void>;
   onRevokeDeviceTrust: (device: AuthorizedDevice) => void;
   onRemoveDevice: (device: AuthorizedDevice) => void;
@@ -129,27 +166,70 @@ export interface AppMainRoutesProps {
   onRevokeInvite: (code: string) => Promise<void>;
   onExportBackup: (includeAttachments?: boolean) => Promise<void>;
   onImportBackup: (file: File, replaceExisting?: boolean) => Promise<AdminBackupImportResponse>;
-  onImportBackupAllowingChecksumMismatch: (file: File, replaceExisting?: boolean) => Promise<AdminBackupImportResponse>;
+  onImportBackupAllowingChecksumMismatch: (
+    file: File,
+    replaceExisting?: boolean
+  ) => Promise<AdminBackupImportResponse>;
   onLoadBackupSettings: () => Promise<AdminBackupSettings>;
   onSaveBackupSettings: (settings: AdminBackupSettings) => Promise<AdminBackupSettings>;
   onRunRemoteBackup: (destinationId?: string | null) => Promise<AdminBackupRunResponse>;
-  onListRemoteBackups: (destinationId: string, path: string) => Promise<RemoteBackupBrowserResponse>;
-  onDownloadRemoteBackup: (destinationId: string, path: string, onProgress?: (percent: number | null) => void) => Promise<void>;
-  onInspectRemoteBackup: (destinationId: string, path: string) => Promise<{ object: 'backup-remote-integrity'; destinationId: string; path: string; fileName: string; integrity: { hasChecksumPrefix: boolean; expectedPrefix: string | null; actualPrefix: string; matches: boolean } }>;
+  onListRemoteBackups: (
+    destinationId: string,
+    path: string
+  ) => Promise<RemoteBackupBrowserResponse>;
+  onDownloadRemoteBackup: (
+    destinationId: string,
+    path: string,
+    onProgress?: (percent: number | null) => void
+  ) => Promise<void>;
+  onInspectRemoteBackup: (
+    destinationId: string,
+    path: string
+  ) => Promise<{
+    object: 'backup-remote-integrity';
+    destinationId: string;
+    path: string;
+    fileName: string;
+    integrity: {
+      hasChecksumPrefix: boolean;
+      expectedPrefix: string | null;
+      actualPrefix: string;
+      matches: boolean;
+    };
+  }>;
   onDeleteRemoteBackup: (destinationId: string, path: string) => Promise<void>;
-  onRestoreRemoteBackup: (destinationId: string, path: string, replaceExisting?: boolean) => Promise<AdminBackupImportResponse>;
-  onRestoreRemoteBackupAllowingChecksumMismatch: (destinationId: string, path: string, replaceExisting?: boolean) => Promise<AdminBackupImportResponse>;
+  onRestoreRemoteBackup: (
+    destinationId: string,
+    path: string,
+    replaceExisting?: boolean
+  ) => Promise<AdminBackupImportResponse>;
+  onRestoreRemoteBackupAllowingChecksumMismatch: (
+    destinationId: string,
+    path: string,
+    replaceExisting?: boolean
+  ) => Promise<AdminBackupImportResponse>;
 }
 
 export default function AppMainRoutes(props: AppMainRoutesProps) {
-  const importRoutePaths = [props.importRoute, '/tools/import', '/tools/import-export', '/tools/import-data', '/import', '/import-export'] as const;
+  const importRoutePaths = [
+    props.importRoute,
+    '/tools/import',
+    '/tools/import-export',
+    '/tools/import-data',
+    '/import',
+    '/import-export',
+  ] as const;
   const isAdmin = String(props.profile?.role || '').toLowerCase() === 'admin';
   const importPageContent = (
     <Suspense fallback={<RouteContentFallback />}>
       <ImportPage
         onImport={props.onImport}
         onImportEncryptedRaw={props.onImportEncryptedRaw}
-        accountKeys={props.session?.symEncKey && props.session?.symMacKey ? { encB64: props.session.symEncKey, macB64: props.session.symMacKey } : null}
+        accountKeys={
+          props.session?.symEncKey && props.session?.symMacKey
+            ? { encB64: props.session.symEncKey, macB64: props.session.symMacKey }
+            : null
+        }
         onNotify={props.onNotify}
         folders={props.decryptedFolders}
         onExport={props.onExport}
@@ -161,8 +241,14 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
     <div className="stack">
       {props.mobileLayout && (
         <div className="mobile-settings-subhead">
-          <button type="button" className="btn btn-secondary small mobile-settings-back" onClick={() => props.onNavigate(props.settingsHomeRoute)}>
-            <span className="btn-icon" aria-hidden="true">{"<"}</span>
+          <button
+            type="button"
+            className="btn btn-secondary small mobile-settings-back"
+            onClick={() => props.onNavigate(props.settingsHomeRoute)}
+          >
+            <span className="btn-icon" aria-hidden="true">
+              {'<'}
+            </span>
             {t('txt_back')}
           </button>
         </div>
@@ -192,7 +278,11 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
       </Route>
       <Route path="/vault/totp">
         <Suspense fallback={<RouteContentFallback />}>
-          <TotpCodesPage ciphers={props.decryptedCiphers} loading={props.ciphersLoading} onNotify={props.onNotify} />
+          <TotpCodesPage
+            ciphers={props.decryptedCiphers}
+            loading={props.ciphersLoading}
+            onNotify={props.onNotify}
+          />
         </Suspense>
       </Route>
       <Route path="/vault">
@@ -235,8 +325,14 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
           <div className="stack">
             {props.mobileLayout && (
               <div className="mobile-settings-subhead">
-                <button type="button" className="btn btn-secondary small mobile-settings-back" onClick={() => props.onNavigate(props.settingsHomeRoute)}>
-                  <span className="btn-icon" aria-hidden="true">{"<"}</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary small mobile-settings-back"
+                  onClick={() => props.onNavigate(props.settingsHomeRoute)}
+                >
+                  <span className="btn-icon" aria-hidden="true">
+                    {'<'}
+                  </span>
                   {t('txt_back')}
                 </button>
               </div>
@@ -297,7 +393,11 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
                 </Link>
               )}
             </div>
-            <button type="button" className="btn btn-secondary mobile-settings-logout" onClick={props.onLogout}>
+            <button
+              type="button"
+              className="btn btn-secondary mobile-settings-logout"
+              onClick={props.onLogout}
+            >
               <LogOut size={14} className="btn-icon" />
               {t('txt_sign_out')}
             </button>
@@ -310,8 +410,14 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
         <div className="stack">
           {props.mobileLayout && (
             <div className="mobile-settings-subhead">
-              <button type="button" className="btn btn-secondary small mobile-settings-back" onClick={() => props.onNavigate(props.settingsHomeRoute)}>
-                <span className="btn-icon" aria-hidden="true">{"<"}</span>
+              <button
+                type="button"
+                className="btn btn-secondary small mobile-settings-back"
+                onClick={() => props.onNavigate(props.settingsHomeRoute)}
+              >
+                <span className="btn-icon" aria-hidden="true">
+                  {'<'}
+                </span>
                 {t('txt_back')}
               </button>
             </div>
@@ -335,8 +441,14 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
         <div className="stack domain-rules-route">
           {props.mobileLayout && (
             <div className="mobile-settings-subhead">
-              <button type="button" className="btn btn-secondary small mobile-settings-back" onClick={() => props.onNavigate(props.settingsHomeRoute)}>
-                <span className="btn-icon" aria-hidden="true">{"<"}</span>
+              <button
+                type="button"
+                className="btn btn-secondary small mobile-settings-back"
+                onClick={() => props.onNavigate(props.settingsHomeRoute)}
+              >
+                <span className="btn-icon" aria-hidden="true">
+                  {'<'}
+                </span>
                 {t('txt_back')}
               </button>
             </div>
@@ -357,8 +469,14 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
         <div className="stack">
           {props.mobileLayout && (
             <div className="mobile-settings-subhead">
-              <button type="button" className="btn btn-secondary small mobile-settings-back" onClick={() => props.onNavigate(props.settingsHomeRoute)}>
-                <span className="btn-icon" aria-hidden="true">{"<"}</span>
+              <button
+                type="button"
+                className="btn btn-secondary small mobile-settings-back"
+                onClick={() => props.onNavigate(props.settingsHomeRoute)}
+              >
+                <span className="btn-icon" aria-hidden="true">
+                  {'<'}
+                </span>
                 {t('txt_back')}
               </button>
             </div>
@@ -391,7 +509,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
       <Route path="/secrets">
         <Suspense fallback={<RouteContentFallback />}>
           {props.authedFetch ? (
-            <SecretsManagerPage authedFetch={props.authedFetch} />
+            <SecretsManagerPage authedFetch={props.authedFetch} session={props.session} />
           ) : (
             <div className="card text-center" style={{ padding: '48px' }}>
               <p className="text-muted">加载中...</p>
@@ -404,8 +522,14 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
           <div className="stack">
             {props.mobileLayout && (
               <div className="mobile-settings-subhead">
-                <button type="button" className="btn btn-secondary small mobile-settings-back" onClick={() => props.onNavigate(props.settingsHomeRoute)}>
-                  <span className="btn-icon" aria-hidden="true">{"<"}</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary small mobile-settings-back"
+                  onClick={() => props.onNavigate(props.settingsHomeRoute)}
+                >
+                  <span className="btn-icon" aria-hidden="true">
+                    {'<'}
+                  </span>
                   {t('txt_back')}
                 </button>
               </div>
@@ -422,7 +546,9 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
                 onInspectRemoteBackup={props.onInspectRemoteBackup}
                 onDeleteRemoteBackup={props.onDeleteRemoteBackup}
                 onRestoreRemoteBackup={props.onRestoreRemoteBackup}
-                onRestoreRemoteBackupAllowingChecksumMismatch={props.onRestoreRemoteBackupAllowingChecksumMismatch}
+                onRestoreRemoteBackupAllowingChecksumMismatch={
+                  props.onRestoreRemoteBackupAllowingChecksumMismatch
+                }
                 onSaveSettings={props.onSaveBackupSettings}
                 onRunRemoteBackup={props.onRunRemoteBackup}
                 onNotify={props.onNotify}

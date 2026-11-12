@@ -907,6 +907,17 @@ const zhTW: Record<string, string> = {
   "txt_nav_layout_grouped_smart": "智能分組",
   "txt_nav_layout_grouped_smart_desc": "目前相關分組自動展開",
   "txt_remove_domain": "移除域名"
+,
+  "agent_proposals_tab": "待確認",
+  "agent_proposals_hint": "AI 生成的憑證會先出現在這裡；確認後由瀏覽器加密寫入密碼庫。",
+  "agent_proposals_empty": "暫無待確認項目",
+  "agent_proposals_name": "名稱",
+  "agent_proposals_project": "專案",
+  "agent_proposals_expires": "過期時間",
+  "agent_proposals_accept": "存入密碼庫",
+  "agent_proposals_load_failed": "載入失敗",
+  "agent_proposals_accept_failed": "存入失敗",
+  "agent_proposals_locked": "請先解鎖密碼庫"
 };
 
 export default zhTW;
