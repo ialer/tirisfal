@@ -35,7 +35,7 @@ curl -s https://<your-domain>/api/health   # 期望 {"status":"healthy","service
 
 ## 3. 数据库迁移
 
-`migrations/*.sql` 按序号执行，当前到 **0010**：
+`migrations/*.sql` 按序号执行，当前到 **0012**：
 
 | 迁移 | 内容 |
 |---|---|
@@ -45,6 +45,8 @@ curl -s https://<your-domain>/api/health   # 期望 {"status":"healthy","service
 | 0008 | Agent 提议入库：`agent_proposals`（值 v3 加密，默认 30 天保留） |
 | 0009 | 审计表重建：`secret_id` 可空 + ON DELETE SET NULL（保留删除审计） |
 | 0010 | 恢复审计 `user_id` 索引 |
+| 0011 | YubiKey OTP：`user_yubikeys` |
+| 0012 | YubiKey 本地防重放：`last_otp_hash` |
 
 执行方式（二选一）：
 

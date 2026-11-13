@@ -77,6 +77,8 @@ worker 拿不到 socket 对端地址，客户端 IP 只来自请求头：
 |---|---|---|
 | `CLIENT_IP_HEADER` | `CF-Connecting-IP` | 反代注入的头名 |
 | `TRUST_CLIENT_IP_HEADER` | 空 | **必须设为 `1`**（v1.6.1 起默认不信任请求头）；不开则客户端 IP 为空，公开接口 403、`allowed_ip` 全部 fail-closed |
+| `YUBICO_CLIENT_ID` / `YUBICO_SECRET` | 空 | YubiKey OTP 2FA；成对写入 `secrets/dev.vars` 才启用 |
+| `YUBICO_VALIDATION_URL` | YubiCloud | 自建 yubikey-val 时覆盖 |
 | `PROXY_SHARED_SECRET` | 空 | 设置后，请求还必须带匹配的 `X-Tirisfal-Proxy` 头才被信任；**建议写进 `secrets/dev.vars`**，不要用容器环境变量（`docker inspect` 可见） |
 
 没有可信 IP 时，公开接口返回 `403 需要客户端 IP`，`allowed_ip` 授权一律拒绝（fail-closed）。

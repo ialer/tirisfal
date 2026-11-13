@@ -10,6 +10,7 @@ const WORKER_HANDLED_PREFIXES = [
   '/identity/',
   '/icons/',
   '/notifications/',
+  '/two-factor/',
   '/.well-known/',
 ] as const;
 
