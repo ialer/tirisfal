@@ -79,6 +79,8 @@ npx wrangler secret put JWT_SECRET        # openssl rand -hex 32
 npx wrangler secret put ENCRYPTION_KEY    # openssl rand -base64 32 (immutable once used)
 npx wrangler d1 migrations apply tirisfal-db --remote
 npm run deploy
+# wrangler.toml ships [vars] TRUST_CLIENT_IP_HEADER = "1": Cloudflare injects
+# CF-Connecting-IP at the edge and it must be trusted explicitly; removing it breaks login/register
 ```
 
 ### B. Docker self-hosting

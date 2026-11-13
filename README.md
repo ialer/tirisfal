@@ -79,6 +79,8 @@ npx wrangler secret put JWT_SECRET        # openssl rand -hex 32
 npx wrangler secret put ENCRYPTION_KEY    # openssl rand -base64 32（一旦使用不可更换）
 npx wrangler d1 migrations apply tirisfal-db --remote
 npm run deploy
+# wrangler.toml 已带 [vars] TRUST_CLIENT_IP_HEADER = "1"：Cloudflare 边缘会注入
+# CF-Connecting-IP，必须显式信任；删掉它登录/注册会 403
 ```
 
 ### B. Docker 自托管（推荐内网/团队）
