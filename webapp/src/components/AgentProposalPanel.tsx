@@ -70,7 +70,10 @@ export default function AgentProposalPanel({ authedFetch, session }: Props) {
     setError('');
     try {
       const detailResp = await authedFetch(`/api/agent-proposals/${encodeURIComponent(item.id)}`);
-      if (!detailResp.ok) throw new Error('detail failed');
+      if (!detailResp.ok) {
+        setError(await errorText(detailResp, t('agent_proposals_load_failed') || '加载失败'));
+        return;
+      }
       const detail = (await detailResp.json()) as {
         name: string;
         value: string;
@@ -90,24 +93,48 @@ export default function AgentProposalPanel({ authedFetch, session }: Props) {
         loginFido2Credentials: [],
       } as unknown as VaultDraft;
       await createCipher(authedFetch, session, draft);
-      await authedFetch(`/api/agent-proposals/${encodeURIComponent(item.id)}`, {
+      // 删除失败必须显式报错：否则条目留在列表里，用户再点一次会在密码库生成重复凭证
+      const delResp = await authedFetch(`/api/agent-proposals/${encodeURIComponent(item.id)}`, {
         method: 'DELETE',
       });
+      if (!delResp.ok) {
+        setError(await errorText(delResp, t('agent_proposals_accept_failed') || '存入失败'));
+        await load();
+        return;
+      }
       await load();
-    } catch {
-      setError(t('agent_proposals_accept_failed') || '存入失败');
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t('agent_proposals_accept_failed') || '存入失败'
+      );
     } finally {
       setBusy('');
     }
   };
 
   const reject = async (item: AgentProposal) => {
+    if (
+      !window.confirm(
+        `${t('agent_proposals_reject_confirm') || '确认丢弃这条待确认凭证？'} ${item.name}`
+      )
+    ) {
+      return;
+    }
     setBusy(item.id);
+    setError('');
     try {
-      await authedFetch(`/api/agent-proposals/${encodeURIComponent(item.id)}`, {
+      const resp = await authedFetch(`/api/agent-proposals/${encodeURIComponent(item.id)}`, {
         method: 'DELETE',
       });
+      if (!resp.ok) {
+        setError(await errorText(resp, t('agent_proposals_reject_failed') || '删除失败'));
+        return;
+      }
       await load();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t('agent_proposals_reject_failed') || '删除失败'
+      );
     } finally {
       setBusy('');
     }
