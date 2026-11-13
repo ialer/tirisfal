@@ -20,6 +20,11 @@ export interface Env {
    */
   CLIENT_IP_HEADER?: string;
   /**
+   * 可选：显式信任 CLIENT_IP_HEADER（自托管反代场景，如 Caddy 注入）。
+   * 未设置且不在 Cloudflare 边缘时，客户端 IP 头会被忽略（防伪造 allowed_ip）。
+   */
+  TRUST_CLIENT_IP_HEADER?: string;
+  /**
    * 可选：反代共享密钥。设置后，只有携带匹配 X-Tirisfal-Proxy 头的请求才被信任，
    * 用来防止直连 worker 端口伪造客户端 IP（绕过限流与 allowed_ip）。
    */

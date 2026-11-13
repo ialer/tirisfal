@@ -228,6 +228,12 @@ export async function handlePublicRoute(
 
   // 身份验证令牌端点
   if (path === '/identity/connect/token' && method === 'POST') {
+    // 令牌端点必须有请求级限流：仅靠登录失败锁定挡不住「每次换 IP/换账号」的猜解
+    const blocked = await enforcePublicRateLimit(
+      'identity-token',
+      LIMITS.rateLimit.sensitivePublicRequestsPerMinute
+    );
+    if (blocked) return blocked;
     return handleToken(request, env);
   }
 

@@ -28,16 +28,18 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       CLIENT_IP_HEADER: CF-Connecting-IP
+      # 自托管反代显式信任注入的客户端 IP 头（否则会被忽略，allowed_ip 全部 fail-closed）
+      TRUST_CLIENT_IP_HEADER: '1'
       # 可选加固：与本文件下方 caddy 的 PROXY_SHARED_SECRET 值保持一致
       # PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:-}
     networks:
       - edge
     expose:
-      - "8787"
+      - '8787'
 
   # 内网入口：MagicDNS / 虚拟 IP → Caddy(内部 CA) → worker
   caddy:
-    profiles: ["proxy"]
+    profiles: ['proxy']
     image: caddy:2-alpine
     container_name: tirisfal-caddy
     restart: unless-stopped
@@ -45,7 +47,7 @@ services:
       - tirisfal
     ports:
       # 只绑虚拟网 IP（不绑 0.0.0.0），团队偏好：服务只暴露在 EasyTier 内网
-      - "${TIRISFAL_BIND_IP:-100.100.1.1}:${TIRISFAL_HTTPS_PORT:-443}:443"
+      - '${TIRISFAL_BIND_IP:-100.100.1.1}:${TIRISFAL_HTTPS_PORT:-443}:443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -57,7 +59,7 @@ services:
 
   # 公网入口：Cloudflare Tunnel（回源到 caddy:80，由 CF 边缘终止 TLS 并注入客户端 IP）
   cloudflared:
-    profiles: ["tunnel"]
+    profiles: ['tunnel']
     image: cloudflare/cloudflared:latest
     container_name: tirisfal-tunnel
     restart: unless-stopped

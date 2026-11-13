@@ -37,10 +37,16 @@ describe('client-ip · 规整', () => {
 });
 
 describe('client-ip · 信任链', () => {
-  it('未配置共享密钥时沿用 CF 头（Cloudflare 部署）', () => {
+  it('显式信任时采信 CF 头（Cloudflare 部署 / 自托管反代）', () => {
     const r = req({ 'CF-Connecting-IP': '1.2.3.4' });
-    expect(resolveClientIp(r, {})?.plain).toBe('1.2.3.4');
-    expect(getClientIdentifier(r, {})).toBe('ip4:1.2.3.4');
+    const env = { TRUST_CLIENT_IP_HEADER: '1' };
+    expect(resolveClientIp(r, env)?.plain).toBe('1.2.3.4');
+    expect(getClientIdentifier(r, env)).toBe('ip4:1.2.3.4');
+  });
+
+  it('未显式信任且非 Cloudflare 边缘时忽略该头（防伪造 allowed_ip）', () => {
+    const r = req({ 'CF-Connecting-IP': '1.2.3.4' });
+    expect(resolveClientIp(r, {})).toBeNull();
   });
 
   it('配置了共享密钥：头匹配才采信', () => {
