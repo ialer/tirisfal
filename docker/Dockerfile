@@ -44,6 +44,6 @@ RUN useradd --uid 10001 --user-group --create-home --home-dir /data --shell /usr
 
 USER 10001
 EXPOSE 8787
-HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8787/api/health >/dev/null || exit 1
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/docker/docker-entrypoint.sh"]

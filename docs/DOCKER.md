@@ -103,6 +103,7 @@ docker compose up -d       # 启动时自动补跑新增迁移
 
 - **从 ≤ v1.6.0 升级**：compose 必须加 `TRUST_CLIENT_IP_HEADER=1`（旧 compose 无此变量，拉新镜像后全站 403）
 - 迁移只允许 additive DDL；失败会停在 healthy 之前
+- 默认资源限制：**1 CPU / 512MB 内存 / 日志 3×10MB**，优雅退出 30s；冷启动约 40s（健康检查 start-period 90s）。需要更高并发时改 `compose.yaml` 的 `deploy.resources`
 - **回滚红线**：v1.6.0 起密文是 v3 格式，旧镜像读不了。回滚前先导出凭证，或用备份恢复数据卷
 
 ## 9. 定时任务
