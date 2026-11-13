@@ -43,8 +43,12 @@ jobs:
           # 带头（镜像内 TRUST_CLIENT_IP_HEADER=1）时放行，防止「已经默认信任伪造头」回归
           HOST_IP=$(ip route | awk '/default/ {print $3; exit}')
           # 用非回环地址访问，避免 workerd 把 127.0.0.1 当本地回退而掩盖信任链问题
-          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "http://${HOST_IP}:8787/api/accounts/register")" = "403"
-          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'CF-Connecting-IP: 203.0.113.7' "http://${HOST_IP}:8787/api/health")" = "200"
+          NEG=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "http://${HOST_IP}:8787/api/accounts/register")
+          echo "no-ip status=$NEG (expect 4xx: fail-closed)"
+          case "$NEG" in 403|429) ;; *) echo "unexpected status $NEG"; exit 1 ;; esac
+          POS=$(curl -s -o /dev/null -w '%{http_code}' -H 'CF-Connecting-IP: 203.0.113.7' "http://${HOST_IP}:8787/api/health")
+          echo "with-ip status=$POS (expect 200)"
+          test "$POS" = "200"
           HASH='q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80='
           curl -fsS -X POST http://127.0.0.1:8787/api/accounts/register \
             -H 'Content-Type: application/json' \
