@@ -21,6 +21,19 @@ services:
       - ALL
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
+    # 迁移 + 启动最多 ~40s，留足优雅退出时间（SQLite 需要正常 checkpoint）
+    stop_grace_period: 30s
+    # 单实例 SQLite 写者：限制资源，避免异常时拖垮 NAS
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
     volumes:
       - tirisfal-data:/data
       # 密钥走文件挂载，绝不走 environment/env_file（docker inspect 会回显）
