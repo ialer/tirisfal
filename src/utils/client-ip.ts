@@ -193,7 +193,14 @@ export function resolveClientIp(request: Request, env?: Partial<Env>): ClientIpR
     }
   }
 
-  const direct = normalizeClientIp(request.headers.get(headerName));
+  // 是否允许采信客户端 IP 头：只认显式配置。
+  // 不能用 request.cf 判断「是否在 Cloudflare 边缘」——workerd 本地也会填充 cf 对象，
+  // 那会让自托管默认信任可伪造的请求头，从而绕过 allowed_ip。
+  // - 配了 PROXY_SHARED_SECRET（且已通过上面的匹配）
+  // - 运维显式开启 TRUST_CLIENT_IP_HEADER=1（Cloudflare 边缘或自有反代）
+  const trustHeader = Boolean(secret) || (env?.TRUST_CLIENT_IP_HEADER || '').trim() === '1';
+
+  const direct = trustHeader ? normalizeClientIp(request.headers.get(headerName)) : null;
   if (direct) return direct;
 
   if (local) {

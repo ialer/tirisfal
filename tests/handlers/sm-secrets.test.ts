@@ -279,7 +279,7 @@ describe('sm-secrets 权限校验（越权回归测试）', () => {
           'X-Forwarded-For': '203.0.113.9',
         },
       });
-      expect(getClientIpAddress(req)).toBe('1.2.3.4');
+      expect(getClientIpAddress(req, { TRUST_CLIENT_IP_HEADER: '1' } as never)).toBe('1.2.3.4');
     });
   });
 
