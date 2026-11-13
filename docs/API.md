@@ -187,6 +187,18 @@ Agent 生成或获取的密码先暂存为「待确认提议」，人类在 Web�
 
 提议默认保留 30 天（`config/limits.ts` 的 `agentProposal.ttlMs`），过期惰性清理。
 
+### YubiKey OTP
+
+需要服务端配置 `YUBICO_CLIENT_ID` / `YUBICO_SECRET`（可选 `YUBICO_VALIDATION_URL`）。
+
+| 端点 | 说明 |
+|---|---|
+| `GET /two-factor/yubikey` | 列出已绑定钥匙（publicId 仅回显前 4 位） |
+| `POST /two-factor/yubikey` | 绑定：`{ masterPasswordHash, otp, name? }`；OTP 需 44 位 modhex |
+| `DELETE /two-factor/yubikey/:id` | 解绑：`{ masterPasswordHash }` |
+
+登录第二步仍走 `POST /identity/connect/token`，`twoFactorProvider=3`、`twoFactorToken=<按一下钥匙产生的 OTP>`。
+
 ## Error Responses
 
 ```json

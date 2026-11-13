@@ -267,6 +267,82 @@ export class StorageService {
     await saveStoredUser(this.db, this.safeBind.bind(this), user);
   }
 
+  // ==================== YubiKey OTP ====================
+
+  async addYubikey(userId: string, publicId: string, name: string | null): Promise<void> {
+    await this.db
+      .prepare(
+        'INSERT INTO user_yubikeys (id, user_id, public_id, name, created_at) VALUES (?, ?, ?, ?, ?)'
+      )
+      .bind(crypto.randomUUID(), userId, publicId, name, new Date().toISOString())
+      .run();
+  }
+
+  async listYubikeys(userId: string): Promise<
+    Array<{
+      id: string;
+      public_id: string;
+      name: string | null;
+      created_at: string;
+      last_used_at: string | null;
+    }>
+  > {
+    const result = await this.db
+      .prepare(
+        'SELECT id, public_id, name, created_at, last_used_at FROM user_yubikeys WHERE user_id = ? ORDER BY created_at ASC'
+      )
+      .bind(userId)
+      .all<{
+        id: string;
+        public_id: string;
+        name: string | null;
+        created_at: string;
+        last_used_at: string | null;
+      }>();
+    return result.results || [];
+  }
+
+  async countYubikeys(userId: string): Promise<number> {
+    const row = await this.db
+      .prepare('SELECT COUNT(*) AS n FROM user_yubikeys WHERE user_id = ?')
+      .bind(userId)
+      .first<{ n: number }>();
+    return Number(row?.n || 0);
+  }
+
+  async deleteYubikey(userId: string, id: string): Promise<boolean> {
+    const result = await this.db
+      .prepare('DELETE FROM user_yubikeys WHERE id = ? AND user_id = ?')
+      .bind(id, userId)
+      .run();
+    return Number(result.meta.changes || 0) > 0;
+  }
+
+  async findYubikeyByPublicId(
+    userId: string,
+    publicId: string
+  ): Promise<{ id: string; last_otp_hash: string | null } | null> {
+    return this.db
+      .prepare('SELECT id, last_otp_hash FROM user_yubikeys WHERE user_id = ? AND public_id = ?')
+      .bind(userId, publicId)
+      .first<{ id: string; last_otp_hash: string | null }>();
+  }
+
+  /** 全局查询：同一个公钥 ID 只能绑定一个账号 */
+  async findYubikeyOwner(publicId: string): Promise<{ id: string; user_id: string } | null> {
+    return this.db
+      .prepare('SELECT id, user_id FROM user_yubikeys WHERE public_id = ?')
+      .bind(publicId)
+      .first<{ id: string; user_id: string }>();
+  }
+
+  async setYubikeyLastOtpHash(id: string, hash: string): Promise<void> {
+    await this.db
+      .prepare('UPDATE user_yubikeys SET last_otp_hash = ?, last_used_at = ? WHERE id = ?')
+      .bind(hash, new Date().toISOString(), id)
+      .run();
+  }
+
   async updateUserTotpLastUsedStep(userId: string, step: number): Promise<boolean> {
     return updateStoredUserTotpLastUsedStep(this.db, userId, step);
   }

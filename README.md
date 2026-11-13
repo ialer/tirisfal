@@ -206,6 +206,9 @@ curl -X POST $API/api/agent-proposals \
 | `TRUST_CLIENT_IP_HEADER` | 可选 | `1` 才采信上面的头（Cloudflare 边缘或自有反代必须显式开启；不开则忽略头，`allowed_ip` fail-closed） |
 | `PROXY_SHARED_SECRET` | 可选 | 反代共享密钥；设置后直连 worker 无法伪造客户端 IP |
 | `OUTBOUND_DNS_GUARD` | 可选 | `1` 开启注入目标逐次 DNS 解析校验；默认关闭 |
+| `YUBICO_CLIENT_ID` | 可选 | YubiCloud Client ID；与 `YUBICO_SECRET` 成对配置才启用 YubiKey OTP 2FA |
+| `YUBICO_SECRET` | 可选 | YubiCloud base64 密钥；放 secrets 文件 |
+| `YUBICO_VALIDATION_URL` | 可选 | 自建 yubikey-val 地址；默认 YubiCloud |
 
 ---
 

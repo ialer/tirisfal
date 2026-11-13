@@ -62,6 +62,7 @@ import {
   handleUploadSendFile,
 } from './handlers/sends';
 import { handleSync } from './handlers/sync';
+import { handleYubikeyRoute } from './handlers/yubikey';
 import { handleAdminRoute } from './router-admin';
 import { handleAuthenticatedDeviceRoute } from './router-devices';
 import type { Env, User } from './types';
@@ -113,6 +114,15 @@ export async function handleAuthenticatedRoute(
   }
 
   // TOTP 两步验证
+  if (
+    path === '/two-factor/yubikey' ||
+    path.startsWith('/two-factor/yubikey/') ||
+    path === '/api/two-factor/yubikey' ||
+    path.startsWith('/api/two-factor/yubikey/')
+  ) {
+    return handleYubikeyRoute(request, env, path, method, userId);
+  }
+
   if (path === '/api/accounts/totp') {
     if (method === 'GET') return handleGetTotpStatus(request, env, userId);
     if (method === 'PUT' || method === 'POST') return handleSetTotpStatus(request, env, userId);

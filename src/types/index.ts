@@ -34,6 +34,12 @@ export interface Env {
    * 未设置时只做主机名/白名单静态校验，DNS rebinding 风险由部署侧出口策略兜底。
    */
   OUTBOUND_DNS_GUARD?: string;
+  /** YubiCloud 校验 Client ID（与 YUBICO_SECRET 成对配置才启用 YubiKey OTP） */
+  YUBICO_CLIENT_ID?: string;
+  /** YubiCloud 校验 base64 密钥；放 secrets 文件，不要进仓库 */
+  YUBICO_SECRET?: string;
+  /** 可选：自建 yubikey-val 地址，默认 YubiCloud */
+  YUBICO_VALIDATION_URL?: string;
 }
 
 export type UserRole = 'admin' | 'user';
