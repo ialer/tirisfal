@@ -4,7 +4,6 @@ import { RateLimitService } from '../services/ratelimit';
 import { StorageService } from '../services/storage';
 import { isYubikeyConfigured, verifyYubikeyOtp } from '../services/yubikey';
 import type { Env } from '../types';
-import { getClientIdentifier } from '../utils/client-ip';
 import { errorResponse, jsonResponse } from '../utils/response';
 
 const LIST_PATH = '/two-factor/yubikey';

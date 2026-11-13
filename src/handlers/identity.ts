@@ -415,7 +415,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
             clientIdentifier
           );
         }
-        await storage.setYubikeyLastOtpHash(bound.id, otpHash);
+        await storage.setYubikeyLastOtpHash(user.id, bound.id, otpHash);
         try {
           await env.DB.prepare(
             'INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'

@@ -336,10 +336,13 @@ export class StorageService {
       .first<{ id: string; user_id: string }>();
   }
 
-  async setYubikeyLastOtpHash(id: string, hash: string): Promise<void> {
+  async setYubikeyLastOtpHash(userId: string, id: string, hash: string): Promise<void> {
+    // 带 user_id 条件，避免仅凭 id 更新到他人的钥匙（安全门禁 idor-sql 要求）
     await this.db
-      .prepare('UPDATE user_yubikeys SET last_otp_hash = ?, last_used_at = ? WHERE id = ?')
-      .bind(hash, new Date().toISOString(), id)
+      .prepare(
+        'UPDATE user_yubikeys SET last_otp_hash = ?, last_used_at = ? WHERE id = ? AND user_id = ?'
+      )
+      .bind(hash, new Date().toISOString(), id, userId)
       .run();
   }
 
