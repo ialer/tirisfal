@@ -1051,6 +1051,9 @@ const es: Record<string, string> = {
   agent_proposals_reject: 'Rechazar',
   agent_proposals_reject_confirm: '¿Descartar esta credencial pendiente?',
   agent_proposals_reject_failed: 'Error al descartar',
+  nav_machine_accounts: 'Cuentas de máquina',
+  nav_projects: 'Proyectos',
+  nav_secrets: 'Secretos',
 };
 
 export default es;

@@ -972,6 +972,9 @@ const zhCN: Record<string, string> = {
   agent_proposals_reject: '拒绝',
   agent_proposals_reject_confirm: '确认丢弃这条待确认凭证？',
   agent_proposals_reject_failed: '丢弃失败',
+  nav_machine_accounts: '机器账户',
+  nav_projects: '项目',
+  nav_secrets: '密钥',
 };
 
 export default zhCN;

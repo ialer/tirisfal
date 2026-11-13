@@ -1050,6 +1050,9 @@ const ru: Record<string, string> = {
   agent_proposals_reject: 'Отклонить',
   agent_proposals_reject_confirm: 'Отменить эту ожидающую запись?',
   agent_proposals_reject_failed: 'Не удалось отклонить',
+  nav_machine_accounts: 'Машинные аккаунты',
+  nav_projects: 'Проекты',
+  nav_secrets: 'Секреты',
 };
 
 export default ru;

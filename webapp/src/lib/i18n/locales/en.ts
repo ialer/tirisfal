@@ -1013,6 +1013,9 @@ const en: Record<string, string> = {
   agent_proposals_reject: 'Reject',
   agent_proposals_reject_confirm: 'Discard this pending credential?',
   agent_proposals_reject_failed: 'Failed to discard',
+  nav_machine_accounts: 'Machine Accounts',
+  nav_projects: 'Projects',
+  nav_secrets: 'Secrets',
 };
 
 export default en;

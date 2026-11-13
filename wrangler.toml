@@ -2,6 +2,10 @@ name = "tirisfal"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
+# Cloudflare 边缘会强制覆盖客户端 IP 头，显式开启信任（自托管见 docs/DOCKER.md）
+[vars]
+TRUST_CLIENT_IP_HEADER = "1"
+
 [assets]
 binding = "ASSETS"
 directory = "./dist"
