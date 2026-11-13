@@ -169,7 +169,7 @@ AI agent ──machine token──▶ /api/secrets/use ──▶ allow-listed up
 
 ## How AI-generated passwords reach the vault
 
-The vault is zero-knowledge: **the server has no master key and cannot encrypt vault items for an agent**, so agents cannot write `/api/ciphers` directly. tirisfal uses an "proposal → human confirm" flow:
+The vault is zero-knowledge: **the server has no master key and cannot encrypt vault items for an agent**, so agents cannot write `/api/ciphers` directly. tirisfal uses a "proposal → human confirm" flow:
 
 ```bash
 # 1) Agent submits (requires write permission on the project)
@@ -181,7 +181,7 @@ curl -X POST $API/api/agent-proposals \
 #    The browser encrypts with the master key and calls /api/ciphers, then deletes the proposal
 ```
 
-- Proposal values are encrypted at rest with the server `ENCRYPTION_KEY` (v3) and expire after 30 days
+- Proposal values are encrypted at rest with the server `ENCRYPTION_KEY` (v3) and expire after 30 days; the optional `note` is stored as plaintext (owner-visible only)
 - Only the **owning user** can read a proposal in plaintext; machine accounts cannot
 - Encryption happens in the browser on confirm, so zero-knowledge is preserved
 
@@ -196,6 +196,7 @@ curl -X POST $API/api/agent-proposals \
 | `TOTP_SECRET` | optional | Dedicated key for TOTP secrets; falls back to `ENCRYPTION_KEY`. Rotating it makes existing encrypted TOTP secrets unreadable |
 | `BACKUP_ENCRYPTION_KEY` | optional | Backup runtime key; falls back to `JWT_SECRET` |
 | `CLIENT_IP_HEADER` | optional | Client IP header, default `CF-Connecting-IP` |
+| `TRUST_CLIENT_IP_HEADER` | optional | Only when `1` is the header trusted (required on Cloudflare edge or behind your own proxy; otherwise the header is ignored and `allowed_ip` fails closed) |
 | `PROXY_SHARED_SECRET` | optional | Proxy shared secret; blocks direct-to-worker spoofing |
 | `OUTBOUND_DNS_GUARD` | optional | `1` enables per-request DNS resolution checks (off by default) |
 
