@@ -265,6 +265,19 @@ export async function handleSecrets(
       note: body.note as string | undefined,
     });
 
+    // 写审计：此前只有读路径有记录，凭证被创建/修改/删除无法追溯
+    await smService.logSecretAccess(
+      machineAccountId ?? null,
+      machineAccountId ? null : userId,
+      secret.id,
+      'create',
+      getClientIpAddress(request, env),
+      request.headers.get('User-Agent'),
+      { name: secret.name },
+      secret.project_id,
+      secret.environment
+    );
+
     return jsonResponse(secret, 201);
   }
 
@@ -550,6 +563,19 @@ export async function handleSecrets(
         note: body.note as string | undefined,
       });
       if (!updated) return errorResponse('Not found', 404);
+
+      await smService.logSecretAccess(
+        machineAccountId ?? null,
+        machineAccountId ? null : userId,
+        secretId,
+        'write',
+        getClientIpAddress(request, env),
+        request.headers.get('User-Agent'),
+        {},
+        secret.project_id,
+        secret.environment
+      );
+
       // 返回前解密 value，与 GET 行为保持一致（避免调用方拿到密文）
       const updatedRead = await readSecretValue(
         smService,
@@ -589,6 +615,17 @@ export async function handleSecrets(
       }
 
       await smService.deleteSecret(secretId);
+      await smService.logSecretAccess(
+        machineAccountId ?? null,
+        machineAccountId ? null : userId,
+        secretId,
+        'delete',
+        getClientIpAddress(request, env),
+        request.headers.get('User-Agent'),
+        {},
+        secret.project_id,
+        secret.environment
+      );
       return jsonResponse({ success: true });
     }
   }

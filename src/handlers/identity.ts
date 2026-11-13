@@ -155,9 +155,13 @@ async function recordFailedLoginAndBuildResponse(
   rateLimit: RateLimitService,
   loginIdentifier: string,
   message: string,
-  ipKey?: string
+  ipKey?: string,
+  accountKey?: string
 ): Promise<Response> {
+  const effectiveAccountKey = accountKey || loginIdentifier;
   const result = await rateLimit.recordFailedLogin(loginIdentifier);
+  // 账号级预算：不随客户端 IP 变化，换 IP 也逃不掉
+  await rateLimit.recordFailedLogin(effectiveAccountKey, LIMITS.rateLimit.accountLoginMaxAttempts);
   // 同时计入纯 IP 维度，防止单 IP 轮换邮箱喷洒
   if (ipKey) {
     await rateLimit.recordFailedLogin(ipKey, LIMITS.rateLimit.ipLoginMaxAttempts);
@@ -244,6 +248,19 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       );
     }
 
+    // 账号级失败预算：与 IP 解耦，防止「每次换 IP」绕过单 IP 限制
+    const accountCheck = await rateLimit.checkLoginAttempt(
+      `acct:${email}`,
+      LIMITS.rateLimit.accountLoginMaxAttempts
+    );
+    if (!accountCheck.allowed) {
+      return identityErrorResponse(
+        `Too many failed login attempts for this account. Try again in ${Math.ceil((accountCheck.retryAfterSeconds || 0) / 60)} minutes.`,
+        'TooManyRequests',
+        429
+      );
+    }
+
     // Check login lockout before user lookup to reduce user-enumeration signal
     const loginCheck = await rateLimit.checkLoginAttempt(loginIdentifier);
     if (!loginCheck.allowed) {
@@ -276,7 +293,8 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
         rateLimit,
         loginIdentifier,
         'Username or password is incorrect. Try again',
-        clientIdentifier
+        clientIdentifier,
+        `acct:${email}`
       );
     }
 
