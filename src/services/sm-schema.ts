@@ -60,15 +60,19 @@ export const SM_SCHEMA_STATEMENTS: readonly string[] = [
     'id TEXT PRIMARY KEY, ' +
     'machine_account_id TEXT, ' +
     'user_id TEXT, ' +
-    'secret_id TEXT NOT NULL, ' +
+    'secret_id TEXT, ' +
     'action TEXT NOT NULL, ' +
     'ip_address TEXT, ' +
     'user_agent TEXT, ' +
+    'metadata TEXT, ' +
     'created_at TEXT NOT NULL, ' +
+    'host TEXT, ' +
+    'purpose TEXT, ' +
     'FOREIGN KEY (machine_account_id) REFERENCES machine_accounts(id) ON DELETE SET NULL, ' +
     'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL, ' +
-    'FOREIGN KEY (secret_id) REFERENCES secrets(id) ON DELETE CASCADE)',
+    'FOREIGN KEY (secret_id) REFERENCES secrets(id) ON DELETE SET NULL)',
   'CREATE INDEX IF NOT EXISTS idx_secret_access_logs_secret ON secret_access_logs(secret_id)',
+  'CREATE INDEX IF NOT EXISTS idx_secret_access_logs_user ON secret_access_logs(user_id)',
   'CREATE INDEX IF NOT EXISTS idx_secret_access_logs_machine ON secret_access_logs(machine_account_id)',
   'CREATE INDEX IF NOT EXISTS idx_secret_access_logs_created ON secret_access_logs(created_at)',
 ];

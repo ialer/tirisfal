@@ -102,6 +102,8 @@ docker compose up -d       # 启动时自动补跑新增迁移
 ```
 
 - **从 ≤ v1.6.0 升级**：compose 必须加 `TRUST_CLIENT_IP_HEADER=1`（旧 compose 无此变量，拉新镜像后全站 403）
+- **v1.6.2 作废**：其 0009 迁移漏了 `host/purpose` 列，从未部署；若你在本地跑过 v1.6.2，请删除数据卷重建（或从 v1.6.1 备份恢复），不要试图升级到 v1.6.3
+- **v1.6.4 起** 镜像按 `v*.*.*` 打版本标签（`ghcr.io/<repo>:1.6.4`）；迁移可能重建表（DROP + RENAME），wrangler 本地迁移在事务内执行，失败不会留脏状态
 - 迁移只允许 additive DDL；失败会停在 healthy 之前
 - 默认资源限制：**1 CPU / 512MB 内存 / 日志 3×10MB**，优雅退出 30s；冷启动约 40s（健康检查 start-period 90s）。需要更高并发时改 `compose.yaml` 的 `deploy.resources`
 - **回滚红线**：v1.6.0 起密文是 v3 格式，旧镜像读不了。回滚前先导出凭证，或用备份恢复数据卷
