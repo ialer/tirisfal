@@ -13,6 +13,35 @@ const MAX_NOTE_LENGTH = 1_000;
 const MAX_NAME_LENGTH = 255;
 const ENVIRONMENTS = ['prod', 'staging', 'dev', 'test'];
 
+const UUID_RE = /^[a-f0-9-]{36}$/i;
+
+/** 提议的审计：只记录元数据，绝不含明文 value */
+async function auditProposal(
+  env: Env,
+  actorUserId: string,
+  action: string,
+  proposalId: string,
+  metadata: Record<string, unknown>
+): Promise<void> {
+  try {
+    await env.DB.prepare(
+      'INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )
+      .bind(
+        crypto.randomUUID(),
+        actorUserId,
+        action,
+        'agent_proposal',
+        proposalId,
+        JSON.stringify(metadata),
+        new Date().toISOString()
+      )
+      .run();
+  } catch (error) {
+    console.error('proposal audit failed:', error);
+  }
+}
+
 interface ProposalContext {
   userId: string;
   machineAccountId?: string;
@@ -49,9 +78,13 @@ export async function handleAgentProposals(
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     const value = typeof body.value === 'string' ? body.value : '';
     const environment = parseEnvironment(body.environment);
-    const note = body.note === undefined || body.note === null ? null : String(body.note);
+    if (body.note !== undefined && body.note !== null && typeof body.note !== 'string') {
+      return errorResponse('note must be a string', 400);
+    }
+    const note = typeof body.note === 'string' ? body.note : null;
 
     if (!projectId) return errorResponse('project_id is required', 400);
+    if (!UUID_RE.test(projectId)) return errorResponse('project_id must be a UUID', 400);
     if (!name || name.length > MAX_NAME_LENGTH) {
       return errorResponse('name is required and must be <= 255 characters', 400);
     }
@@ -81,11 +114,24 @@ export async function handleAgentProposals(
       note: note ?? undefined,
       ttlMs: PROPOSAL_TTL_MS,
     });
-    return jsonResponse({ success: true, id: created.id, expires_at: created.expires_at }, 201);
+    await auditProposal(env, userId, 'agent_proposal.submit', created.id, {
+      machine_account_id: machineAccountId,
+      project_id: projectId,
+      name,
+      environment,
+    });
+    return jsonResponse(
+      { success: true, id: created.id, expires_at: created.expires_at, environment },
+      201
+    );
   }
 
   // ---- 人类查看待确认列表 ----
   if (method === 'GET' && path === '/api/agent-proposals') {
+    // 机器账号只能提交，不能列举（列表含其他 agent 的 name/note 元数据）
+    if (machineAccountId) {
+      return errorResponse('禁止：机器账号不能列举待确认提议', 403);
+    }
     const proposals = await smService.listAgentProposals(userId);
     return jsonResponse({ data: proposals });
   }
@@ -99,6 +145,10 @@ export async function handleAgentProposals(
       if (machineAccountId) return errorResponse('禁止：机器账号不能读取待确认明文', 403);
       const proposal = await smService.getAgentProposal(userId, id);
       if (!proposal) return errorResponse('Not found', 404);
+      await auditProposal(env, userId, 'agent_proposal.read', id, {
+        project_id: proposal.project_id,
+        name: proposal.name,
+      });
       return jsonResponse(proposal);
     }
 
@@ -106,6 +156,9 @@ export async function handleAgentProposals(
     if (method === 'DELETE') {
       const removed = await smService.deleteAgentProposal(userId, id, machineAccountId);
       if (!removed) return errorResponse('Not found', 404);
+      await auditProposal(env, userId, 'agent_proposal.delete', id, {
+        machine_account_id: machineAccountId ?? null,
+      });
       return jsonResponse({ success: true });
     }
   }

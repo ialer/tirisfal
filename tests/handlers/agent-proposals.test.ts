@@ -18,7 +18,12 @@ vi.mock('../../src/services/sm-service', () => ({
 
 import { handleAgentProposals } from '../../src/handlers/agent-proposals';
 
-const ENV = { ENCRYPTION_KEY: 'test-encryption-key' } as never;
+const ENV = {
+  ENCRYPTION_KEY: 'test-encryption-key',
+  DB: {
+    prepare: () => ({ bind: () => ({ run: () => Promise.resolve({}) }) }),
+  },
+} as never;
 const USER = 'user-1';
 const MA = 'ma-1';
 
@@ -50,7 +55,7 @@ describe('Agent 提议入库', () => {
       name: 'DB',
       value: 's3cret',
       note: null,
-      project_id: 'proj',
+      project_id: '22222222-2222-4222-8222-222222222222',
     });
     mockService.deleteAgentProposal.mockResolvedValue(true);
   });
@@ -63,18 +68,23 @@ describe('Agent 提议入库', () => {
     const resp = await call(
       'POST',
       '/api/agent-proposals',
-      { project_id: 'proj', name: 'DB', value: 's3cret' },
+      { project_id: '22222222-2222-4222-8222-222222222222', name: 'DB', value: 's3cret' },
       { userId: USER, machineAccountId: MA }
     );
     expect(resp.status).toBe(403);
-    expect(mockService.validateProjectAccess).toHaveBeenCalledWith(MA, 'proj', undefined, 'write');
+    expect(mockService.validateProjectAccess).toHaveBeenCalledWith(
+      MA,
+      '22222222-2222-4222-8222-222222222222',
+      undefined,
+      'write'
+    );
   });
 
   it('机器账号提交成功返回 201 与过期时间', async () => {
     const resp = await call(
       'POST',
       '/api/agent-proposals',
-      { project_id: 'proj', name: 'DB', value: 's3cret' },
+      { project_id: '22222222-2222-4222-8222-222222222222', name: 'DB', value: 's3cret' },
       { userId: USER, machineAccountId: MA }
     );
     expect(resp.status).toBe(201);
@@ -85,9 +95,17 @@ describe('Agent 提议入库', () => {
 
   it('用户 token 不能提交提议', async () => {
     const resp = await call('POST', '/api/agent-proposals', {
-      project_id: 'proj',
+      project_id: '22222222-2222-4222-8222-222222222222',
       name: 'DB',
       value: 'x',
+    });
+    expect(resp.status).toBe(403);
+  });
+
+  it('机器账号不能列举待确认条目', async () => {
+    const resp = await call('GET', '/api/agent-proposals', undefined, {
+      userId: USER,
+      machineAccountId: MA,
     });
     expect(resp.status).toBe(403);
   });
