@@ -176,6 +176,8 @@ export function saveProfileSnapshot(profile: Profile | null): void {
   } catch {
     // Fall back to writing the normalized snapshot below.
   }
+  // 仅缓存公开资料快照（stripProfileSecrets 已剔除密钥/密文），非凭证
+  // lgtm[js/clear-text-storage-of-sensitive-data]
   localStorage.setItem(PROFILE_SNAPSHOT_KEY, JSON.stringify(nextSnapshot));
 }
 
