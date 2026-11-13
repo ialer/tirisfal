@@ -152,6 +152,41 @@ Response:
 }
 ```
 
+### Agent Proposals
+
+Agent 生成或获取的密码先暂存为「待确认提议」，人类在 Web「待确认」页确认后，由浏览器用主密钥加密写入密码库（服务端不持有主密钥）。
+
+#### Submit a Proposal（Machine Account）
+
+`POST /api/agent-proposals` — 需要目标项目的 `write` 授权。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `project_id` | string(UUID) | 必填 |
+| `name` | string | 必填，≤255 |
+| `value` | string | 必填，≤10000 |
+| `environment` | string | 可选，`prod` / `staging` / `dev` / `test`，默认 `prod` |
+| `note` | string | 可选，≤1000；**明文存储**，仅属主可见 |
+
+`201`：`{ "success": true, "id": "...", "expires_at": "...", "environment": "prod" }`
+`400`：字段缺失/超长/枚举非法；`403`：无 write 授权或未授权。
+
+#### List Proposals（User Token）
+
+`GET /api/agent-proposals` → `{ "data": [{ id, project_id, project_name, name, environment, note, created_at, expires_at }] }`
+不含明文 value。**机器账号调用返回 403**（只能提交，不能列举）。
+
+#### Read a Proposal（User Token）
+
+`GET /api/agent-proposals/:id` → `{ id, name, value, note, project_id }`（明文，仅属主；机器账号 403）。
+
+#### Delete a Proposal
+
+`DELETE /api/agent-proposals/:id` → `{ "success": true }`
+人类拒绝，或创建它的机器账号撤回。
+
+提议默认保留 30 天（`config/limits.ts` 的 `agentProposal.ttlMs`），过期惰性清理。
+
 ## Error Responses
 
 ```json
@@ -173,3 +208,5 @@ Response:
 | Authenticated API | 200 requests/minute |
 | Login | 10 attempts/2 minutes |
 | Register | 5 requests/minute |
+| Secret Manager 路由（`/api/secrets*`、`/api/agent-proposals`） | 30 requests/minute/IP |
+| Token 端点（`/identity/connect/token`） | 30 requests/minute/IP |

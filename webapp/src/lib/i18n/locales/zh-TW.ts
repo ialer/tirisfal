@@ -972,6 +972,9 @@ const zhTW: Record<string, string> = {
   agent_proposals_reject: '拒絕',
   agent_proposals_reject_confirm: '確認丟棄這條待確認憑證？',
   agent_proposals_reject_failed: '丟棄失敗',
+  nav_machine_accounts: '機器帳戶',
+  nav_projects: '專案',
+  nav_secrets: '密鑰',
 };
 
 export default zhTW;

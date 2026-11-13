@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'preact/hooks';
 import { Check, RefreshCw, Trash2 } from 'lucide-preact';
 
@@ -28,6 +29,7 @@ interface Props {
  * 服务端始终拿不到主密钥（零知识不被破坏）。
  */
 export default function AgentProposalPanel({ authedFetch, session }: Props) {
+  const queryClient = useQueryClient();
   const [items, setItems] = useState<AgentProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
@@ -102,6 +104,8 @@ export default function AgentProposalPanel({ authedFetch, session }: Props) {
         await load();
         return;
       }
+      // 新条目已入库：让密码库列表立即失效，避免用户以为没存进去
+      await queryClient.invalidateQueries({ queryKey: ['vault-core'] });
       await load();
     } catch (err) {
       setError(

@@ -76,7 +76,8 @@ worker 拿不到 socket 对端地址，客户端 IP 只来自请求头：
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `CLIENT_IP_HEADER` | `CF-Connecting-IP` | 反代注入的头名 |
-| `PROXY_SHARED_SECRET` | 空 | 设置后，请求还必须带匹配的 `X-Tirisfal-Proxy` 头才被信任 |
+| `TRUST_CLIENT_IP_HEADER` | 空 | **必须设为 `1`**（v1.6.1 起默认不信任请求头）；不开则客户端 IP 为空，公开接口 403、`allowed_ip` 全部 fail-closed |
+| `PROXY_SHARED_SECRET` | 空 | 设置后，请求还必须带匹配的 `X-Tirisfal-Proxy` 头才被信任；**建议写进 `secrets/dev.vars`**，不要用容器环境变量（`docker inspect` 可见） |
 
 没有可信 IP 时，公开接口返回 `403 需要客户端 IP`，`allowed_ip` 授权一律拒绝（fail-closed）。
 默认部署靠「worker 端口不发布 + 只有 Caddy 在 edge 网络」保证头不可伪造；要再收紧就打开 `PROXY_SHARED_SECRET` 并在 Caddyfile 里加 `header_up X-Tirisfal-Proxy`。
@@ -100,6 +101,7 @@ docker compose pull        # 或改 .env 里 TIRISFAL_IMAGE 的 tag
 docker compose up -d       # 启动时自动补跑新增迁移
 ```
 
+- **从 ≤ v1.6.0 升级**：compose 必须加 `TRUST_CLIENT_IP_HEADER=1`（旧 compose 无此变量，拉新镜像后全站 403）
 - 迁移只允许 additive DDL；失败会停在 healthy 之前
 - **回滚红线**：v1.6.0 起密文是 v3 格式，旧镜像读不了。回滚前先导出凭证，或用备份恢复数据卷
 

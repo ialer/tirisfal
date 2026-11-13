@@ -12,6 +12,7 @@ npm run deploy           # wrangler deploy，读取 wrangler.toml
 ```
 
 - 绑定：D1 `DB`、R2 `ATTACHMENTS`、Durable Object `NOTIFICATIONS_HUB`、cron `*/5 * * * *`。
+- **必须保留 `wrangler.toml` 的 `[vars] TRUST_CLIENT_IP_HEADER = "1"`**：Cloudflare 边缘会强制覆盖客户端 IP 头；删掉它，所有需要客户端 IP 的接口（登录/注册/限流）都会 403。
 - 部署后自检：
 
 ```bash
@@ -34,18 +35,20 @@ curl -s https://<your-domain>/api/health   # 期望 {"status":"healthy","service
 
 ## 3. 数据库迁移
 
-`migrations/*.sql` 按序号执行，当前到 **0007**：
+`migrations/*.sql` 按序号执行，当前到 **0008**：
 
 | 迁移 | 内容 |
 |---|---|
 | 0001-0005 | 基础表、SM 表、TOTP 防重放、refresh token family、索引 |
 | 0006 | 注入代理：`machine_account_projects.mode/allowed_hosts`、审计 `host/purpose` |
 | 0007 | 掩码与 reveal：`reveal_limit / reveal_count` |
+| 0008 | Agent 提议入库：`agent_proposals`（值 v3 加密，默认 30 天保留） |
 
 执行方式（二选一）：
 
 ```bash
 wrangler d1 execute <db> --remote --file=./migrations/0007_reveal_policy.sql
+wrangler d1 execute <db> --remote --file=./migrations/0008_agent_proposals.sql
 # 或用 Cloudflare API: POST /accounts/<acc>/d1/database/<db>/query
 ```
 
