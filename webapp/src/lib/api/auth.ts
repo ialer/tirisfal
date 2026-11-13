@@ -1,12 +1,7 @@
 import { bytesToBase64, decryptBw, encryptBw, hkdfExpand, pbkdf2 } from '../crypto';
 import { t } from '../i18n';
 import type { AuthorizedDevice } from '../types';
-import type {
-  Profile,
-  SessionState,
-  TokenError,
-  TokenSuccess,
-} from '../types';
+import type { Profile, SessionState, TokenError, TokenSuccess } from '../types';
 import { parseJson, type AuthedFetch, type SessionSetter } from './shared';
 
 const SESSION_KEY = 'tirisfal.web.session.v4';
@@ -50,7 +45,10 @@ const pendingRefreshes = new Map<string, Promise<RefreshResult>>();
 
 function randomHex(length: number): string {
   const bytes = crypto.getRandomValues(new Uint8Array(Math.max(1, Math.ceil(length / 2))));
-  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, length);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, length);
 }
 
 function getOrCreateDeviceIdentifier(): string {
@@ -64,8 +62,26 @@ function getOrCreateDeviceIdentifier(): string {
 function guessDeviceName(): string {
   const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '').toLowerCase();
   const platform = (typeof navigator !== 'undefined' ? navigator.platform : '').trim();
-  const browser = ua.includes('edg/') ? 'Edge' : ua.includes('chrome/') ? 'Chrome' : ua.includes('firefox/') ? 'Firefox' : ua.includes('safari/') ? 'Safari' : 'Browser';
-  const os = ua.includes('windows') ? 'Windows' : ua.includes('mac os') ? 'macOS' : ua.includes('linux') ? 'Linux' : ua.includes('android') ? 'Android' : ua.includes('iphone') || ua.includes('ipad') ? 'iOS' : platform || 'Unknown OS';
+  const browser = ua.includes('edg/')
+    ? 'Edge'
+    : ua.includes('chrome/')
+      ? 'Chrome'
+      : ua.includes('firefox/')
+        ? 'Firefox'
+        : ua.includes('safari/')
+          ? 'Safari'
+          : 'Browser';
+  const os = ua.includes('windows')
+    ? 'Windows'
+    : ua.includes('mac os')
+      ? 'macOS'
+      : ua.includes('linux')
+        ? 'Linux'
+        : ua.includes('android')
+          ? 'Android'
+          : ua.includes('iphone') || ua.includes('ipad')
+            ? 'iOS'
+            : platform || 'Unknown OS';
   return `${browser} on ${os}`.slice(0, 128);
 }
 
@@ -142,21 +158,26 @@ export function saveProfileSnapshot(profile: Profile | null): void {
     if (rawExisting) {
       const existing = stripProfileSecrets(JSON.parse(rawExisting) as Profile);
       if (
-        existing
-        && existing.email === nextSnapshot?.email
-        && existing.role === 'admin'
-        && nextSnapshot?.role !== 'admin'
+        existing &&
+        existing.email === nextSnapshot?.email &&
+        existing.role === 'admin' &&
+        nextSnapshot?.role !== 'admin'
       ) {
-        localStorage.setItem(PROFILE_SNAPSHOT_KEY, JSON.stringify({
-          ...nextSnapshot,
-          role: 'admin',
-        }));
+        localStorage.setItem(
+          PROFILE_SNAPSHOT_KEY,
+          JSON.stringify({
+            ...nextSnapshot,
+            role: 'admin',
+          })
+        );
         return;
       }
     }
   } catch {
     // Fall back to writing the normalized snapshot below.
   }
+  // 仅缓存公开资料快照（stripProfileSecrets 已剔除密钥/密文），非凭证
+  // lgtm[js/clear-text-storage-of-sensitive-data]
   localStorage.setItem(PROFILE_SNAPSHOT_KEY, JSON.stringify(nextSnapshot));
 }
 
@@ -182,7 +203,11 @@ export function getCurrentDeviceIdentifier(): string {
   return (localStorage.getItem(DEVICE_IDENTIFIER_KEY) || '').trim();
 }
 
-export async function deriveLoginHash(email: string, password: string, fallbackIterations: number): Promise<PreloginResult> {
+export async function deriveLoginHash(
+  email: string,
+  password: string,
+  fallbackIterations: number
+): Promise<PreloginResult> {
   const pre = await fetch('/identity/accounts/prelogin', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -201,15 +226,22 @@ export async function deriveLoginHashLocally(
   password: string,
   fallbackIterations: number
 ): Promise<PreloginResult> {
-  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedEmail = String(email || '')
+    .trim()
+    .toLowerCase();
   const iterations = Number(fallbackIterations || 600000);
   const masterKey = await pbkdf2(password, normalizedEmail, iterations, 32);
   const hash = await pbkdf2(masterKey, password, 1, 32);
   return { hash: bytesToBase64(hash), masterKey, kdfIterations: iterations };
 }
 
-export async function getPreloginKdfConfig(email: string, fallbackIterations: number): Promise<PreloginKdfConfig> {
-  const normalized = String(email || '').trim().toLowerCase();
+export async function getPreloginKdfConfig(
+  email: string,
+  fallbackIterations: number
+): Promise<PreloginKdfConfig> {
+  const normalized = String(email || '')
+    .trim()
+    .toLowerCase();
   if (!normalized) throw new Error('Email is required');
   const pre = await fetch('/identity/accounts/prelogin', {
     method: 'POST',
@@ -217,7 +249,13 @@ export async function getPreloginKdfConfig(email: string, fallbackIterations: nu
     body: JSON.stringify({ email: normalized }),
   });
   if (!pre.ok) throw new Error('prelogin failed');
-  const data = (await parseJson<{ kdf?: number; kdfIterations?: number; kdfMemory?: number | null; kdfParallelism?: number | null }>(pre)) || {};
+  const data =
+    (await parseJson<{
+      kdf?: number;
+      kdfIterations?: number;
+      kdfMemory?: number | null;
+      kdfParallelism?: number | null;
+    }>(pre)) || {};
   return {
     kdfType: Number(data.kdf ?? 0) || 0,
     kdfIterations: Number(data.kdfIterations || fallbackIterations),
@@ -249,8 +287,11 @@ export async function loginWithPassword(
     body.set('twoFactorProvider', '5');
     body.set('twoFactorToken', rememberedToken);
   } else if (options?.totpCode) {
-    body.set('twoFactorProvider', '0');
-    body.set('twoFactorToken', options.totpCode);
+    // YubiKey OTP 是 44 位 modhex；自动识别，避免为它单独加一个输入框
+    const code = options.totpCode.trim();
+    const isYubikeyOtp = /^[cbdefghijklnrtuv]{44}$/i.test(code);
+    body.set('twoFactorProvider', isYubikeyOtp ? '3' : '0');
+    body.set('twoFactorToken', code);
     if (options.rememberDevice) {
       body.set('twoFactorRemember', '1');
     }
@@ -408,7 +449,9 @@ export async function registerAccount(args: {
   }
 }
 
-export async function getPasswordHint(email: string): Promise<{ masterPasswordHint: string | null }> {
+export async function getPasswordHint(
+  email: string
+): Promise<{ masterPasswordHint: string | null }> {
   const resp = await fetch('/api/accounts/password-hint', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -422,7 +465,10 @@ export async function getPasswordHint(email: string): Promise<{ masterPasswordHi
   return { masterPasswordHint: body.masterPasswordHint ?? null };
 }
 
-export function createAuthedFetch(getSession: () => SessionState | null, setSession: SessionSetter) {
+export function createAuthedFetch(
+  getSession: () => SessionState | null,
+  setSession: SessionSetter
+) {
   return async function authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
     const retryableRequest = async (headers: Headers): Promise<Response> => {
       const maxAttempts = 3;
@@ -443,7 +489,7 @@ export function createAuthedFetch(getSession: () => SessionState | null, setSess
             throw error;
           }
         }
-        const delayMs = 250 * (2 ** attempt) + Math.floor(Math.random() * 120);
+        const delayMs = 250 * 2 ** attempt + Math.floor(Math.random() * 120);
         await new Promise((resolve) => window.setTimeout(resolve, delayMs));
       }
       throw lastError instanceof Error ? lastError : new Error('Request failed');
@@ -455,7 +501,8 @@ export function createAuthedFetch(getSession: () => SessionState | null, setSess
     headers.set('Authorization', `Bearer ${session.accessToken}`);
 
     let resp = await retryableRequest(headers);
-    if (resp.status !== 401 || (!session.refreshToken && session.authMode !== 'web-cookie')) return resp;
+    if (resp.status !== 401 || (!session.refreshToken && session.authMode !== 'web-cookie'))
+      return resp;
 
     const latest = getSession();
     if (latest?.accessToken && latest.accessToken !== session.accessToken) {
@@ -479,7 +526,7 @@ export function createAuthedFetch(getSession: () => SessionState | null, setSess
       ...refreshSource,
       accessToken: refreshed.token.access_token,
       refreshToken: refreshed.token.refresh_token || refreshSource.refreshToken,
-      authMode: refreshed.token.web_session ? 'web-cookie' : (refreshSource.authMode || 'token'),
+      authMode: refreshed.token.web_session ? 'web-cookie' : refreshSource.authMode || 'token',
     };
     setSession(nextSession);
     saveSession(nextSession);
@@ -519,7 +566,10 @@ export async function updateProfile(
   return body;
 }
 
-export async function unlockVaultKey(profileKey: string, masterKey: Uint8Array): Promise<{ symEncKey: string; symMacKey: string }> {
+export async function unlockVaultKey(
+  profileKey: string,
+  masterKey: Uint8Array
+): Promise<{ symEncKey: string; symMacKey: string }> {
   const encKey = await hkdfExpand(masterKey, 'enc', 32);
   const macKey = await hkdfExpand(masterKey, 'mac', 32);
   const keyBytes = await decryptBw(profileKey, encKey, macKey);
@@ -663,7 +713,10 @@ export async function revokeAuthorizedDeviceTrust(
   authedFetch: AuthedFetch,
   deviceIdentifier: string
 ): Promise<void> {
-  const resp = await authedFetch(`/api/devices/authorized/${encodeURIComponent(deviceIdentifier)}`, { method: 'DELETE' });
+  const resp = await authedFetch(
+    `/api/devices/authorized/${encodeURIComponent(deviceIdentifier)}`,
+    { method: 'DELETE' }
+  );
   if (!resp.ok) throw new Error(t('txt_revoke_device_trust_failed'));
 }
 
@@ -676,7 +729,9 @@ export async function deleteAuthorizedDevice(
   authedFetch: AuthedFetch,
   deviceIdentifier: string
 ): Promise<void> {
-  const resp = await authedFetch(`/api/devices/${encodeURIComponent(deviceIdentifier)}`, { method: 'DELETE' });
+  const resp = await authedFetch(`/api/devices/${encodeURIComponent(deviceIdentifier)}`, {
+    method: 'DELETE',
+  });
   if (!resp.ok) throw new Error(t('txt_remove_device_failed'));
 }
 
@@ -700,7 +755,10 @@ export async function deleteAllAuthorizedDevices(authedFetch: AuthedFetch): Prom
   if (!resp.ok) throw new Error(t('txt_remove_all_devices_failed'));
 }
 
-export async function getApiKey(authedFetch: AuthedFetch, masterPasswordHash: string): Promise<string> {
+export async function getApiKey(
+  authedFetch: AuthedFetch,
+  masterPasswordHash: string
+): Promise<string> {
   const resp = await authedFetch('/api/accounts/api-key', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -714,7 +772,10 @@ export async function getApiKey(authedFetch: AuthedFetch, masterPasswordHash: st
   return String(body.apiKey || '');
 }
 
-export async function rotateApiKey(authedFetch: AuthedFetch, masterPasswordHash: string): Promise<string> {
+export async function rotateApiKey(
+  authedFetch: AuthedFetch,
+  masterPasswordHash: string
+): Promise<string> {
   const resp = await authedFetch('/api/accounts/rotate-api-key', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

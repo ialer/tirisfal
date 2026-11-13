@@ -201,6 +201,9 @@ curl -X POST $API/api/agent-proposals \
 | `TRUST_CLIENT_IP_HEADER` | optional | Only when `1` is the header trusted (required on Cloudflare edge or behind your own proxy; otherwise the header is ignored and `allowed_ip` fails closed) |
 | `PROXY_SHARED_SECRET` | optional | Proxy shared secret; blocks direct-to-worker spoofing |
 | `OUTBOUND_DNS_GUARD` | optional | `1` enables per-request DNS resolution checks (off by default) |
+| `YUBICO_CLIENT_ID` | optional | YubiCloud client id; YubiKey OTP 2FA is enabled only when paired with `YUBICO_SECRET` |
+| `YUBICO_SECRET` | optional | YubiCloud base64 secret; keep it in the secrets file |
+| `YUBICO_VALIDATION_URL` | optional | Self-hosted yubikey-val URL; defaults to YubiCloud |
 
 ---
 

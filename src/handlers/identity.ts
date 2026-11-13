@@ -3,6 +3,7 @@ import { AuthService } from '../services/auth';
 import { RateLimitService } from '../services/ratelimit';
 import { StorageService } from '../services/storage';
 import { buildUserTokenResponse } from '../services/token-response';
+import { hashOtp, verifyYubikeyOtp } from '../services/yubikey';
 import type { Env, TokenResponse } from '../types';
 import { getClientIdentifier } from '../utils/client-ip';
 import { readAuthRequestDeviceInfo } from '../utils/device';
@@ -21,6 +22,7 @@ import { issueSendAccessToken } from './sends';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
+const TWO_FACTOR_PROVIDER_YUBIKEY = 3;
 const TWO_FACTOR_PROVIDER_REMEMBER = 5;
 const WEB_REFRESH_COOKIE = 'tirisfal_web_refresh';
 // Android client (2026.2.x) deserializes TwoFactorProviders2 keys with -1 for recovery code.
@@ -112,11 +114,14 @@ function buildPreloginResponse(
 
 function twoFactorRequiredResponse(
   message: string = 'Two factor required.',
-  includeRecoveryCode: boolean = false
+  includeRecoveryCode: boolean = false,
+  includeYubikey: boolean = false,
+  includeTotp: boolean = true
 ): Response {
-  const providers = includeRecoveryCode
-    ? [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR), TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE]
-    : [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)];
+  const providers: string[] = [];
+  if (includeTotp) providers.push(String(TWO_FACTOR_PROVIDER_AUTHENTICATOR));
+  if (includeYubikey) providers.push(String(TWO_FACTOR_PROVIDER_YUBIKEY));
+  if (includeRecoveryCode) providers.push(TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE);
   const providers2: Record<string, null> = {};
   for (const provider of providers) providers2[provider] = null;
   const customResponse = {
@@ -302,7 +307,8 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     let trustedTwoFactorTokenToReturn: string | undefined;
     const decryptedTotpSecret = await decryptTotpSecret(env, user.totpSecret);
     const effectiveTotpSecret = resolveTotpSecret(decryptedTotpSecret);
-    if (effectiveTotpSecret) {
+    const yubikeyCount = await storage.countYubikeys(user.id);
+    if (effectiveTotpSecret || yubikeyCount > 0) {
       const canUseRecoveryCode = !!user.totpRecoveryCode;
       const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
       const normalizedTwoFactorToken = String(twoFactorToken ?? '').trim();
@@ -315,7 +321,12 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       // Upstream-compatible behavior: if 2FA is required and either provider or token is missing,
       // respond with a 2FA challenge payload.
       if (!hasProvider || !hasToken) {
-        return twoFactorRequiredResponse('Two factor required.', canUseRecoveryCode);
+        return twoFactorRequiredResponse(
+          'Two factor required.',
+          canUseRecoveryCode,
+          yubikeyCount > 0,
+          !!effectiveTotpSecret
+        );
       }
 
       let passedByRememberToken = false;
@@ -330,9 +341,21 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
         // Remember token missing/invalid/expired should re-enter the 2FA challenge flow.
         if (!passedByRememberToken) {
-          return twoFactorRequiredResponse('Two factor required.', canUseRecoveryCode);
+          return twoFactorRequiredResponse(
+            'Two factor required.',
+            canUseRecoveryCode,
+            yubikeyCount > 0,
+            !!effectiveTotpSecret
+          );
         }
       } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)) {
+        if (!effectiveTotpSecret) {
+          return recordFailedTwoFactorAndBuildResponse(
+            rateLimit,
+            loginIdentifier,
+            clientIdentifier
+          );
+        }
         const totpResult = await verifyTotpTokenWithStep(
           effectiveTotpSecret,
           normalizedTwoFactorToken
@@ -376,6 +399,39 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
               clientIdentifier
             );
           }
+        }
+      } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_YUBIKEY)) {
+        const yubi = await verifyYubikeyOtp(env, normalizedTwoFactorToken);
+        const bound =
+          yubi.ok && yubi.publicId
+            ? await storage.findYubikeyByPublicId(user.id, yubi.publicId)
+            : null;
+        const otpHash = await hashOtp(normalizedTwoFactorToken);
+        // 本地防重放兜底：同一 OTP 不能重复使用（YubiCloud 正常也会返回 REPLAYED_OTP）
+        if (!yubi.ok || !bound || bound.last_otp_hash === otpHash) {
+          return recordFailedTwoFactorAndBuildResponse(
+            rateLimit,
+            loginIdentifier,
+            clientIdentifier
+          );
+        }
+        await storage.setYubikeyLastOtpHash(user.id, bound.id, otpHash);
+        try {
+          await env.DB.prepare(
+            'INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          )
+            .bind(
+              crypto.randomUUID(),
+              user.id,
+              'yubikey.login',
+              'yubikey',
+              (yubi.publicId || '').slice(0, 4),
+              JSON.stringify({ provider: 'yubikey' }),
+              new Date().toISOString()
+            )
+            .run();
+        } catch {
+          // 审计失败不阻断登录
         }
       } else if (
         normalizedTwoFactorProvider === TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE ||
