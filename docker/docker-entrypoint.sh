@@ -23,6 +23,15 @@ fi
 cp "$SECRETS_FILE" "$RUNTIME_DIR/.dev.vars"
 chmod 600 "$RUNTIME_DIR/.dev.vars"
 
+# wrangler dev 只读 .dev.vars / 配置里的 vars，不会把容器环境变量注入 worker。
+# 这里把非敏感的运行开关从环境变量追加进去（敏感密钥仍只走挂载文件）。
+for key in CLIENT_IP_HEADER TRUST_CLIENT_IP_HEADER OUTBOUND_DNS_GUARD; do
+  val=$(printenv "$key" || true)
+  if [ -n "$val" ]; then
+    printf '%s=%s\n' "$key" "$val" >> "$RUNTIME_DIR/.dev.vars"
+  fi
+done
+
 for key in JWT_SECRET ENCRYPTION_KEY; do
   grep -qE "^${key}=.+" "$RUNTIME_DIR/.dev.vars" || fail "missing ${key} in $SECRETS_FILE"
 done
@@ -62,8 +71,11 @@ applied_count() {
 APPLIED=$(applied_count)
 if [ "$APPLIED" -lt "$EXPECTED" ]; then
   log "applying D1 migrations ($APPLIED/$EXPECTED)"
-  timeout 240 flock "$STATE_DIR/.migrate.lock" \
+  # CI=1 让 wrangler 迁移后正常退出；否则它会挂住不返回（4.71 已知行为），
+  # 之前用 background+轮询 sqlite 账本会和 workerd 抢锁（SQLITE_BUSY），不可取。
+  CI=1 timeout 120 flock "$STATE_DIR/.migrate.lock" \
     wrangler d1 migrations apply DB --local --persist-to "$STATE_DIR" -c "$RUNTIME_DIR/wrangler.toml" < /dev/null || true
+  APPLIED=$(applied_count)
 fi
 
 APPLIED=$(applied_count)
