@@ -787,7 +787,7 @@ export class SecretsManagerService {
   async logSecretAccess(
     machineAccountId: string | null,
     userId: string | null,
-    secretId: string,
+    secretId: string | null,
     action: string,
     ipAddress: string | null,
     userAgent: string | null,

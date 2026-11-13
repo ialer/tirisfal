@@ -615,14 +615,15 @@ export async function handleSecrets(
       }
 
       await smService.deleteSecret(secretId);
+      // secret 已删除：审计的 secret_id 置空，删除事实与 id 留在 metadata 里
       await smService.logSecretAccess(
         machineAccountId ?? null,
         machineAccountId ? null : userId,
-        secretId,
+        null,
         'delete',
         getClientIpAddress(request, env),
         request.headers.get('User-Agent'),
-        {},
+        { deleted_secret_id: secretId, name: secret.name },
         secret.project_id,
         secret.environment
       );
