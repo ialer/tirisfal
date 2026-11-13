@@ -52,8 +52,17 @@ export default function AgentProposalPanel({ authedFetch, session }: Props) {
     void load();
   }, []);
 
+  const errorText = async (resp: Response, fallback: string): Promise<string> => {
+    try {
+      const body = (await resp.json()) as { error_description?: string; error?: string };
+      return body.error_description || body.error || `${fallback} (${resp.status})`;
+    } catch {
+      return `${fallback} (${resp.status})`;
+    }
+  };
+
   const accept = async (item: AgentProposal) => {
-    if (!session) {
+    if (!session?.symEncKey || !session?.symMacKey) {
       setError(t('agent_proposals_locked') || '请先解锁密码库');
       return;
     }
@@ -133,6 +142,7 @@ export default function AgentProposalPanel({ authedFetch, session }: Props) {
               <tr>
                 <th>{t('agent_proposals_name') || '名称'}</th>
                 <th>{t('agent_proposals_project') || '项目'}</th>
+                <th>{t('agent_proposals_environment') || '环境'}</th>
                 <th>{t('agent_proposals_expires') || '过期时间'}</th>
                 <th style={{ width: '160px' }} />
               </tr>
@@ -142,7 +152,8 @@ export default function AgentProposalPanel({ authedFetch, session }: Props) {
                 <tr key={item.id}>
                   <td>{item.name}</td>
                   <td>{item.project_name || item.project_id}</td>
-                  <td>{new Date(item.expires_at).toLocaleString()}</td>
+                  <td>{item.environment}</td>
+                  <td>{new Date(item.expires_at).toLocaleDateString()}</td>
                   <td>
                     <div className="flex gap-2">
                       <button
@@ -155,6 +166,8 @@ export default function AgentProposalPanel({ authedFetch, session }: Props) {
                       <button
                         className="btn btn-secondary btn-sm"
                         disabled={busy === item.id}
+                        aria-label={t('agent_proposals_reject') || '拒绝该提议'}
+                        title={t('agent_proposals_reject') || '拒绝该提议'}
                         onClick={() => void reject(item)}
                       >
                         <Trash2 size={14} />

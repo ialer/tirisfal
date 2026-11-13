@@ -186,7 +186,7 @@ curl -X POST $API/api/agent-proposals \
 #    浏览器端用主密钥加密后调用 /api/ciphers，随后自动删除提议
 ```
 
-- 提议值用服务端 `ENCRYPTION_KEY`（v3）加密暂存，默认 30 天过期
+- 提议值用服务端 `ENCRYPTION_KEY`（v3）加密暂存，默认 30 天过期；可选 `note` 为明文存储（仅属主可见）
 - 读取单条提议明文只允许**属主用户**；机器账号不能读取
 - 确认时加密发生在浏览器，零知识不被破坏
 
@@ -201,6 +201,7 @@ curl -X POST $API/api/agent-proposals \
 | `TOTP_SECRET` | 可选 | TOTP 密钥独立加密密钥；未设时回退 `ENCRYPTION_KEY`。轮换它会让已加密的 TOTP 密钥无法解密 |
 | `BACKUP_ENCRYPTION_KEY` | 可选 | 备份运行时密钥；未设时回退 `JWT_SECRET` |
 | `CLIENT_IP_HEADER` | 可选 | 客户端 IP 头名；默认 `CF-Connecting-IP` |
+| `TRUST_CLIENT_IP_HEADER` | 可选 | `1` 才采信上面的头（Cloudflare 边缘或自有反代必须显式开启；不开则忽略头，`allowed_ip` fail-closed） |
 | `PROXY_SHARED_SECRET` | 可选 | 反代共享密钥；设置后直连 worker 无法伪造客户端 IP |
 | `OUTBOUND_DNS_GUARD` | 可选 | `1` 开启注入目标逐次 DNS 解析校验；默认关闭 |
 

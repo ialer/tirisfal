@@ -258,12 +258,14 @@ export default function SecretsManagerPage(props: SecretsManagerProps) {
             <RefreshCw size={16} className={loading ? 'spin' : ''} />
             {t('txt_refresh') || '刷新'}
           </button>
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} />
-            {activeTab === 'accounts' && '创建账户'}
-            {activeTab === 'projects' && '创建项目'}
-            {activeTab === 'secrets' && '创建密钥'}
-          </button>
+          {activeTab !== 'proposals' && (
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} />
+              {activeTab === 'accounts' && '创建账户'}
+              {activeTab === 'projects' && '创建项目'}
+              {activeTab === 'secrets' && '创建密钥'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -498,7 +500,7 @@ export default function SecretsManagerPage(props: SecretsManagerProps) {
         </>
       )}
 
-      {showCreateModal && (
+      {showCreateModal && activeTab !== 'proposals' && (
         <div className="dialog-overlay" onClick={() => setShowCreateModal(false)}>
           <div className="dialog slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="dialog-header">
