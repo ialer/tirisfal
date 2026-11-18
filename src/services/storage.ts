@@ -346,6 +346,26 @@ export class StorageService {
       .run();
   }
 
+  /** 原子占用一次 OTP：只有 hash 变化且属于该用户时 changes=1，用于防并发重放 */
+  async claimYubikeyOtp(userId: string, id: string, hash: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        'UPDATE user_yubikeys SET last_otp_hash = ?, last_used_at = ? ' +
+          'WHERE id = ? AND user_id = ? AND (last_otp_hash IS NULL OR last_otp_hash <> ?)'
+      )
+      .bind(hash, new Date().toISOString(), id, userId, hash)
+      .run();
+    return Number(result.meta.changes || 0) > 0;
+  }
+
+  async deleteAllYubikeys(userId: string): Promise<number> {
+    const result = await this.db
+      .prepare('DELETE FROM user_yubikeys WHERE user_id = ?')
+      .bind(userId)
+      .run();
+    return Number(result.meta.changes || 0);
+  }
+
   async updateUserTotpLastUsedStep(userId: string, step: number): Promise<boolean> {
     return updateStoredUserTotpLastUsedStep(this.db, userId, step);
   }

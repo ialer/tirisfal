@@ -788,3 +788,51 @@ export async function rotateApiKey(
   const body = (await parseJson<{ apiKey?: string }>(resp)) || {};
   return String(body.apiKey || '');
 }
+export interface YubikeyInfo {
+  id: string;
+  name: string | null;
+  publicId: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export async function listYubikeys(
+  authedFetch: AuthedFetch
+): Promise<{ data: YubikeyInfo[]; enabled: boolean }> {
+  const resp = await authedFetch('/two-factor/yubikey');
+  if (!resp.ok) throw new Error('Failed to load YubiKeys');
+  const body = (await parseJson<{ data?: YubikeyInfo[]; enabled?: boolean }>(resp)) || {};
+  return { data: body.data || [], enabled: Boolean(body.enabled) };
+}
+
+export async function addYubikey(
+  authedFetch: AuthedFetch,
+  masterPasswordHash: string,
+  otp: string,
+  name: string
+): Promise<{ recoveryCode?: string }> {
+  const resp = await authedFetch('/two-factor/yubikey', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ masterPasswordHash, otp, name }),
+  });
+  if (!resp.ok) {
+    const body = await parseJson<TokenError>(resp);
+    throw new Error(body?.error_description || body?.error || 'Failed to bind YubiKey');
+  }
+  const body = (await parseJson<{ recoveryCode?: string }>(resp)) || {};
+  return { recoveryCode: body.recoveryCode };
+}
+
+export async function deleteYubikey(
+  authedFetch: AuthedFetch,
+  id: string,
+  masterPasswordHash: string
+): Promise<void> {
+  const resp = await authedFetch(`/two-factor/yubikey/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ masterPasswordHash }),
+  });
+  if (!resp.ok) throw new Error('Failed to remove YubiKey');
+}

@@ -199,6 +199,10 @@ Agent 生成或获取的密码先暂存为「待确认提议」，人类在 Web�
 
 登录第二步仍走 `POST /identity/connect/token`，`twoFactorProvider=3`、`twoFactorToken=<按一下钥匙产生的 OTP>`。
 
+### Admin: Reset 2FA
+
+POST /api/admin/users/:id/2fa-reset（管理员）— 清空该用户 TOTP、恢复码与全部 YubiKey，并吊销 refresh token；用于丢钥匙/丢设备救援。返回 success/removedYubikeys，写 admin.user.reset_2fa 审计。
+
 ## Error Responses
 
 ```json

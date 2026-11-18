@@ -975,6 +975,17 @@ const zhCN: Record<string, string> = {
   nav_machine_accounts: '机器账户',
   nav_projects: '项目',
   nav_secrets: '密钥',
+  "yubikey_title": "YubiKey（物理钥匙）",
+  "yubikey_disabled": "服务端未配置 YubiCloud，暂不可用",
+  "yubikey_empty": "尚未绑定 YubiKey",
+  "yubikey_unnamed": "未命名",
+  "yubikey_name": "名称（可选）",
+  "yubikey_otp": "按一下钥匙，粘贴 44 位 OTP",
+  "yubikey_password": "主密码（确认操作）",
+  "yubikey_bind": "绑定",
+  "yubikey_bound": "YubiKey 已绑定",
+  "yubikey_remove": "解绑",
+  "yubikey_recovery_once": "请立即保存恢复码（只显示一次）"
 };
 
 export default zhCN;

@@ -1054,6 +1054,17 @@ const es: Record<string, string> = {
   nav_machine_accounts: 'Cuentas de máquina',
   nav_projects: 'Proyectos',
   nav_secrets: 'Secretos',
+  "yubikey_title": "YubiKey (llave física)",
+  "yubikey_disabled": "YubiCloud no está configurado en el servidor",
+  "yubikey_empty": "Aún no hay YubiKey vinculada",
+  "yubikey_unnamed": "Sin nombre",
+  "yubikey_name": "Nombre (opcional)",
+  "yubikey_otp": "Pulsa la llave y pega el OTP de 44 caracteres",
+  "yubikey_password": "Contraseña maestra (confirmar)",
+  "yubikey_bind": "Vincular",
+  "yubikey_bound": "YubiKey vinculada",
+  "yubikey_remove": "Desvincular",
+  "yubikey_recovery_once": "Guarda este código de recuperación (se muestra una vez)"
 };
 
 export default es;

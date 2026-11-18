@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-preact';
 import { useState } from 'preact/hooks';
 import { Eye, EyeOff, Lock, Mail, User, ArrowRight } from 'lucide-preact';
 
@@ -59,7 +60,7 @@ function InputField({
   autoFocus?: boolean;
   autoComplete?: string;
   placeholder?: string;
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  icon?: LucideIcon;
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === 'password';

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     deleteYubikey: vi.fn(),
     findYubikeyByPublicId: vi.fn(),
     findYubikeyOwner: vi.fn(),
+    saveUser: vi.fn(),
     setYubikeyLastOtpHash: vi.fn(),
     touchYubikey: vi.fn(),
   },
@@ -27,6 +28,7 @@ vi.mock('../../src/services/storage', () => ({
 }));
 vi.mock('../../src/services/auth', () => ({
   AuthService: class {
+    static invalidateUserCache() {}
     constructor() {
       return mocks.auth;
     }
@@ -71,6 +73,7 @@ describe('YubiKey 管理接口', () => {
     storage.listYubikeys.mockResolvedValue([]);
     storage.findYubikeyByPublicId.mockResolvedValue(null);
     storage.findYubikeyOwner.mockResolvedValue(null);
+    storage.saveUser.mockResolvedValue(undefined);
     storage.setYubikeyLastOtpHash.mockResolvedValue(undefined);
     mocks.rate.consumeBudget.mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
     auth.verifyPassword.mockResolvedValue(true);
@@ -104,6 +107,10 @@ describe('YubiKey 管理接口', () => {
     });
     expect(resp.status).toBe(200);
     expect(storage.addYubikey).toHaveBeenCalledWith(USER, 'ccccccbcgujh', 'work key');
+    // 首次绑定且没有恢复码时，服务端生成一次并回传
+    const body = await resp.json();
+    expect(typeof body.recoveryCode).toBe('string');
+    expect(storage.saveUser).toHaveBeenCalled();
   });
 
   it('触发限速时返回 429', async () => {

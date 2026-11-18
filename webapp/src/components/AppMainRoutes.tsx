@@ -339,6 +339,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
             )}
             <Suspense fallback={<RouteContentFallback />}>
               <SettingsPage
+                authedFetch={props.authedFetch}
                 profile={props.profile}
                 totpEnabled={props.totpEnabled}
                 lockTimeoutMinutes={props.lockTimeoutMinutes}

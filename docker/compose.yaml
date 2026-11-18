@@ -46,7 +46,9 @@ services:
       # 可选加固：与本文件下方 caddy 的 PROXY_SHARED_SECRET 值保持一致
       # PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:-}
     networks:
+      # edge 用于被 Caddy 访问；egress 提供出网能力（YubiCloud、WebDAV 备份、图标代理）
       - edge
+      - egress
     expose:
       - '8787'
 
@@ -97,5 +99,5 @@ networks:
   # 内部网络：worker 只在这里，不直接对外
   edge:
     internal: true
-  # 出网网络：仅 cloudflared 使用（拉取 CF 边缘连接）
+  # 出网网络：worker 校验/备份/图标代理 + cloudflared 使用
   egress: {}

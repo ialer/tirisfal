@@ -5,13 +5,19 @@ import qrcode from 'qrcode-generator';
 import type { Profile } from '@/lib/types';
 import { AVAILABLE_LOCALES, getLocale, setLocale, t, type Locale } from '@/lib/i18n';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import YubikeySettings from '@/components/YubikeySettings';
 
 interface SettingsPageProps {
+  authedFetch?: (url: string, init?: RequestInit) => Promise<Response>;
   profile: Profile;
   totpEnabled: boolean;
   lockTimeoutMinutes: 0 | 1 | 5 | 15 | 30;
   sessionTimeoutAction: 'lock' | 'logout';
-  onChangePassword: (currentPassword: string, nextPassword: string, nextPassword2: string) => Promise<void>;
+  onChangePassword: (
+    currentPassword: string,
+    nextPassword: string,
+    nextPassword2: string
+  ) => Promise<void>;
   onSavePasswordHint: (masterPasswordHint: string) => Promise<void>;
   onEnableTotp: (secret: string, token: string) => Promise<void>;
   onOpenDisableTotp: () => void;
@@ -76,7 +82,9 @@ export default function SettingsPage(props: SettingsPageProps) {
   const [apiKey, setApiKey] = useState('');
   const [rotateApiKeyConfirmOpen, setRotateApiKeyConfirmOpen] = useState(false);
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
-  const [masterPasswordPrompt, setMasterPasswordPrompt] = useState<null | 'recovery' | 'apiKey' | 'rotateApiKey'>(null);
+  const [masterPasswordPrompt, setMasterPasswordPrompt] = useState<
+    null | 'recovery' | 'apiKey' | 'rotateApiKey'
+  >(null);
   const [masterPasswordPromptValue, setMasterPasswordPromptValue] = useState('');
   const [masterPasswordPromptSubmitting, setMasterPasswordPromptSubmitting] = useState(false);
   const [selectedLocale, setSelectedLocale] = useState<Locale>(() => getLocale());
@@ -148,7 +156,10 @@ export default function SettingsPage(props: SettingsPageProps) {
       setMasterPasswordPrompt(null);
       setMasterPasswordPromptValue('');
     } catch (error) {
-      props.onNotify?.('error', error instanceof Error ? error.message : t('txt_master_password_is_required_2'));
+      props.onNotify?.(
+        'error',
+        error instanceof Error ? error.message : t('txt_master_password_is_required_2')
+      );
     } finally {
       setMasterPasswordPromptSubmitting(false);
     }
@@ -185,7 +196,11 @@ export default function SettingsPage(props: SettingsPageProps) {
             <select
               className="input"
               value={String(props.lockTimeoutMinutes)}
-              onInput={(e) => props.onLockTimeoutChange(Number((e.currentTarget as HTMLSelectElement).value) as 0 | 1 | 5 | 15 | 30)}
+              onInput={(e) =>
+                props.onLockTimeoutChange(
+                  Number((e.currentTarget as HTMLSelectElement).value) as 0 | 1 | 5 | 15 | 30
+                )
+              }
             >
               {LOCK_TIMEOUT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -199,7 +214,11 @@ export default function SettingsPage(props: SettingsPageProps) {
             <select
               className="input"
               value={props.sessionTimeoutAction}
-              onInput={(e) => props.onSessionTimeoutActionChange((e.currentTarget as HTMLSelectElement).value === 'logout' ? 'logout' : 'lock')}
+              onInput={(e) =>
+                props.onSessionTimeoutActionChange(
+                  (e.currentTarget as HTMLSelectElement).value === 'logout' ? 'logout' : 'lock'
+                )
+              }
             >
               <option value="logout">{t('txt_timeout_action_logout')}</option>
               <option value="lock">{t('txt_timeout_action_lock')}</option>
@@ -208,6 +227,14 @@ export default function SettingsPage(props: SettingsPageProps) {
         </div>
       </section>
 
+      {props.authedFetch ? (
+        <YubikeySettings
+          authedFetch={props.authedFetch}
+          email={props.profile.email}
+          onNotify={props.onNotify}
+        />
+      ) : null}
+
       <section className="card settings-module">
         <h3>{t('txt_language')}</h3>
         <label className="field">
@@ -215,7 +242,9 @@ export default function SettingsPage(props: SettingsPageProps) {
           <select
             className="input"
             value={selectedLocale}
-            onInput={(e) => void changeLocale((e.currentTarget as HTMLSelectElement).value as Locale)}
+            onInput={(e) =>
+              void changeLocale((e.currentTarget as HTMLSelectElement).value as Locale)
+            }
           >
             {AVAILABLE_LOCALES.map((option) => (
               <option key={option.value} value={option.value}>
@@ -241,11 +270,21 @@ export default function SettingsPage(props: SettingsPageProps) {
         <div className="field-grid">
           <label className="field">
             <span>{t('txt_new_password')}</span>
-            <input className="input" type="password" value={newPassword} onInput={(e) => setNewPassword((e.currentTarget as HTMLInputElement).value)} />
+            <input
+              className="input"
+              type="password"
+              value={newPassword}
+              onInput={(e) => setNewPassword((e.currentTarget as HTMLInputElement).value)}
+            />
           </label>
           <label className="field">
             <span>{t('txt_confirm_password')}</span>
-            <input className="input" type="password" value={newPassword2} onInput={(e) => setNewPassword2((e.currentTarget as HTMLInputElement).value)} />
+            <input
+              className="input"
+              type="password"
+              value={newPassword2}
+              onInput={(e) => setNewPassword2((e.currentTarget as HTMLInputElement).value)}
+            />
           </label>
         </div>
         <button
@@ -292,7 +331,14 @@ export default function SettingsPage(props: SettingsPageProps) {
               <label className="field">
                 <span>{t('txt_authenticator_key')}</span>
                 <div className="totp-secret-input-wrap">
-                  <input className="input totp-secret-input" value={secret} disabled={totpLocked} onInput={(e) => setSecret((e.currentTarget as HTMLInputElement).value.toUpperCase())} />
+                  <input
+                    className="input totp-secret-input"
+                    value={secret}
+                    disabled={totpLocked}
+                    onInput={(e) =>
+                      setSecret((e.currentTarget as HTMLInputElement).value.toUpperCase())
+                    }
+                  />
                   <div className="totp-secret-actions">
                     <button
                       type="button"
@@ -311,7 +357,9 @@ export default function SettingsPage(props: SettingsPageProps) {
                       title={t('txt_copy_secret')}
                       aria-label={t('txt_copy_secret')}
                       onClick={() => {
-                        void copyTextToClipboard(secret, { successMessage: t('txt_secret_copied') });
+                        void copyTextToClipboard(secret, {
+                          successMessage: t('txt_secret_copied'),
+                        });
                       }}
                     >
                       <Clipboard size={14} className="btn-icon" />
@@ -321,14 +369,29 @@ export default function SettingsPage(props: SettingsPageProps) {
               </label>
               <label className="field">
                 <span>{t('txt_verification_code')}</span>
-                <input className="input" value={token} disabled={totpLocked} onInput={(e) => setToken((e.currentTarget as HTMLInputElement).value)} />
+                <input
+                  className="input"
+                  value={token}
+                  disabled={totpLocked}
+                  onInput={(e) => setToken((e.currentTarget as HTMLInputElement).value)}
+                />
               </label>
               <div className="actions">
-                <button type="button" className="btn btn-primary" disabled={totpLocked} onClick={() => void enableTotp()}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={totpLocked}
+                  onClick={() => void enableTotp()}
+                >
                   <ShieldCheck size={14} className="btn-icon" />
                   {totpLocked ? t('txt_enabled') : t('txt_enable_totp')}
                 </button>
-                <button type="button" className="btn btn-danger" disabled={!totpLocked} onClick={props.onOpenDisableTotp}>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={!totpLocked}
+                  onClick={props.onOpenDisableTotp}
+                >
                   <ShieldOff size={14} className="btn-icon" />
                   {t('txt_disable_totp')}
                 </button>
@@ -345,11 +408,17 @@ export default function SettingsPage(props: SettingsPageProps) {
             <div>
               <h4>{t('txt_recovery_code')}</h4>
               <p className="muted-inline settings-field-note">
-                {t('txt_this_is_a_one_time_code_after_it_is_used_a_new_code_is_generated_automatically')}
+                {t(
+                  'txt_this_is_a_one_time_code_after_it_is_used_a_new_code_is_generated_automatically'
+                )}
               </p>
             </div>
             <div className="actions">
-              <button type="button" className="btn btn-secondary" onClick={() => openMasterPasswordPrompt('recovery')}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => openMasterPasswordPrompt('recovery')}
+              >
                 <ShieldCheck size={14} className="btn-icon" />
                 {t('txt_view_recovery_code')}
               </button>
@@ -358,7 +427,9 @@ export default function SettingsPage(props: SettingsPageProps) {
                 className="btn btn-secondary"
                 disabled={!recoveryCode}
                 onClick={() => {
-                  void copyTextToClipboard(recoveryCode, { successMessage: t('txt_recovery_code_copied') });
+                  void copyTextToClipboard(recoveryCode, {
+                    successMessage: t('txt_recovery_code_copied'),
+                  });
                 }}
               >
                 <Clipboard size={14} className="btn-icon" />
@@ -378,7 +449,11 @@ export default function SettingsPage(props: SettingsPageProps) {
               <p className="muted-inline settings-field-note">{t('txt_api_key_dialog_intro')}</p>
             </div>
             <div className="actions">
-              <button type="button" className="btn btn-secondary" onClick={() => openMasterPasswordPrompt('apiKey')}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => openMasterPasswordPrompt('apiKey')}
+              >
                 <KeyRound size={14} className="btn-icon" />
                 {t('txt_view_api_key')}
               </button>
@@ -394,8 +469,16 @@ export default function SettingsPage(props: SettingsPageProps) {
           </div>
         </div>
       </section>
-      <section className="card settings-module" style={{ textAlign: 'center', padding: '16px', opacity: 0.7, fontSize: '12px' }}>
-        <a href="https://github.com/ialer/tirisfal" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+      <section
+        className="card settings-module"
+        style={{ textAlign: 'center', padding: '16px', opacity: 0.7, fontSize: '12px' }}
+      >
+        <a
+          href="https://github.com/ialer/tirisfal"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: 'var(--primary)', textDecoration: 'none' }}
+        >
           Tirisfal · GitHub
         </a>
       </section>
@@ -417,7 +500,9 @@ export default function SettingsPage(props: SettingsPageProps) {
             type="password"
             autoComplete="current-password"
             value={masterPasswordPromptValue}
-            onInput={(e) => setMasterPasswordPromptValue((e.currentTarget as HTMLInputElement).value)}
+            onInput={(e) =>
+              setMasterPasswordPromptValue((e.currentTarget as HTMLInputElement).value)
+            }
           />
         </label>
       </ConfirmDialog>
@@ -440,20 +525,29 @@ export default function SettingsPage(props: SettingsPageProps) {
             <KeyRound size={15} />
             <span>{t('txt_oauth_client_credentials')}</span>
           </div>
-          {([
-            [t('txt_client_id'), `user.${props.profile.id}`],
-            [t('txt_client_secret'), apiKey],
-            [t('txt_scope'), 'api'],
-            [t('txt_grant_type'), 'client_credentials'],
-          ] as [string, string][]).map(([label, value]) => (
+          {(
+            [
+              [t('txt_client_id'), `user.${props.profile.id}`],
+              [t('txt_client_secret'), apiKey],
+              [t('txt_scope'), 'api'],
+              [t('txt_grant_type'), 'client_credentials'],
+            ] as [string, string][]
+          ).map(([label, value]) => (
             <label key={label} className="field">
               <span>{label}</span>
               <div className="api-key-credential-row">
-                <input className="input" readOnly value={value} onFocus={(e) => (e.currentTarget as HTMLInputElement).select()} />
+                <input
+                  className="input"
+                  readOnly
+                  value={value}
+                  onFocus={(e) => (e.currentTarget as HTMLInputElement).select()}
+                />
                 <button
                   type="button"
                   className="btn btn-secondary small"
-                  onClick={() => void copyTextToClipboard(value, { successMessage: t('txt_copied') })}
+                  onClick={() =>
+                    void copyTextToClipboard(value, { successMessage: t('txt_copied') })
+                  }
                 >
                   <Clipboard size={14} className="btn-icon" />
                   {t('txt_copy')}

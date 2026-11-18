@@ -297,3 +297,28 @@ export async function handleAdminDeleteUser(
 
   return new Response(null, { status: 204 });
 }
+/** 管理员重置某用户的 2FA（TOTP + 全部 YubiKey），用于丢钥匙/丢设备的救援。 */
+export async function handleAdminReset2FA(
+  request: Request,
+  env: Env,
+  actorUser: User,
+  targetUserId: string
+): Promise<Response> {
+  void request;
+  const storage = new StorageService(env.DB);
+  const target = await storage.getUserById(targetUserId);
+  if (!target) return errorResponse('User not found', 404);
+
+  target.totpSecret = null;
+  target.totpRecoveryCode = null;
+  target.updatedAt = new Date().toISOString();
+  await storage.saveUser(target);
+  const removedKeys = await storage.deleteAllYubikeys(target.id);
+  await storage.deleteRefreshTokensByUserId(target.id);
+  AuthService.invalidateUserCache(target.id);
+
+  await writeAuditLog(storage, actorUser.id, 'admin.user.reset_2fa', 'user', target.id, {
+    removed_yubikeys: removedKeys,
+  });
+  return jsonResponse({ success: true, removedYubikeys: removedKeys });
+}

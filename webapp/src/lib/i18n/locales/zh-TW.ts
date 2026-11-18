@@ -975,6 +975,17 @@ const zhTW: Record<string, string> = {
   nav_machine_accounts: '機器帳戶',
   nav_projects: '專案',
   nav_secrets: '密鑰',
+  "yubikey_title": "YubiKey（實體鑰匙）",
+  "yubikey_disabled": "伺服器未設定 YubiCloud，暫不可用",
+  "yubikey_empty": "尚未綁定 YubiKey",
+  "yubikey_unnamed": "未命名",
+  "yubikey_name": "名稱（選填）",
+  "yubikey_otp": "按一下鑰匙，貼上 44 碼 OTP",
+  "yubikey_password": "主密碼（確認操作）",
+  "yubikey_bind": "綁定",
+  "yubikey_bound": "YubiKey 已綁定",
+  "yubikey_remove": "解除綁定",
+  "yubikey_recovery_once": "請立即保存復原碼（只顯示一次）"
 };
 
 export default zhTW;

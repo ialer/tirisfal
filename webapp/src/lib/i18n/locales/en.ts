@@ -1016,6 +1016,17 @@ const en: Record<string, string> = {
   nav_machine_accounts: 'Machine Accounts',
   nav_projects: 'Projects',
   nav_secrets: 'Secrets',
+  "yubikey_title": "YubiKey (hardware key)",
+  "yubikey_disabled": "YubiCloud is not configured on this server",
+  "yubikey_empty": "No YubiKey bound yet",
+  "yubikey_unnamed": "Unnamed",
+  "yubikey_name": "Name (optional)",
+  "yubikey_otp": "Tap the key and paste the 44-char OTP",
+  "yubikey_password": "Master password (confirm)",
+  "yubikey_bind": "Bind",
+  "yubikey_bound": "YubiKey bound",
+  "yubikey_remove": "Remove",
+  "yubikey_recovery_once": "Save this recovery code now (shown once)"
 };
 
 export default en;
