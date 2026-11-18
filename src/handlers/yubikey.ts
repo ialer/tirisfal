@@ -4,6 +4,7 @@ import { RateLimitService } from '../services/ratelimit';
 import { StorageService } from '../services/storage';
 import { isYubikeyConfigured, verifyYubikeyOtp } from '../services/yubikey';
 import type { Env } from '../types';
+import { createRecoveryCode } from '../utils/recovery-code';
 import { errorResponse, jsonResponse } from '../utils/response';
 
 const LIST_PATH = '/two-factor/yubikey';
@@ -117,7 +118,27 @@ export async function handleYubikeyRoute(
 
       const name = typeof body.name === 'string' ? body.name.trim().slice(0, 64) : null;
       await storage.addYubikey(userId, result.publicId, name || null);
-      return jsonResponse({ success: true, publicId: `${result.publicId.slice(0, 4)}***` });
+
+      // YubiKey-only 用户没有 TOTP 就没有恢复码：首绑生成一次并明文返回，
+      // 否则丢钥匙等于永久锁死（恢复码分支会清空所有 YubiKey）。
+      let recoveryCode: string | undefined;
+      if (!user.totpRecoveryCode) {
+        recoveryCode = createRecoveryCode();
+        user.totpRecoveryCode = recoveryCode;
+        user.updatedAt = new Date().toISOString();
+        await storage.saveUser(user);
+        AuthService.invalidateUserCache(user.id);
+      }
+
+      await auditYubikey(env, userId, 'yubikey.bind', result.publicId, {
+        name,
+        recovery_code_generated: Boolean(recoveryCode),
+      });
+      return jsonResponse({
+        success: true,
+        publicId: `${result.publicId.slice(0, 4)}***`,
+        ...(recoveryCode ? { recoveryCode } : {}),
+      });
     }
 
     return errorResponse('Method not allowed', 405);

@@ -7,7 +7,7 @@
 > **A credential gateway for AI agents, with a Bitwarden-compatible vault attached.**
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.6.0-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.7.1-blue" alt="version">
   <img src="https://img.shields.io/badge/license-LGPL--3.0-green" alt="license">
   <img src="https://img.shields.io/badge/runtime-workerd%20%2F%20Cloudflare%20Workers-orange" alt="runtime">
   <img src="https://img.shields.io/badge/deploy-Cloudflare%20%7C%20Docker-2496ED" alt="deploy">

@@ -23,6 +23,12 @@ fi
 cp "$SECRETS_FILE" "$RUNTIME_DIR/.dev.vars"
 chmod 600 "$RUNTIME_DIR/.dev.vars"
 
+if grep -q '^YUBICO_CLIENT_ID=' "$RUNTIME_DIR/.dev.vars" 2>/dev/null; then
+  log "yubikey: enabled (YUBICO_CLIENT_ID present)"
+else
+  log "yubikey: disabled (no YUBICO_CLIENT_ID in secrets file)"
+fi
+
 # wrangler dev 只读 .dev.vars / 配置里的 vars，不会把容器环境变量注入 worker。
 # 这里把非敏感的运行开关从环境变量追加进去（敏感密钥仍只走挂载文件）。
 for key in CLIENT_IP_HEADER TRUST_CLIENT_IP_HEADER OUTBOUND_DNS_GUARD; do

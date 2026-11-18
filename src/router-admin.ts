@@ -4,6 +4,7 @@ import {
   handleAdminDeleteUser,
   handleAdminListInvites,
   handleAdminListUsers,
+  handleAdminReset2FA,
   handleAdminRevokeInvite,
   handleAdminSetUserStatus,
 } from './handlers/admin';
@@ -44,6 +45,11 @@ export async function handleAdminRoute(
   const adminUserStatusMatch = path.match(/^\/api\/admin\/users\/([a-f0-9-]+)\/status$/i);
   if (adminUserStatusMatch && (method === 'PUT' || method === 'POST')) {
     return handleAdminSetUserStatus(request, env, actorUser, adminUserStatusMatch[1]);
+  }
+
+  const adminReset2faMatch = path.match(/^\/api\/admin\/users\/([a-f0-9-]+)\/2fa-reset$/i);
+  if (adminReset2faMatch && method === 'POST') {
+    return handleAdminReset2FA(request, env, actorUser, adminReset2faMatch[1]);
   }
 
   const adminUserDeleteMatch = path.match(/^\/api\/admin\/users\/([a-f0-9-]+)$/i);

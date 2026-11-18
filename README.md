@@ -7,7 +7,7 @@
 > **给 AI Agent 用的凭证网关，顺带一个 Bitwarden 兼容密码库。**
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.6.0-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.7.1-blue" alt="version">
   <img src="https://img.shields.io/badge/license-LGPL--3.0-green" alt="license">
   <img src="https://img.shields.io/badge/runtime-workerd%20%2F%20Cloudflare%20Workers-orange" alt="runtime">
   <img src="https://img.shields.io/badge/deploy-Cloudflare%20%7C%20Docker-2496ED" alt="deploy">

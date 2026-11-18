@@ -407,15 +407,16 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
             ? await storage.findYubikeyByPublicId(user.id, yubi.publicId)
             : null;
         const otpHash = await hashOtp(normalizedTwoFactorToken);
-        // 本地防重放兜底：同一 OTP 不能重复使用（YubiCloud 正常也会返回 REPLAYED_OTP）
-        if (!yubi.ok || !bound || bound.last_otp_hash === otpHash) {
+        // 本地防重放：条件 UPDATE 原子占用，避免并发双发同时通过 hash 比对
+        const claimed =
+          yubi.ok && bound ? await storage.claimYubikeyOtp(user.id, bound.id, otpHash) : false;
+        if (!yubi.ok || !bound || !claimed) {
           return recordFailedTwoFactorAndBuildResponse(
             rateLimit,
             loginIdentifier,
             clientIdentifier
           );
         }
-        await storage.setYubikeyLastOtpHash(user.id, bound.id, otpHash);
         try {
           await env.DB.prepare(
             'INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -446,6 +447,8 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
           );
         }
         user.totpSecret = null;
+        // 恢复码是一把「重置钥匙」：已绑定的 YubiKey 一并清空，强制重新绑定
+        await storage.deleteAllYubikeys(user.id);
         user.totpRecoveryCode = createRecoveryCode();
         user.updatedAt = new Date().toISOString();
         await storage.saveUser(user);

@@ -1053,6 +1053,17 @@ const ru: Record<string, string> = {
   nav_machine_accounts: 'Машинные аккаунты',
   nav_projects: 'Проекты',
   nav_secrets: 'Секреты',
+  "yubikey_title": "YubiKey (аппаратный ключ)",
+  "yubikey_disabled": "YubiCloud не настроен на сервере",
+  "yubikey_empty": "YubiKey пока не привязан",
+  "yubikey_unnamed": "Без имени",
+  "yubikey_name": "Название (необязательно)",
+  "yubikey_otp": "Нажмите ключ и вставьте 44-символьный OTP",
+  "yubikey_password": "Мастер-пароль (подтверждение)",
+  "yubikey_bind": "Привязать",
+  "yubikey_bound": "YubiKey привязан",
+  "yubikey_remove": "Отвязать",
+  "yubikey_recovery_once": "Сохраните код восстановления (показывается один раз)"
 };
 
 export default ru;
